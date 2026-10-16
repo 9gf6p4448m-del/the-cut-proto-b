@@ -73,7 +73,13 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   const A0 = await page.evaluate(() => window.__proto.anchorScreen(0));
   await page.mouse.move(A0.x, A0.y); await page.mouse.down(); await page.mouse.move(A0.x + 3, A0.y + 3); await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 }); await page.mouse.up();
   const t10b = await page.evaluate(() => window.__proto.ui);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const before = await page.evaluate(() => ({ a: window.__proto.anchorScreen(3), c: (() => { const c = document.getElementById('board'); const r = c.getBoundingClientRect(); return { w: r.width, h: r.height, bw: c.width, bh: c.height }; })() }));
   const c1 = await findLegal(page);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const during = await page.evaluate(() => ({ a: window.__proto.anchorScreen(3), c: (() => { const c = document.getElementById('board'); const r = c.getBoundingClientRect(); return { w: r.width, h: r.height, bw: c.width, bh: c.height }; })() }));
+  const aspectOk = Math.abs(during.c.bw / during.c.bh - during.c.w / during.c.h) < 0.02;
+  check(`[${bname}] 確認面板出現時畫布不變形、錨點不移動`, aspectOk && Math.abs(before.a.x - during.a.x) < 1 && Math.abs(before.a.y - during.a.y) < 1, JSON.stringify({ before, during }));
   await page.click('#cancel');
   const h1 = await page.evaluate(() => window.__proto.stateHash(window.__proto.state));
   check(`[${bname}] T-10 起點不在錨點、放開在空處、確認前取消：狀態不變`, t10a === 'IDLE' && t10b === 'IDLE' && !!c1 && h0 === h1 && (await page.evaluate(() => window.__proto.ui)) === 'IDLE');

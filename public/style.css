@@ -12,7 +12,7 @@ header { padding:6px 10px 0; font-size:13px; }
 .hp .bar i { display:block; height:100%; background:var(--teal); transition: width .4s; }
 .hp.enemy .bar i { background:var(--blood); }
 .rules, .enemy-card { font-size:11px; opacity:.85; margin-top:2px; line-height:1.35; }
-.preview { min-height:58px; margin-top:6px; padding:6px 8px; background:#1b2029; border-radius:8px; font-size:13px; line-height:1.45; }
+.preview { height:132px; overflow:auto; margin-top:6px; padding:6px 8px; background:#1b2029; border-radius:8px; font-size:13px; line-height:1.45; }
 .preview small { opacity:.7; }
 .sideL { color:var(--purple); font-weight:bold; } .sideR { color:var(--orange); font-weight:bold; } .pierce { color:#fff; font-weight:bold; } .bad { color:#ff7a7a; }
 main { flex:1; min-height:0; position:relative; }
@@ -37,3 +37,4 @@ button:disabled { opacity:.4; }
 .who { font-size:12px; color:var(--amber); margin-top:2px; }
 #legend table { width:100%; border-collapse:collapse; font-size:12px; } #legend td, #legend th { border-bottom:1px solid #3a4150; padding:4px 2px; text-align:left; vertical-align:top; }
 .tools { flex-wrap:nowrap; } .tools button { flex:1 1 0; padding:0 4px; }
+.pending-slot { height:172px; margin-bottom:6px; } .pending-slot .pending { margin-bottom:0; }

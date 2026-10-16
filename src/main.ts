@@ -81,6 +81,9 @@ const DEV_FREEZE = new URLSearchParams(location.search).has('devfreeze');
 function deepFreeze<T>(x: T): T { if (x && typeof x === 'object' && !Object.isFrozen(x)) { Object.freeze(x); for (const v of Object.values(x as object)) deepFreeze(v); } return x; }
 function devFreeze<T>(x: T): T { return DEV_FREEZE ? deepFreeze(x) : x; }
 
+// 確認面板放在固定高度的槽位（index.html .pending-slot）：出現與消失都不改變畫布尺寸，避免器官變形、觸控座標漂移
+function setPending(show: boolean): void { els.pending.hidden = !show; }
+
 // ---------------- 開局 ----------------
 function currentSeed(): number { return G.mode === 'research6' ? RESEARCH_SEEDS[G.seedIdx % RESEARCH_SEEDS.length] : G.expSeed; }
 
@@ -152,7 +155,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (G.ui === 'PENDING') G.cancels += 1;
   els.review.hidden = true;
   G.ui = 'DRAG'; G.from = k; G.to = -1; G.hover = -1; G.pointer = p; G.part = null;
-  els.pending.hidden = true;
+  setPending(false);
   updatePreview(); draw();
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -230,7 +233,7 @@ function updatePreview(): void {
 }
 function showPending(): void {
   const p = G.part!;
-  els.pending.hidden = false;
+  setPending(true);
   els.confirm.disabled = !p.legal;
   const hasPoison = !!G.state?.board?.organs.some((o) => o.key === 'poison');
   els.baitRow.hidden = !hasPoison || !p.legal;
@@ -245,7 +248,7 @@ els.predR.onclick = () => setPrediction(G.prediction === 'R' ? null : 'R');
 els.bait.onchange = () => { G.bait = els.bait.checked; };
 els.cancel.onclick = () => {
   G.cancels += 1; G.ui = 'IDLE'; G.from = G.to = G.hover = -1; G.part = null; noteDwell();
-  els.pending.hidden = true; updatePreview(); draw();
+  setPending(false); updatePreview(); draw();
 };
 
 // ---------------- 執行（act 的唯一呼叫點） ----------------
@@ -268,7 +271,7 @@ els.confirm.onclick = () => {
     stateHashAfter: stateHash(out.state), hpAfter: { P: out.state.hp.P, E: out.state.hp.E }, events: JSON.parse(JSON.stringify(out.events)),
   });
   G.prevState = before; G.state = devFreeze(out.state); G.lastEvents = out.events;
-  G.ui = 'EXECUTE'; els.pending.hidden = true;
+  G.ui = 'EXECUTE'; setPending(false);
   G.anim = { t0: performance.now(), dur: G.skipAnim ? 0 : 1100, part, enemySide, board: before };
   renderReview(out.events, part, enemySide);
   syncHud(true);
@@ -455,6 +458,7 @@ if (legendBtn && legend) {
   legendBtn.onclick = () => { legend.hidden = !legend.hidden; };
 }
 window.addEventListener('resize', () => { layout(); draw(); });
+if ('ResizeObserver' in window) new ResizeObserver(() => { layout(); draw(); }).observe(canvas);
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
 

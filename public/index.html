@@ -28,12 +28,12 @@
 </header>
 <main><canvas id="board"></canvas></main>
 <footer>
-  <div id="pending" class="pending" hidden>
+  <div class="pending-slot"><div id="pending" class="pending" hidden>
     <div class="who">確認後：屠夫先挑走一側，你拿剩下那側</div>
     <div class="pred">你猜屠夫拿哪側？<button id="predL" class="sideL">紫側</button><button id="predR" class="sideR">橙側</button></div>
     <label id="baitRow" class="bait" hidden><input type="checkbox" id="bait"> 🎯 我想讓牠吃毒囊</label>
     <div class="actions"><button id="cancel">取消</button><button id="confirm" class="primary">確認切割</button></div>
-  </div>
+  </div></div>
   <div class="tools"><button id="legendBtn">器官說明</button><button id="skip">跳過演出</button><button id="modeBtn"></button><button id="exportBtn">複製紀錄</button><button id="updateBtn">更新</button></div>
   <div id="hint" class="hint"></div>
 </footer>
