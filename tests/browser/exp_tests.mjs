@@ -305,7 +305,15 @@ export async function runExpTests({ bname, btype, devices, url, check, logDir, s
       && !nonView.txt.includes('這刀會撕裂傷口') && !!pxTear, JSON.stringify({ cr: [cr.i, cr.j], non: [non.i, non.j], tear: tearView.txt.slice(0, 120) }));
     // 撕裂結算（回顧與紀錄）
     await cut(page, cr.i, cr.j);
-    const st2 = await page.evaluate(() => ({ wound: window.__proto.state.wound, rev: document.getElementById('preview').textContent, ev: window.__proto.lastEvents.filter((e) => e.t === 'WOUND').map((e) => e.op), rec: window.__proto.log.rounds[1] }));
+    const st2 = await page.evaluate(() => ({ wound: window.__proto.state.wound, rev: document.getElementById('preview').textContent, ev: window.__proto.lastEvents.filter((e) => e.t === 'WOUND').map((e) => e.op), rec: window.__proto.log.rounds[1],
+      steps: window.__proto.lastEvents.filter((e) => e.t === 'STEP' || e.t === 'CHOICE').map((e) => e.t === 'STEP' ? e.name : 'CHOICE') }));
+    // F-2：撕裂是本刀刀中效果之後、選邊之前的獨立步驟，回顧顯示「— 撕裂」段且位置相同
+    {
+      const iInc = st2.rev.indexOf('— 刀中效果 —'), iTear = st2.rev.indexOf('— 撕裂（封存效果 ×2）—'), iCh = st2.rev.indexOf('屠夫拿走');
+      const evOk = st2.steps.includes('TEAR') && (!st2.steps.includes('INCISION') || st2.steps.indexOf('INCISION') < st2.steps.indexOf('TEAR')) && (!st2.steps.includes('CHOICE') || st2.steps.indexOf('TEAR') < st2.steps.indexOf('CHOICE'));
+      const revOk = iTear >= 0 && (iInc < 0 || iInc < iTear) && (iCh < 0 || iTear < iCh) && st2.rev.includes('（在本刀刀中效果之後）');
+      check(`${tag} F-2 B 回顧：撕裂段「— 撕裂（封存效果 ×2）—」在本刀刀中效果之後、屠夫選邊之前`, evOk && revOk, JSON.stringify({ steps: st2.steps, iInc, iTear, iCh }));
+    }
     // 癒合：再留一次，下一刀不穿過
     info = await linesInfo(page);
     const k2 = info.lines.find((l) => l.pierced.length >= 1 && l.pierced.length <= 2);

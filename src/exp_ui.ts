@@ -94,16 +94,19 @@ export function reviewLines(events: Ev[], before: BattleState, part: Partition):
   for (const e of events) if (e.t === 'WOUND' && e.op === 'TEAR' && e.copies) e.copies.forEach((id, k) => names.set(id, `${names.get(e.organs[Math.floor(k / TEAR_MULTIPLIER)]) ?? '封存器官'}（撕裂複本）`));
   const nm = (id: number): string => names.get(id) ?? `器官#${id}`;
   const out: string[] = [];
+  // 撕裂在本刀刀中效果之後另起 TEAR 步驟（§2.4）；本刀已分出勝負時撕裂不發動、沒有 TEAR 步驟
+  const tearFired = events.some((e) => e.t === 'STEP' && e.name === 'TEAR');
   for (const e of events) {
     switch (e.t) {
       case 'PIERCE': out.push(`刀鋒穿刺：${nm(e.id)}`); break;
       case 'WOUND':
         out.push(e.op === 'KEEP' ? `留下傷口：封存 ${e.organs.map(nm).join('、')}（本回合它們的刀中效果不發動）`
-          : e.op === 'TEAR' ? `撕裂傷口：封存的 ${e.organs.map(nm).join('、')} 刀中效果各發動 ${TEAR_MULTIPLIER} 次`
+          : e.op === 'TEAR' ? (tearFired ? `撕裂傷口：封存的 ${e.organs.map(nm).join('、')} 刀中效果各發動 ${TEAR_MULTIPLIER} 次（在本刀刀中效果之後）`
+            : `撕裂傷口：本刀刀中效果已分出勝負，封存的 ${e.organs.map(nm).join('、')} 不發動`)
             : `傷口癒合：封存的 ${e.organs.map(nm).join('、')} 效果作廢`);
         break;
       case 'INC': out.push(`刀中效果：${nm(e.id)}（${e.effect === 'SPAWN_CORES' ? '兩側生成核心' : e.effect === 'SCHEDULE_SEEDLING' ? '下回合長出小再生腺' : '鏡膜被切碎'}）`); break;
-      case 'STEP': if (e.name === 'INCISION') out.push('— 刀中效果 —'); else if (e.name === 'HARVEST') out.push('— 盾、治療、傷害 —'); break;
+      case 'STEP': if (e.name === 'INCISION') out.push('— 刀中效果 —'); else if (e.name === 'TEAR') out.push(`— 撕裂（封存效果 ×${TEAR_MULTIPLIER}）—`); else if (e.name === 'HARVEST') out.push('— 盾、治療、傷害 —'); break;
       case 'CHOICE': out.push(`屠夫拿走 ${SIDE_NAME[e.side]}（${CHOICE_TEXT[e.reason] ?? e.reason}）`); break;
       case 'SHIELD': out.push(`${WHO[e.who]}獲得 ${e.n} 盾`); break;
       case 'HEAL': out.push(`${WHO[e.who]}回復 ${e.actual}`); break;

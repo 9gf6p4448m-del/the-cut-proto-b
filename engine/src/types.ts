@@ -52,6 +52,7 @@ export type Ev =
   | { t: 'PIERCE'; id: number }
   | { t: 'INC'; id: number; effect: 'SPAWN_CORES' | 'SCHEDULE_SEEDLING' | 'DESTROY' }
   | { t: 'STEP'; name: 'INCISION' | 'HARVEST' | 'ALL' | 'PLAYER' | 'ENEMY' }
+  | { t: 'STEP'; name: 'TEAR' } // FUN-EXP-01 掛鉤 X-T5（只有實驗 B 撕裂會發出）
   | { t: 'SHIELD'; who: Who; n: number; organ: number }
   | { t: 'HEAL'; who: Who; raw: number; actual: number; organ: number }
   | { t: 'DMG'; src: Who; dst: Who; kind: DmgKind; raw: number; abs: number; loss: number; organ: number }

@@ -23,6 +23,8 @@ export interface RoundInput {
   forcedChoice?: Side;
   /** 本回合在結算前已發生的效果事件數（回合開始時生成的小再生腺 SPAWN，R3 §16.9；Codex G1-R1 #2） */
   effectBase?: number;
+  /** 實驗 B 撕裂：封存器官的複本（各 TEAR_MULTIPLIER 份），在本刀刀中步驟之後另起 TEAR 步驟結算 // FUN-EXP-01 掛鉤 X-R3 */
+  tear?: Organ[];
 }
 
 export interface RoundOutput {
@@ -146,8 +148,9 @@ export function resolveRound(inp: RoundInput): RoundOutput {
     const incGains: GainSpec[] = [];
     const incDmgs: DmgSpec[] = [];
     const nonNumeric: Ev[] = [];
+    const tear = [...(inp.tear ?? [])].sort((a, b) => a.id - b.id); // FUN-EXP-01 掛鉤 X-R4（非實驗 B 為空）
     for (const o of pierced) emit({ t: 'PIERCE', id: o.id }, false);
-    for (const o of pierced) {
+    const incOf = (list: Organ[], incGains: GainSpec[], incDmgs: DmgSpec[], nonNumeric: Ev[]): void => { for (const o of list) { // FUN-EXP-01 掛鉤 X-R5
       const inc = def(o).incision;
       if (!inc) continue;
       if (inc.damage) incDmgs.push({ src: 'P', dst: 'E', kind: 'INC_DIRECT', raw: inc.damage, organ: o.id });
@@ -167,7 +170,8 @@ export function resolveRound(inp: RoundInput): RoundOutput {
       }
       if (inc.scheduleSeedling) { nonNumeric.push({ t: 'INC', id: o.id, effect: 'SCHEDULE_SEEDLING' }); seedlings += 1; }
       if (inc.destroy) nonNumeric.push({ t: 'INC', id: o.id, effect: 'DESTROY' });
-    }
+    } };
+    incOf(pierced, incGains, incDmgs, nonNumeric); // FUN-EXP-01 掛鉤 X-R6
     const ph = inp.rules.ph;
     const separateIncision = ph !== 'PH-A' && pierced.length > 0;
     if (separateIncision) {
@@ -179,6 +183,14 @@ export function resolveRound(inp: RoundInput): RoundOutput {
       for (const e of nonNumeric) emit(e, e.t === 'INC' || e.t === 'SPAWN');
     }
 
+    if (tear.length > 0) { // FUN-EXP-01 掛鉤 X-R7：撕裂＝第二個刀中步驟（本刀刀中已結算完、且無人死亡時才發動）
+      const tg: GainSpec[] = [], td: DmgSpec[] = [], tn: Ev[] = [];
+      incOf(tear, tg, td, tn);
+      emit({ t: 'STEP', name: 'TEAR' }, false);
+      for (const o of tear) emit({ t: 'PIERCE', id: o.id }, false);
+      for (const e of tn) emit(e, e.t === 'INC' || e.t === 'SPAWN');
+      if (runStepNoHeader(tg, td)) return finish();
+    }
     // ---- 選邊 ----
     const holdingOf = (side: Side) => ({ E: side === 'L' ? L : R, P: side === 'L' ? R : L });
     if (inp.forcedChoice) {

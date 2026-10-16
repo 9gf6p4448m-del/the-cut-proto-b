@@ -1,5 +1,5 @@
 // FUN-EXP-01 實驗掛鉤（研究候選，非正式規則）：模式設定、實驗 A 執念選邊、實驗 B 傷口。
-// 規格：the-cut docs/fun-exp-01/EXPERIMENT_A_RULES.md、EXPERIMENT_B_RULES.md（v1）。
+// 規格：the-cut docs/fun-exp-01/EXPERIMENT_A_RULES.md、EXPERIMENT_B_RULES.md（v1.2）。
 // 原則：BASELINE（未設定 exp 或 mode='BASELINE'）時，本檔所有掛鉤都不改變設定雜湊、狀態形狀與事件序列（凍結驗收 X-1）。
 // 本檔只依賴型別，不依賴引擎的執行期程式（避免循環匯入）；InvalidAction 由 engine.ts 依本檔傳回的原因丟出。
 import type { OrganKey } from './content.ts';
@@ -10,7 +10,7 @@ export type ExpMode = 'BASELINE' | 'A' | 'B';
 export interface ExpConfig { mode: ExpMode }
 
 /** 進入 configHash 的規格版本字串；規格變更時一併改字串，三模式與不同版本的紀錄不得混用。 */
-export const EXP_SPEC: Record<'A' | 'B', string> = { A: 'FUN-EXP-01/EXPERIMENT_A_RULES/v1', B: 'FUN-EXP-01/EXPERIMENT_B_RULES/v1' };
+export const EXP_SPEC: Record<'A' | 'B', string> = { A: 'FUN-EXP-01/EXPERIMENT_A_RULES/v1.2', B: 'FUN-EXP-01/EXPERIMENT_B_RULES/v1.2' };
 /** 實驗 A 執念平手時沿用的 Baseline 屠夫權重（BUT w10=7）。 */
 export const OBS_FALLBACK_W10 = 7;
 /** A2：10 × |A_L − A_R| ≥ A_total 時觸發執念。 */
@@ -49,6 +49,9 @@ export function normalizeConfig(cfg: BattleConfig): BattleConfig {
     if (!isObs(e) || (e as { w10: number }).w10 !== OBS_FALLBACK_W10) throw new RangeError(`實驗 A 的敵人必須是 OBS_HEART／OBS_AREA 且 w10=${OBS_FALLBACK_W10}`);
   } else if (e.kind !== 'BUT' || e.w10 !== 7) {
     throw new RangeError('實驗 B 的敵人必須是 Baseline 屠夫（BUT w10=7）');
+  } else if (rest.rules.ph === 'PH-A') {
+    // PH-A 把刀中效果併入選邊後的 ALL 步驟，無法滿足 §2.4「撕裂在本刀刀中效果之後、選邊之前」
+    throw new RangeError('實驗 B 不支援 PH-A（撕裂時序無法成立）');
   }
   return { ...rest, exp: { mode } } as BattleConfig;
 }
@@ -175,8 +178,10 @@ export function expActionError(s: BattleState, a: Action): string | null {
 export interface WoundPrep {
   error: string | null;
   events: Ev[];
-  /** 交給 resolveRound 的切穿清單（留傷口時移除封存器官；撕裂時加入封存器官複本各兩份） */
+  /** 交給 resolveRound 的切穿清單（留傷口時移除封存器官） */
   pierced: Organ[];
+  /** 撕裂複本（封存器官各 TEAR_MULTIPLIER 份、新 id）：resolveRound 在本刀刀中步驟之後另起 TEAR 步驟結算（§2.4）；本刀已有人死亡則不發動 */
+  tear: Organ[];
   nextId: number;
   /** 本回合留下的新傷口（戰鬥在本回合結束時由 act 清為 null） */
   wound: Wound | null;
@@ -188,7 +193,7 @@ export function woundPrepare(s: BattleState, p: Partition, a: Action): WoundPrep
   const events: Ev[] = [];
   const keep = a.keepWound === true;
   const check = keepWoundCheck(s, p);
-  if (keep && !check.ok) return { error: `不能留下傷口：${check.reason}`, events, pierced: p.pierced, nextId: s.nextId, wound: null };
+  if (keep && !check.ok) return { error: `不能留下傷口：${check.reason}`, events, pierced: p.pierced, tear: [], nextId: s.nextId, wound: null };
   let nextId = s.nextId;
   const copies: Organ[] = [];
   const w = s.wound ?? null;
@@ -207,7 +212,7 @@ export function woundPrepare(s: BattleState, p: Partition, a: Action): WoundPrep
     wound = { round: s.round, a: e[0], b: e[1], sealed };
     events.push({ t: 'WOUND', op: 'KEEP', organs: sealed.map((o) => o.id) });
   }
-  return { error: null, events, pierced: [...(keep ? [] : p.pierced), ...copies], nextId, wound };
+  return { error: null, events, pierced: keep ? [] : p.pierced, tear: copies, nextId, wound };
 }
 
 // ---------------------------------------------------------------- 紀錄（X-11 引擎端欄位）

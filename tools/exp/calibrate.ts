@@ -1,4 +1,6 @@
-// 實驗 A 的 HP 校準（EXPERIMENT_A_RULES §5）：GRD 對 A1、A2 的勝率與 BASELINE（hpE=30）相差 ≤5 個百分點；只調怪物 HP（整數 20～60）。
+// 實驗 A 的 HP 校準。規格 A v1.2（§9）：GRD 勝率飽和（≈100%），v1 §5 的「GRD 勝率差 ≤5pp」恆真、無鑑別力，
+// 改以 MAXPIERCE 為參考 bot，取 A 勝率與 BASELINE（hpE=30）最接近的怪物 HP（平手取小）→ `chosenV12`（bots／boards 預設採用）。
+// 下方 GRD 表與 `chosen` 保留為 v1 判準（已棄用）的飽和證據。只調怪物 HP（整數 20～60）。
 // 校準種子集 710001..710500（500 局）；與 bots.ts 的評估種子集 700001..700500 分開，避免對評估集過擬合。
 // 選值規則（寫死、不看結果調整）：在 |勝率差| ≤ 0.05 的 HP 中取「勝率差絕對值最小」者；
 // 平手（勝率飽和時常見）再取「平均回合數差絕對值最小」，再平手取較小 HP。
@@ -53,8 +55,11 @@ for (const b of SUPP_BOTS) for (const m of MODES) {
   const rows = supplementary[b][m] as { hpE: number; winRate: number }[];
   supplementary[b].closestWinRate[m] = [...rows].sort((x, y) => Math.abs(x.winRate - bw) - Math.abs(y.winRate - bw) || x.hpE - y.hpE)[0].hpE;
 }
+// 規格 A v1.2 的現行值：MAXPIERCE 勝率最接近 BASELINE 的 HP
+const chosenV12 = { ref: 'MAXPIERCE', A1: supplementary.MAXPIERCE.closestWinRate.A1, A2: supplementary.MAXPIERCE.closestWinRate.A2 };
 mkdirSync(outUrl('.'), { recursive: true });
-writeFileSync(outUrl('calibration.json'), JSON.stringify({ seeds: CAL_SEEDS, baselineGRD: base, table, chosen, supplementary }, null, 1) + '\n');
+writeFileSync(outUrl('calibration.json'), JSON.stringify({ seeds: CAL_SEEDS, baselineGRD: base, table, chosen, chosenV12, supplementary }, null, 1) + '\n');
+console.log('chosenV12（規格 A v1.2，現行）', JSON.stringify(chosenV12));
 for (const b of SUPP_BOTS) console.log('supp', b, JSON.stringify(supplementary[b].baseline), JSON.stringify(supplementary[b].closestWinRate));
 console.log('BASELINE GRD', base.winRate, base.avgRounds, base.netPerRound);
 for (const m of MODES) {

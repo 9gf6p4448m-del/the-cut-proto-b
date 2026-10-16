@@ -218,9 +218,9 @@ if (process.argv.includes('--verify')) {
   console.log(bad === 0 ? 'VERIFY: 全部通過' : `VERIFY: ${bad} 個不符`);
   process.exit(bad === 0 ? 0 : 1);
 } else {
-  const cal = JSON.parse(readFileSync(outUrl('calibration.json'), 'utf8')) as { chosen: Record<string, { hpE: number | null }> };
-  const hp = { A1: cal.chosen.A1.hpE ?? 30, A2: cal.chosen.A2.hpE ?? 30, B: 30 } as Record<string, number>;
-  // 規格 A v1.2：校準參考 bot 改為 MAXPIERCE（GRD 飽和）；以 --hp=A1:30,A2:39 覆寫 calibration.json 的 GRD 選值
+  const cal = JSON.parse(readFileSync(outUrl('calibration.json'), 'utf8')) as { chosenV12: Record<'A1' | 'A2', number> };
+  const hp = { A1: cal.chosenV12.A1, A2: cal.chosenV12.A2, B: 30 } as Record<string, number>;
+  // 規格 A v1.2：預設採 calibration.json 的 chosenV12（MAXPIERCE 對齊，GRD 飽和不能校準）；--hp=A1:…,A2:… 可手動覆寫
   const hpArg = process.argv.find((x) => x.startsWith('--hp='));
   if (hpArg) for (const kv of hpArg.slice(5).split(',')) { const [m, v] = kv.split(':'); hp[m] = Number(v); }
   const boards = search(hp);

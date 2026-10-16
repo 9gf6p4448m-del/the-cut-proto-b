@@ -281,7 +281,7 @@ export function act(s: BattleState, a: Action, content: Content): { state: Battl
   if (xw) events.push(...xw.events);
   const out = resolveRound({
     hp: s.hp, maxHp: s.maxHp, pierced: xw ? xw.pierced : p.pierced, L: p.L, R: p.R, area2: p.area2, fixedSide: 'R',
-    rules: s.config.rules, enemy: s.config.enemy, content, nextId: xw ? xw.nextId : s.nextId, effectBase: s.board!.effectsAtStart,
+    rules: s.config.rules, enemy: s.config.enemy, content, nextId: xw ? xw.nextId : s.nextId, effectBase: s.board!.effectsAtStart, ...(xw ? { tear: xw.tear } : {}),
   });
   events.push(...out.events);
   let ns: BattleState = { ...s, hp: out.hp, nextId: out.nextId, seedlingsPending: out.seedlings, board: null };

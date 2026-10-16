@@ -3585,6 +3585,11 @@
    "reason": "41 個 HP 落在 ±5pp 內（最小 20～最大 60）；依選值規則取 35"
   }
  },
+ "chosenV12": {
+  "ref": "MAXPIERCE",
+  "A1": 30,
+  "A2": 39
+ },
  "supplementary": {
   "RND": {
    "baseline": {

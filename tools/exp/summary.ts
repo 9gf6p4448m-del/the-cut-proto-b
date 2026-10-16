@@ -7,7 +7,7 @@ const rd = <T>(n: string): T => JSON.parse(readFileSync(outUrl(n), 'utf8')) as T
 type Cell = { mode: string; bot: string; hpE: number; calibrated: boolean; agg: Agg; perSeed: number[][] };
 type Pair = { winsA: number; winsB: number; onlyA: number; onlyB: number; pExact: number; dRounds: [number, number]; dMyLoss: [number, number]; dNet: [number, number] };
 const bots = rd<{ seeds: [number, number]; cells: Record<string, Cell>; analysis: Record<string, Record<string, Pair> & Pair & Record<string, number>> }>('bots.json');
-const cal = rd<{ seeds: [number, number]; baselineGRD: Agg; table: Record<string, { hpE: number; agg: Agg; diffPP: number }[]>; chosen: Record<string, { hpE: number | null; ok: boolean; reason: string }>; supplementary: Record<string, { baseline: { winRate: number; avgRounds: number; netPerRound: number }; closestWinRate: Record<string, number>; A1: { hpE: number; winRate: number; avgRounds: number }[]; A2: { hpE: number; winRate: number; avgRounds: number }[] }> }>('calibration.json');
+const cal = rd<{ seeds: [number, number]; baselineGRD: Agg; table: Record<string, { hpE: number; agg: Agg; diffPP: number }[]>; chosen: Record<string, { hpE: number | null; ok: boolean; reason: string }>; chosenV12: { ref: string; A1: number; A2: number }; supplementary: Record<string, { baseline: { winRate: number; avgRounds: number; netPerRound: number }; closestWinRate: Record<string, number>; A1: { hpE: number; winRate: number; avgRounds: number }[]; A2: { hpE: number; winRate: number; avgRounds: number }[] }> }>('calibration.json');
 type Board = { id: string; mode: string; board: number; seed: number | null; hpE: number; result: { numbers: Record<string, unknown>; good: { round: number; i: number; j: number; keep?: boolean; net: number; note: string } | null; trap: { round: number; i: number; j: number; keep?: boolean; net: number; note: string } | null; note: string } | null; search: { from: number; to: number; scanned: number; note: string } };
 const boards = rd<{ range: [number, number]; hpE: Record<string, number>; boards: Board[] }>('boards.json');
 const params = rd<Record<string, { hpE?: number; boards: (number | null)[] }>>('exp_params.json');
@@ -43,9 +43,13 @@ w('研究原型數據，非正式規則、非 Gate 證據。所有數字由 `too
 w();
 w('## 0. 結論');
 w();
-w(`- **固定誘餌不會必勝**：BAIT 在 A1/A2（未校準與校準後）的勝率與 GRD、LOOK2 完全相同（${baitSig.map((b) => `${b.k} 對 GRD ${b.wrVsGrd[0]}/${b.wrVsGrd[1]} 勝`).join('；')}），沒有任何一格「顯著高於所有其他 bot」（精確配對檢定 p<0.01 才算）；而 BAIT 的每回合淨收益反而顯著低於 GRD（${baitSig.map((b) => `${b.k} ${pm(b.netVsGrd)}`).join('；')}）。BAIT 把毒囊放執念側後，敵人實際因執念拿走的比例（誘餌成功率）見 §4。**但要注意：GRD/LOOK2/SAFE 在此設定（玩家 HP40、怪物 HP30）勝率皆已飽和在 ~100%，勝率無法區分策略強弱**，鑑別力只剩回合數與淨收益。`);
+const baitWins = baitSig.map((b) => { const c = bots.cells[`${b.k}|BAIT`]; return { k: b.k, wins: c.agg.wins, n: c.perSeed.length }; });
+const baitAll = baitWins.every((b) => b.wins === b.n);
+w(`- **固定誘餌（BAIT）**：${baitAll ? `BAIT 在每一格的 ${baitWins[0].n} 局樣本中**全勝**（${baitWins.map((b) => `${b.k} ${b.wins}/${b.n}`).join('；')}），**未排除固定誘餌必勝**——相對其他 bot 的配對檢定只能回答「BAIT 是否比較好」，不能回答「是否存在必勝策略」，500 局全勝也不證明所有 seed 必勝。` : `BAIT 勝局：${baitWins.map((b) => `${b.k} ${b.wins}/${b.n}`).join('；')}。`}本報告能主張的只有：**BAIT 不比 GRD 好**——勝率與 GRD 相同（${baitSig.map((b) => `${b.k} 對 GRD ${b.wrVsGrd[0]}/${b.wrVsGrd[1]} 勝`).join('；')}），沒有任何一格「顯著高於所有其他 bot」（精確配對檢定 p<0.01 才算），每回合淨收益反而低於 GRD（${baitSig.map((b) => `${b.k} ${pm(b.netVsGrd)}`).join('；')}）。BAIT 把毒囊放執念側後，敵人實際因執念拿走的比例（誘餌成功率）見 §4。**GRD/LOOK2/SAFE 在此設定（玩家 HP40）勝率皆已飽和在 ~100%，勝率無法區分策略強弱**，鑑別力只剩回合數與淨收益。`);
 w(`- **LOOK2 對 GRD**：在 B 模式 LOOK2 比 GRD 平均少 ${Math.abs(l2g.dRounds[0])} 回合（配對差 ${pm(l2g.dRounds)}）、每局淨收益差 ${pm(l2g.dNet)}；同一組 LOOK2 在 BASELINE 反而多 ${l2gBase.dRounds[0]} 回合（${pm(l2gBase.dRounds)}）。隔離「留傷口」本身：LOOK2 對 LOOK2NK（同前瞻但不准留）的回合差 ${pm(l2nk.dRounds)}、淨收益差 ${pm(l2nk.dNet)}。勝率兩者皆 100%（飽和）。結論的強度見 §5。`);
-w(`- **A 的 HP 校準（§5）**：GRD 勝率在 hpE=20～60 的 41 個值上與 BASELINE 全部相差 ≤5pp（最大差 ${Math.max(...['A1', 'A2'].flatMap((m) => cal.table[m].map((r) => Math.abs(r.diffPP))))}pp），因為勝率飽和，§5 判準無鑑別力。依預先寫死的選值規則（先比勝率差、平手比平均回合數差、再平手取小）：A1 hpE=${cal.chosen.A1.hpE}、A2 hpE=${cal.chosen.A2.hpE}（未校準 30）。**這兩個值是「判準幾乎恆真」下的次級選擇，不是難度已對齊的證據**；製作人應另定較不飽和的參考 bot 或玩家 HP。`);
+const mp = cal.supplementary.MAXPIERCE;
+const mpAt = (m: 'A1' | 'A2', h: number): number => (mp[m].find((r) => r.hpE === h) ?? { winRate: NaN }).winRate;
+w(`- **A 的 HP（規格 A v1.2，現行值）：A1 hpE=${cal.chosenV12.A1}、A2 hpE=${cal.chosenV12.A2}**，以 ${cal.chosenV12.ref} 勝率對齊 BASELINE（校準集 BASELINE ${pct(mp.baseline.winRate)}；A1 ${pct(mpAt('A1', cal.chosenV12.A1))}、A2 ${pct(mpAt('A2', cal.chosenV12.A2))}）。**改用 MAXPIERCE 的原因**：v1 §5 以 GRD 勝率差 ≤5pp 校準，但 GRD 在 hpE=20～60 的 41 個值上勝率皆 ≈100%，與 BASELINE 最大只差 ${Math.max(...['A1', 'A2'].flatMap((m) => cal.table[m].map((r) => Math.abs(r.diffPP))))}pp——條件對任何 HP 都成立、沒有鑑別力；MAXPIERCE（每回合切穿最多）不飽和，勝率隨 HP 變化，才能決定 HP。v1 依 GRD 判準的選值已棄用（仍存於 calibration.json \`chosen\` 作為飽和證據，不再使用）。`);
 w(`- **測試盤面（X-8）**：9 個盤面找到 ${found} 個（${found === 9 ? '全部找到' : '其餘寫「未找到」'}），搜尋範圍 seed ${boards.range[0]}..${boards.range[1]}；判定腳本 \`node tools/exp/boards.ts --verify\` 重跑全通過。`);
 w();
 w('## 1. 重跑指令（repo 根目錄）');
@@ -151,26 +155,32 @@ const sig = (x: [number, number]): boolean => Math.abs(x[0]) > x[1];
 w(`- 判讀：LOOK2−GRD（B）回合差${sig(l2g.dRounds) ? '顯著' : '不顯著'}、淨收益差${sig(l2g.dNet) ? '顯著' : '不顯著'}；LOOK2−LOOK2NK 回合差${sig(l2nk.dRounds) ? '顯著' : '不顯著'}、淨收益差${sig(l2nk.dNet) ? '顯著' : '不顯著'}（95% CI 是否含 0）。勝率因飽和皆 100%，所以「LOOK2 優於 GRD」只能由回合數與淨收益主張；若上列為不顯著，請如實解讀為「留傷口的跨回合價值在此設定下未被證明」。`);
 w(`- 「無限保留有利狀態」：任何 bot 的 \`woundAgeViolations\`（傷口存活超過 1 回合）= ${Object.values(bots.cells).reduce((a, c) => a + c.agg.woundAgeViolations, 0)}；同時傷口數由資料結構限制為 1。KEEPHOLD 壓力 bot 的最長連續留傷口回合 = ${bots.cells['B|hpE30|KEEPHOLD'].agg.maxKeepStreak}（＝戰鬥上限 12 回合；每回合都留新傷口、但每個傷口都以癒合收場，從未撕裂，勝率 ${pct(bots.cells['B|hpE30|KEEPHOLD'].agg.winRate)}、淨收益/回合 ${f2(bots.cells['B|hpE30|KEEPHOLD'].agg.netPerRound)}），所以連續留傷口不會累積成可存取的有利狀態。LOOK2 實務最長連續 ${bots.cells['B|hpE30|LOOK2'].agg.maxKeepStreak} 回合。規則上限＝每傷口 1 回合、撕裂回合不能再留；全部 B 局 INVALID（含 CAP_EXCEEDED）= ${Object.values(bots.cells).filter((c) => c.mode === 'B').reduce((a, c) => a + c.agg.invalid, 0)}。`);
 w();
-w('## 6. A 的 HP 校準（EXPERIMENT_A_RULES §5）');
+w('## 6. A 的 HP 校準（規格 A v1.2：MAXPIERCE 對齊）');
 w();
-w(`校準種子 ${cal.seeds[0]}..${cal.seeds[1]}（500 局）。判準：GRD 對 A1／A2 的勝率與 BASELINE（hpE=30）相差 ≤5pp；只調怪物 HP（整數 20～60）。BASELINE GRD 勝率 ${pct(cal.baselineGRD.winRate)}、平均回合 ${f2(cal.baselineGRD.avgRounds)}。`);
+w(`校準種子 ${cal.seeds[0]}..${cal.seeds[1]}（500 局）。規格 A v1.2：取 ${cal.chosenV12.ref} 勝率與 BASELINE（hpE=30）最接近的怪物 HP（整數 20～60，平手取小）。選值規則寫死在 \`calibrate.ts\` 檔頭。`);
 w();
-w('| 模式 | 未校準（hpE=30）GRD 勝率 / 差 | 回合 | 校準後 hpE | GRD 勝率 / 差 | 回合 | 評估集（獨立種子）上 GRD 勝率差 |');
-w('|---|---|---|---|---|---|---|');
-for (const m of ['A1', 'A2']) {
-  const u = cal.table[m].find((r) => r.hpE === 30)!, c = cal.table[m].find((r) => r.hpE === cal.chosen[m].hpE);
-  const ev = bots.analysis['GRD_vs_BASELINE_pp_on_eval_seeds'] as unknown as Record<string, number>;
-  w(`| ${m} | ${pct(u.agg.winRate)} / ${u.diffPP}pp | ${f2(u.agg.avgRounds)} | ${cal.chosen[m].hpE ?? '無'} | ${c ? `${pct(c.agg.winRate)} / ${c.diffPP}pp` : '—'} | ${c ? f2(c.agg.avgRounds) : '—'} | ${ev[`${m}|hpE${cal.chosen[m].hpE}|GRD`] ?? '—'}pp |`);
+w('| 模式 | 未校準（hpE=30）MAXPIERCE 勝率 | 現行 hpE | MAXPIERCE 勝率 / 與 BASELINE 差 | 評估集（獨立種子）上 MAXPIERCE 勝率差 | 評估集上 GRD 勝率差 |');
+w('|---|---|---|---|---|---|');
+for (const m of ['A1', 'A2'] as const) {
+  const h = cal.chosenV12[m], wr = mpAt(m, h);
+  const evMP = bots.analysis['MAXPIERCE_vs_BASELINE_pp_on_eval_seeds'] as unknown as Record<string, number>;
+  const evG = bots.analysis['GRD_vs_BASELINE_pp_on_eval_seeds'] as unknown as Record<string, number>;
+  const kk = h === 30 ? `${m}|hpE30` : `${m}|hpE${h}`;
+  w(`| ${m} | ${pct(mpAt(m, 30))} | ${h} | ${pct(wr)} / ${Math.round((wr - mp.baseline.winRate) * 1e6) / 1e4}pp | ${evMP[`${kk}|MAXPIERCE`] ?? '—'}pp | ${evG[`${kk}|GRD`] ?? '—'}pp |`);
 }
 w();
-w(`- A1：${cal.chosen.A1.reason}。A2：${cal.chosen.A2.reason}。選值規則寫死在 \`calibrate.ts\` 檔頭，先於看到結果。`);
-w('- **飽和問題**：GRD 在 hpE 20～60 全部 ≥99.2% 勝率，與 BASELINE 的差距永遠 ≤0.8pp，§5 的「≤5pp」在此設定下幾乎恆真，無法決定 HP。以下兩列是 HP 對平均回合數的影響（較有鑑別力）：');
+w(`- BASELINE（校準集）：MAXPIERCE 勝率 ${pct(mp.baseline.winRate)}、GRD 勝率 ${pct(cal.baselineGRD.winRate)}（平均回合 ${f2(cal.baselineGRD.avgRounds)}）。`);
+w('- **為何不用 GRD（v1 §5，已棄用）**：GRD 在 hpE 20～60 全部 ≥99% 勝率，與 BASELINE 的差距永遠 ≤1pp，「≤5pp」幾乎恆真，無法決定 HP。下表是各 HP 下兩個 bot 的勝率（MAXPIERCE 有鑑別力、GRD 飽和）：');
 w();
-w('| hpE | ' + [20, 25, 30, 31, 35, 40, 50, 60].join(' | ') + ' |');
-w('|---|' + '---|'.repeat(8));
-for (const m of ['A1', 'A2']) w(`| ${m} GRD 平均回合 | ` + [20, 25, 30, 31, 35, 40, 50, 60].map((h) => f2(cal.table[m].find((r) => r.hpE === h)!.agg.avgRounds)).join(' | ') + ' |');
+const HCOLS = [20, 25, 30, 39, 40, 50, 60];
+w('| hpE | ' + HCOLS.join(' | ') + ' |');
+w('|---|' + '---|'.repeat(HCOLS.length));
+for (const m of ['A1', 'A2'] as const) {
+  w(`| ${m} MAXPIERCE 勝率 | ` + HCOLS.map((h) => pct(mpAt(m, h))).join(' | ') + ' |');
+  w(`| ${m} GRD 勝率 | ` + HCOLS.map((h) => pct(cal.table[m].find((r) => r.hpE === h)!.agg.winRate)).join(' | ') + ' |');
+}
 w();
-w('補充（非 §5 判準，只供製作人參考）：改用較弱 bot 看 HP 敏感度。各 bot 在 BASELINE（hpE=30）的勝率 → 使 A 勝率最接近的 hpE：');
+w('補充：其他 bot 在 BASELINE（hpE=30）的勝率 → 使 A 勝率最接近的 hpE（只供參考；RND 勝率過低、SAFE 飽和）：');
 w();
 w('| bot | BASELINE 勝率 | A1 最接近的 hpE | A2 最接近的 hpE |');
 w('|---|---|---|---|');
@@ -178,7 +188,7 @@ for (const [b, s] of Object.entries(cal.supplementary)) w(`| ${b} | ${pct(s.base
 w();
 w('## 7. X-8 測試盤面（判定腳本：`node tools/exp/boards.ts --verify`）');
 w();
-w(`搜尋範圍 seed ${boards.range[0]}..${boards.range[1]}（遞增掃描，同模式三個盤面互不重複 seed，取第一個命中者；除判定條件外要求同時能給出好刀與陷阱刀）。A 盤面用校準後 hpE（A1=${boards.hpE.A1}、A2=${boards.hpE.A2}），B 用 30。anchor 為引擎錨點索引 (i,j)（i<j）。`);
+w(`搜尋範圍 seed ${boards.range[0]}..${boards.range[1]}（遞增掃描，同模式三個盤面互不重複 seed，取第一個命中者；除判定條件外要求同時能給出好刀與陷阱刀）。A 盤面用規格 A v1.2 的 hpE（A1=${boards.hpE.A1}、A2=${boards.hpE.A2}），B 用 30。anchor 為引擎錨點索引 (i,j)（i<j）。`);
 w();
 w('條件的較嚴讀法（規格字句有歧義處）：A-1「誘餌是最佳之一」＝誘餌線淨收益 ≥ 全場所有合法線；A-2「立即最佳線不觸發」＝所有淨收益最大的線都不觸發，且觸發線的 2 回合貪婪總淨收益須大於立即最佳線們的最大值；A-3 的「必然求生」或「淨收益≤0」逐線檢查；B-1 的比較對象是「立即淨收益最大（平手取 i,j 最小）的不留傷口線」的 2 回合貪婪總淨收益；B-2 的不留傷口組合第 2 回合窮舉所有合法線；B-3 取差距最大的封毒囊留傷口線。');
 w();
@@ -192,7 +202,7 @@ for (const b of boards.boards) {
   w(`| ${b.id} ${d} | ${b.seed} | ${b.search.scanned} | ${JSON.stringify(b.result!.numbers).replace(/[{}"]/g, '').replace(/,/g, '，')} | R${g.round} ${g.i}/${g.j}${g.keep ? '（勾留傷口）' : ''}，淨收益 ${g.net}。${g.note} | R${t.round} ${t.i}/${t.j}${t.keep ? '（勾留傷口）' : ''}，淨收益 ${t.net}。${t.note} |`);
 }
 w();
-w('注意：A-3 的兩個盤面中「因求生底線被擋」的子條件在第 1 回合沒有出現（survivalDeflected=0；第 1 回合毒囊傷害不足以殺死 HP≥31 的怪物），全部由「淨收益≤0」子條件成立。');
+w(`注意：A-3 的兩個盤面中「因求生底線被擋」的子條件在第 1 回合沒有出現（survivalDeflected=0；第 1 回合毒囊傷害不足以殺死 HP≥${Math.min(boards.hpE.A1, boards.hpE.A2)} 的怪物），全部由「淨收益≤0」子條件成立。`);
 w();
 w('`results/exp_params.json`（給 UI 階段）：');
 w();
@@ -202,7 +212,7 @@ w('```');
 w();
 w('## 8. 已知限制與未做');
 w();
-w('- 勝率飽和（見 §0、§6）：玩家 HP40 對怪物 HP30 時，任何「看得到當回合淨收益」的 bot 都接近 100% 勝率，所以 X-9 的勝率欄對強 bot 沒有區分力；本報告同時列回合數、淨收益與配對 CI 作為補充。若要讓比較真的反映難度，需另定參考 bot 或調整玩家 HP——這屬於規格決策，未擅自處理。');
+w('- 勝率飽和（見 §0、§6）：玩家 HP40 時，任何「看得到當回合淨收益」的 bot 都接近 100% 勝率，所以 X-9 的勝率欄對強 bot 沒有區分力；本報告同時列回合數、淨收益與配對 CI 作為補充。A 的 HP 已依規格 A v1.2 改以 MAXPIERCE 對齊；強 bot 的勝率比較仍無鑑別力。');
 w('- LOOK2 是完美資訊前瞻（引擎下一回合盤面由狀態決定，bot 可用 act 直接試算）；真實玩家看不到下一回合器官位置，故 LOOK2 對留傷口價值是上界估計。');
 w('- GRD 的「能斬殺優先、避免戰敗」是沿用 `engine/src/bots.ts` 既有 GRD 的作法再加戰敗排最後，與規格字面的「淨收益最大」略有差異（只在會致勝／致敗的線上不同）。');
 w('- 第 1 回合 A-3 的求生底線子條件沒出現；若要驗證「毒會致死 → 敵人改拿另一側」需要把怪物 HP 壓到 ≤ 毒囊傷害的情境，不在 20～60 的範圍內。');

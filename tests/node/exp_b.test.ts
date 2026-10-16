@@ -182,7 +182,7 @@ const PER_COPY: Record<string, (evs: Ev[], id: number) => boolean> = {
 };
 
 test('X-6 10,000 局隨機模擬（隨機合法刀＋可勾時 1/2 留傷口）：CAP_EXCEEDED／INVALID 次數與不變量', () => {
-  const st = { games: 0, rounds: 0, keeps: 0, tears: 0, heals: 0, cap: 0, invalid: 0, maxEffects: 0, maxNodes: 0, over16: 0, endWithKeep: 0, tearByKey: {} as Record<string, number>, results: {} as Record<string, number> };
+  const st = { games: 0, rounds: 0, keeps: 0, tears: 0, heals: 0, cap: 0, invalid: 0, maxEffects: 0, maxNodes: 0, over16: 0, endWithKeep: 0, tearSkipped: 0, tearByKey: {} as Record<string, number>, results: {} as Record<string, number> };
   for (let seed = 1; seed <= 10000; seed++) {
     let s = newBattle(expConfig('B', seed), content).state;
     if (s.result) { st.invalid++; continue; }
@@ -212,7 +212,14 @@ test('X-6 10,000 局隨機模擬（隨機合法刀＋可勾時 1/2 留傷口）�
         if (e.op === 'TEAR') {
           st.tears++;
           assert.equal(e.copies!.length, 2 * e.organs.length);
-          if (!out.events.some((x) => x.t === 'CAP_EXCEEDED')) {
+          const tearStep = out.events.findIndex((x) => x.t === 'STEP' && x.name === 'TEAR');
+          if (tearStep < 0) {
+            // F-2 澄清：本刀刀中步驟已讓某方死亡（或 CAP）→ 撕裂不發動：END 已發生、複本沒有任何效果事件
+            st.tearSkipped++;
+            assert.ok(out.events.some((x) => x.t === 'END'), `seed ${seed}：撕裂沒發動卻沒有結束`);
+            const ids = new Set(e.copies!);
+            assert.equal(out.events.some((x) => ((x.t === 'DMG' || x.t === 'SHIELD' || x.t === 'HEAL') && ids.has(x.organ)) || (x.t === 'INC' && ids.has(x.id))), false, `seed ${seed}：撕裂沒發動卻有複本效果`);
+          } else if (!out.events.some((x) => x.t === 'CAP_EXCEEDED')) {
             before.wound!.sealed.forEach((o, k) => {
               st.tearByKey[o.key] = (st.tearByKey[o.key] ?? 0) + 1;
               for (const id of e.copies!.slice(2 * k, 2 * k + 2)) assert.ok(PER_COPY[o.key](out.events, id), `seed ${seed}：${o.key} 複本 ${id} 的刀中效果不完整`);

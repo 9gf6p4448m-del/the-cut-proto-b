@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT } from './helpers.ts';
+import { FORK_HOOKS, FORK_NEW_FILES, ROOT, sha, snapshot, undoHooks } from './helpers.ts';
 import { act, newBattle, partitionOf, setProtoBOrganPool, stateHash } from '../../engine/src/engine.ts';
 import type { Action } from '../../engine/src/engine.ts';
 import { loadContent } from '../../engine/src/content.ts';
@@ -128,5 +128,17 @@ test('X-12 實驗版建置輸出：manifest／service worker／註冊 scope／�
   assert.equal(html.includes('__BUILD_SHA__') || sw.includes('__BUILD_SHA__') || JSON.stringify(man).includes('__SUB__'), false, '佔位符沒被取代');
   // 根網址版本的建置來源與程式不受第二階段影響
   assert.equal(readFileSync(join(ROOT, 'dist/app.js'), 'utf8').includes('funexp01'), false, '根網址 app.js 不該含實驗版程式');
-  execSync(`git diff --quiet ${PHASE1_HEAD} -- public src/main.ts engine`, { cwd: ROOT });
+  execSync(`git diff --quiet ${PHASE1_HEAD} -- public src/main.ts`, { cwd: ROOT });
+  // 引擎：Codex F-2 修正必須改 resolve.ts（撕裂獨立步驟），所以不能再要求 engine 與第一階段逐位元相同；
+  // 改為「第一階段之後的引擎差異只能是已登記掛鉤或 fork 新增檔」：每個變動檔撤銷全部登記掛鉤後，逐位元等於 3e2b9b4 快照。
+  // （BASELINE 行為不變另由 X-1 差分與 golden 200/200 證明。）
+  const snap = snapshot();
+  const changed = execSync(`git diff --name-only ${PHASE1_HEAD} -- engine`, { cwd: ROOT, encoding: 'utf8' }).trim().split(/\r?\n/).filter(Boolean);
+  assert.ok(changed.length > 0, '鑑別前提：F-2 之後引擎確實有變動');
+  for (const f of changed) {
+    const rel = f.replace(/^engine\//, '');
+    if (FORK_NEW_FILES.includes(rel)) continue;
+    assert.ok(FORK_HOOKS.some((h) => h.file === rel), `引擎檔 ${f} 在第一階段後有變動，但不是登記掛鉤的檔案`);
+    assert.equal(sha(undoHooks(rel, readFileSync(join(ROOT, f), 'utf8'))), snap.get(rel), `引擎檔 ${f} 有登記表以外的改動`);
+  }
 });

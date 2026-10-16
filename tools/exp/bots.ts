@@ -7,7 +7,7 @@ import { aggregate, mcnemarExact, outUrl } from './lib.ts';
 import type { Agg, BotName, GameRec, ModeKey } from './lib.ts';
 
 export const EVAL_SEEDS: [number, number] = [700001, 700500];
-const cal = JSON.parse(readFileSync(outUrl('calibration.json'), 'utf8')) as { chosen: Record<string, { hpE: number | null }> };
+const cal = JSON.parse(readFileSync(outUrl('calibration.json'), 'utf8')) as { chosenV12: Record<'A1' | 'A2', number> };
 
 interface Cell { key: string; mode: ModeKey; bot: BotName; hpE: number; calibrated: boolean }
 const cells: Cell[] = [];
@@ -16,11 +16,11 @@ const COMMON: BotName[] = ['RND', 'GRD', 'MAXPIERCE', 'SAFE', 'LOOK2'];
 add('BASELINE', 30, false, COMMON);
 for (const m of ['A1', 'A2'] as const) {
   add(m, 30, false, [...COMMON, 'BAIT']);
-  // 規格 A v1.2：--hp=A1:30,A2:39 覆寫 calibration.json（GRD 飽和，改以 MAXPIERCE 對齊）
+  // 規格 A v1.2：預設採 calibration.json 的 chosenV12（MAXPIERCE 對齊）；--hp=A1:…,A2:… 可手動覆寫
   const hpArg = process.argv.find((x) => x.startsWith('--hp='));
   const ov = hpArg ? Object.fromEntries(hpArg.slice(5).split(',').map((kv) => kv.split(':'))) as Record<string, string> : {};
-  const h = ov[m] !== undefined ? Number(ov[m]) : cal.chosen[m].hpE;
-  if (h !== null && h !== 30) add(m, h, true, [...COMMON, 'BAIT']);
+  const h = ov[m] !== undefined ? Number(ov[m]) : cal.chosenV12[m];
+  if (h !== 30) add(m, h, true, [...COMMON, 'BAIT']);
 }
 add('B', 30, false, [...COMMON, 'LOOK2NK', 'KEEPHOLD']);
 
@@ -74,6 +74,9 @@ analysis['BASELINE|LOOK2_vs_GRD'] = paired('BASELINE|hpE30|LOOK2', 'BASELINE|hpE
 const calCheck: Record<string, number> = {};
 for (const c of cells) if (c.bot === 'GRD' && c.mode !== 'BASELINE') calCheck[c.key] = Math.round((out[c.key].agg.winRate - out['BASELINE|hpE30|GRD'].agg.winRate) * 1e6) / 1e4;
 analysis['GRD_vs_BASELINE_pp_on_eval_seeds'] = calCheck;
+const calCheckMP: Record<string, number> = {};
+for (const c of cells) if (c.bot === 'MAXPIERCE' && c.mode.startsWith('A')) calCheckMP[c.key] = Math.round((out[c.key].agg.winRate - out['BASELINE|hpE30|MAXPIERCE'].agg.winRate) * 1e6) / 1e4;
+analysis['MAXPIERCE_vs_BASELINE_pp_on_eval_seeds'] = calCheckMP;
 
 mkdirSync(outUrl('.'), { recursive: true });
 writeFileSync(outUrl('bots.json'), JSON.stringify({ seeds: EVAL_SEEDS, cells: out, analysis }, null, 1) + '\n');
