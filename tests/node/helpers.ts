@@ -24,7 +24,7 @@ export const FORK_ADD = '/** B 軌 fork（proto-b）：每顆器官從前 N 種�
 
 /** 由 fork 反推原始 3e2b9b4 引擎（只撤銷凍結登記的那一處），放到暫存目錄；回傳目錄。 */
 export function originalEngineDir(): string {
-  const dst = join(ROOT, '.tmp', 'orig-engine');
+  const dst = join(ROOT, '.tmp', `orig-engine-${process.pid}`); // 每個測試行程各自一份，避免並行測試互相覆寫
   for (const f of walk(join(ROOT, 'engine'))) {
     const rel = relative(join(ROOT, 'engine'), f);
     const to = join(dst, rel);

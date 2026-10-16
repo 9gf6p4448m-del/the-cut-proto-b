@@ -7,6 +7,7 @@ import { serve } from './serve.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
 const results = [];
+const hudMismatch = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
 mkdirSync('test-output/logs', { recursive: true });
 
@@ -36,6 +37,9 @@ async function playToEnd(page, skip) {
     if (await page.evaluate(() => window.__proto.ui === 'END')) break;
     const c = await findLegal(page); if (!c) break;
     cuts.push(c); await page.click('#confirm'); await waitIdleOrEnd(page);
+    // T-5 畫面一致：畫面上的 HP 等於引擎狀態
+    const hud = await page.evaluate(() => ({ p: document.getElementById('hpP').textContent, e: document.getElementById('hpE').textContent, s: window.__proto.state.hp, m: window.__proto.state.maxHp }));
+    if (hud.p !== `${hud.s.P}/${hud.m.P}` || hud.e !== `${hud.s.E}/${hud.m.E}`) hudMismatch.push(JSON.stringify(hud));
     await page.evaluate(() => { document.getElementById('review').hidden = true; });
   }
   return { cuts, hash: await page.evaluate(() => window.__proto.stateHash(window.__proto.state)), log: await page.evaluate(() => window.__proto.log) };
@@ -86,6 +90,7 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
     await page.evaluate(() => { document.getElementById('review').hidden = true; });
   }
   const hB = await page.evaluate(() => window.__proto.stateHash(window.__proto.state));
+  check(`[${bname}] T-5 畫面上的 HP 每回合等於引擎狀態`, hudMismatch.length === 0, hudMismatch.slice(0, 2).join(' | '));
   check(`[${bname}] T-9 跳過演出與正常演出最終 stateHash 相同`, hB === runA.hash, `${runA.cuts.length} 刀`);
   check(`[${bname}] T-8 devfreeze 下全程無頁面錯誤`, errs.length === 0, errs.join(' | '));
   // ---- 六器官研究模式一局（供 T-5）＋ 模式標示 ----

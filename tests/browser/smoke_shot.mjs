@@ -1,0 +1,12 @@
+import { webkit, devices } from 'playwright';
+import { serve } from './serve.mjs';
+const { srv, url } = await serve(process.cwd());
+const b = await webkit.launch();
+const ctx = await b.newContext({ ...devices['iPhone 14 Pro'] });
+const page = await ctx.newPage();
+const errs = []; page.on('pageerror', (e) => errs.push(String(e))); page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+await page.goto(url + '/');
+await page.waitForTimeout(500);
+await page.screenshot({ path: process.argv[2] || 'shot.png' });
+console.log(JSON.stringify({ errs, ui: await page.evaluate(() => window.__proto.ui), round: await page.evaluate(() => window.__proto.state.round) }));
+await b.close(); srv.close();

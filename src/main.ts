@@ -33,7 +33,7 @@ const attackOf = (key: string): number => {
 };
 
 // ---------------- 紀錄格式（規格 v2 MUST 5） ----------------
-interface RoundLog { round: number; i: number; j: number; prediction: 'L' | 'R' | null; baitIntent: boolean | null; enemySide: 'L' | 'R' | null; enemyTookPoison: boolean; dwellMs: Record<string, number>; cancels: number }
+interface RoundLog { round: number; i: number; j: number; prediction: 'L' | 'R' | null; baitIntent: boolean | null; enemySide: 'L' | 'R' | null; enemyTookPoison: boolean; dwellMs: Record<string, number>; cancels: number; stateHashAfter: string; hpAfter: { P: number; E: number }; events: Ev[] }
 interface GameLog {
   format: 'thecut-protoB-log/1'; fork: 'proto-b'; protoMode: ProtoMode; build: string;
   engineVersion: string; specVersion: string; configHash: string; config: BattleConfig; seed: number;
@@ -197,7 +197,7 @@ function attackSum(os: Organ[]): number { return os.reduce((s, o) => s + attackO
 function updatePreview(): void {
   const p = G.part;
   if (!p) {
-    els.preview.innerHTML = G.ui === 'DRAG' ? '拖到另一個錨點放開' : '從一個<b>錨點</b>拖到另一個錨點，畫出切線';
+    els.preview.innerHTML = G.ui === 'DRAG' ? '拖到另一個錨點放開' : '<b>你切一刀 → 屠夫先挑走一半 → 剩下那一半歸你。</b><br>你不能選；要切出「不管牠拿哪邊都對你有利」的線。從一個白點拖到另一個白點開始。';
     return;
   }
   if (!p.legal) { els.preview.innerHTML = `<span class="bad">不能這樣切：${REASON_TEXT[p.reason ?? ''] ?? p.reason}</span>`; return; }
@@ -206,7 +206,8 @@ function updatePreview(): void {
   els.preview.innerHTML =
     `<div><span class="sideL">紫側</span> ${organList(p.L)}　面積 ${pl}%　<small>攻擊值 ${attackSum(p.L)}</small></div>` +
     `<div><span class="sideR">橙側</span> ${organList(p.R)}　面積 ${100 - pl}%　<small>攻擊值 ${attackSum(p.R)}</small></div>` +
-    `<div><span class="pierce">刀中穿刺</span> ${organList(p.pierced)}</div>`;
+    `<div><span class="pierce">刀中穿刺</span> ${organList(p.pierced)}</div>` +
+    `<div class="who">屠夫會先挑一側拿走，<b>另一側歸你</b></div>`;
 }
 function showPending(): void {
   const p = G.part!;
@@ -245,6 +246,7 @@ els.confirm.onclick = () => {
     round: before.round, i: part.i, j: part.j, prediction: G.prediction,
     baitIntent: els.baitRow.hidden ? null : G.bait, enemySide, enemyTookPoison: enemyOrgans.some((o) => o.key === 'poison'),
     dwellMs: { ...G.dwell }, cancels: G.cancels,
+    stateHashAfter: stateHash(out.state), hpAfter: { P: out.state.hp.P, E: out.state.hp.E }, events: JSON.parse(JSON.stringify(out.events)),
   });
   G.prevState = before; G.state = devFreeze(out.state); G.lastEvents = out.events;
   G.ui = 'EXECUTE'; els.pending.hidden = true;

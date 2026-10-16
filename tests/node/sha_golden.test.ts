@@ -10,6 +10,8 @@ import { ROOT } from './helpers.ts';
 import { sha256Bytes, toHex } from '../../shims/sha256.ts';
 import { loadContent } from '../../engine/src/content.ts';
 import { replay } from '../../engine/src/replay.ts';
+import { CFG } from './helpers.ts';
+import { seedHashes as nativeSeedHashes } from '../browser/seed_entry.ts';
 
 const GOLDEN = readFileSync(join(ROOT, 'golden/golden_vectors.json'), 'utf8');
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
@@ -68,4 +70,17 @@ test('T-3 鑑別力：SHA-256 輪常數改 1 位元 → golden 必須紅', async
   if (err) { assert.match(String(err), /雜湊不符/); return; }
   assert.notEqual(r!.fileSha256, GOLDEN_SHA, '突變後檔案 SHA 仍相同');
   assert.ok(r!.ok < 200, `突變後重播仍全綠：${r!.ok}`);
+});
+
+test('相容層與原生 Node：新種子 100001～100080（三、六器官）的開局與前三刀狀態雜湊逐一相同', async () => {
+  mkdirSync(join(ROOT, '.tmp'), { recursive: true });
+  const out = join(ROOT, '.tmp', `seed_${process.pid}.mjs`);
+  await esbuild.build({
+    entryPoints: [join(ROOT, 'tests/browser/seed_entry.ts')], outfile: out, bundle: true, format: 'esm', platform: 'neutral', loader: { '.json': 'text' },
+    alias: { 'node:crypto': join(ROOT, 'shims/crypto.ts'), 'node:fs': join(ROOT, 'shims/fs.ts') },
+    define: { 'import.meta.url': '"https://proto-b.invalid/engine/src/content.ts"' }, logLevel: 'silent',
+  });
+  const mod = await import(pathToFileURL(out).href);
+  const seeds = Array.from({ length: 80 }, (_, k) => 100001 + k);
+  for (const pool of [6, 3] as const) assert.deepEqual(mod.seedHashes(CFG, seeds, pool), nativeSeedHashes(CFG, seeds, pool), `器官池 ${pool}`);
 });
