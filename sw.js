@@ -1,6 +1,6 @@
 // 版本化快取：快取名稱帶部署 commit；首頁採網路優先，避免長期卡在舊版。
-const CACHE = 'thecut-protob-fa019b3';
-const ASSETS = ['./', './index.html', './app.js?v=fa019b3', './style.css?v=fa019b3', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const CACHE = 'thecut-protob-d9c4618';
+const ASSETS = ['./', './index.html', './app.js?v=d9c4618', './style.css?v=d9c4618', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
