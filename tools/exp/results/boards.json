@@ -4,8 +4,8 @@
   830000
  ],
  "hpE": {
-  "A1": 31,
-  "A2": 35,
+  "A1": 30,
+  "A2": 39,
   "B": 30
  },
  "boards": [
@@ -14,7 +14,7 @@
    "mode": "A1",
    "board": 1,
    "seed": 800007,
-   "hpE": 31,
+   "hpE": 30,
    "result": {
     "pass": true,
     "numbers": {
@@ -52,7 +52,7 @@
    "mode": "A1",
    "board": 2,
    "seed": 800001,
-   "hpE": 31,
+   "hpE": 30,
    "result": {
     "pass": true,
     "numbers": {
@@ -90,7 +90,7 @@
    "mode": "A1",
    "board": 3,
    "seed": 800111,
-   "hpE": 31,
+   "hpE": 30,
    "result": {
     "pass": true,
     "numbers": {
@@ -128,7 +128,7 @@
    "mode": "A2",
    "board": 1,
    "seed": 800004,
-   "hpE": 35,
+   "hpE": 39,
    "result": {
     "pass": true,
     "numbers": {
@@ -165,38 +165,38 @@
    "id": "A2-2",
    "mode": "A2",
    "board": 2,
-   "seed": 800115,
-   "hpE": 35,
+   "seed": 800173,
+   "hpE": 39,
    "result": {
     "pass": true,
     "numbers": {
-     "maxNet": 9,
-     "immediateBestTotal2g": 16,
-     "triggeringBestNet": 4,
-     "triggeringBestTotal2g": 19,
-     "triggeringLowerNetLines": 28
+     "maxNet": 3,
+     "immediateBestTotal2g": 8,
+     "triggeringBestNet": 0,
+     "triggeringBestTotal2g": 18,
+     "triggeringLowerNetLines": 27
     },
     "good": {
      "round": 1,
-     "i": 4,
-     "j": 11,
-     "net": 4,
-     "note": "誘導好刀：第 1 回合淨收益較低但觸發執念（2 回合貪婪總淨收益 19）"
+     "i": 1,
+     "j": 8,
+     "net": 0,
+     "note": "誘導好刀：第 1 回合淨收益較低但觸發執念（2 回合貪婪總淨收益 18）"
     },
     "trap": {
      "round": 1,
-     "i": 2,
-     "j": 8,
-     "net": 9,
-     "note": "貪婪陷阱：立即淨收益最大（9）但 2 回合貪婪總淨收益只有 16"
+     "i": 0,
+     "j": 6,
+     "net": 3,
+     "note": "貪婪陷阱：立即淨收益最大（3）但 2 回合貪婪總淨收益只有 8"
     },
     "note": ""
    },
    "search": {
     "from": 800001,
-    "to": 800115,
-    "scanned": 114,
-    "note": "第 114 個被掃描的 seed 命中"
+    "to": 800173,
+    "scanned": 172,
+    "note": "第 172 個被掃描的 seed 命中"
    }
   },
   {
@@ -204,7 +204,7 @@
    "mode": "A2",
    "board": 3,
    "seed": 800748,
-   "hpE": 35,
+   "hpE": 39,
    "result": {
     "pass": true,
     "numbers": {

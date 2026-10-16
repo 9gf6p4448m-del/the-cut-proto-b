@@ -3,6 +3,7 @@
 // X-11 紀錄欄位、X-12 子路徑部署（scope／快取／manifest 獨立）。
 // 判定來源一律是「引擎回傳的狀態／事件」或測試自己獨立算的值，不呼叫 src 的文字函式。
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { EXP_PARAMS } from '../../src/exp_params.ts';
 
 export const SIZES = { 'iPhone14Pro': [393, 852], 'iPhoneSE': [375, 667] };
 const SURVEY_TEXT = [
@@ -185,13 +186,13 @@ export async function runExpTests({ bname, btype, devices, url, check, logDir, s
       && names.A2.name.includes('實驗 A：致命執念') && names.A2.blurb.includes('面積') && names.A2.enemy.includes('傲慢血王') && names.B.name.includes('實驗 B：留下傷口') && names.B.blurb.includes('傷口'), JSON.stringify(Object.fromEntries(Object.entries(names).map(([k, v]) => [k, v.name + '|' + v.enemy]))));
     check(`${tag} X-10 引擎設定：HP 透過 hpE 傳入、六器官、敵人種類與實驗模式對應`,
       names.A1.cfg.enemy.kind === 'OBS_HEART' && names.A2.cfg.enemy.kind === 'OBS_AREA' && names.B.cfg.enemy.kind === 'BUT' && names.B.cfg.exp.mode === 'B' && names.BASELINE.cfg.exp === undefined
-      && names.A1.cfg.hpE === 30 && (await page.evaluate(() => window.__proto.state.maxHp.E)) === 30);
+      && names.A1.cfg.hpE === EXP_PARAMS.hpE.A1 && names.A2.cfg.hpE === EXP_PARAMS.hpE.A2 && names.BASELINE.cfg.hpE === 30 && (await page.evaluate(() => window.__proto.state.maxHp.E)) === EXP_PARAMS.hpE.B);
     // 盤面選擇：測試盤面 1～3 對應 exp_params 的 seed；自由為隨機 seed
     const seeds = [];
     for (const b of ['1', '2', '3']) { await page.selectOption('#boardSel', b); seeds.push(await page.evaluate(() => window.__proto.state.config.seed)); }
     await page.selectOption('#boardSel', 'free'); const f1 = await page.evaluate(() => window.__proto.state.config.seed);
     await selectMode(page, 'B', 'free'); const f2 = await page.evaluate(() => window.__proto.state.config.seed);
-    check(`${tag} X-10 盤面選擇：測試盤面 1～3 ＝ 2001／2003／2005，自由為隨機 seed`, JSON.stringify(seeds) === '[2001,2003,2005]' && f1 >= 100000 && f2 >= 100000 && f1 !== 2001, `${seeds} free ${f1},${f2}`);
+    check(`${tag} X-10 盤面選擇：測試盤面 1～3 ＝ exp_params 的 B 盤面 seed，自由為隨機 seed`, JSON.stringify(seeds) === JSON.stringify(EXP_PARAMS.boards.B) && f1 >= 100000 && f2 >= 100000 && !EXP_PARAMS.boards.B.includes(f1), `${seeds} free ${f1},${f2}`);
     check(`${tag} X-10 全程無頁面錯誤（devfreeze）`, page.__errs.length === 0, page.__errs.join(' | '));
     await ctx.close();
   }
@@ -408,7 +409,7 @@ export async function runExpTests({ bname, btype, devices, url, check, logDir, s
         && typeof r.hpBefore.P === 'number' && typeof r.hpAfter.E === 'number' && typeof r.keepWound === 'boolean' && r.round === k + 1
         && r.choiceReason === (r.events.find((e) => e.t === 'CHOICE')?.reason ?? null) && r.choiceSide === (r.events.find((e) => e.t === 'CHOICE')?.side ?? null)
         && r.obsessionTriggered === (r.choiceReason === 'OBSESSION') && (k === 0 ? r.hpBefore.E === lg.hpE && r.hpBefore.P === lg.hpP : JSON.stringify(r.hpBefore) === JSON.stringify(lg.rounds[k - 1].hpAfter)))
-      && lg.modeId === m && typeof lg.commit === 'string' && lg.commit.length >= 7 && lg.seed === 2003 && typeof lg.specVersion === 'string' && lg.specVersion.length > 0 && (m === 'BASELINE' || lg.specVersion.includes('FUN-EXP-01'))
+      && lg.modeId === m && typeof lg.commit === 'string' && lg.commit.length >= 7 && lg.seed === EXP_PARAMS.boards[m][1] && typeof lg.specVersion === 'string' && lg.specVersion.length > 0 && (m === 'BASELINE' || lg.specVersion.includes('FUN-EXP-01'))
       && ['WIN', 'LOSS', 'STALL'].includes(lg.result);
     const pii = /email|useragent|deviceid|"ip"|name":|userid|phone|cookie|fingerprint/i.test(JSON.stringify(Object.keys(lg)) + JSON.stringify(lg.rounds.map((r) => Object.keys(r))));
     check(`${tag} X-11 ${m} 紀錄欄位齊全（模式、規格版本、commit、seed、每回合 i/j、兩側器官、選邊理由、HP 前後、執念、傷口、結果、回合數）且不含個人識別欄位`, fieldsOk && !pii, `keys=${topKeys.length}`);

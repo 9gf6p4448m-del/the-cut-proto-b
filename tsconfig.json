@@ -5,5 +5,6 @@
     "types": [],
     "paths": { "node:crypto": ["./shims/crypto.ts"], "node:fs": ["./shims/fs.ts"] }
   },
-  "include": ["src/**/*.ts", "shims/**/*.ts", "engine/src/**/*.ts", "tools/**/*.ts"]
+  "include": ["src/**/*.ts", "shims/**/*.ts", "engine/src/**/*.ts", "tools/**/*.ts"],
+  "exclude": ["tools/exp/**"]
 }

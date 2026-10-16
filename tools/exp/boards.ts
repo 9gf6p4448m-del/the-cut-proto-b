@@ -220,6 +220,9 @@ if (process.argv.includes('--verify')) {
 } else {
   const cal = JSON.parse(readFileSync(outUrl('calibration.json'), 'utf8')) as { chosen: Record<string, { hpE: number | null }> };
   const hp = { A1: cal.chosen.A1.hpE ?? 30, A2: cal.chosen.A2.hpE ?? 30, B: 30 } as Record<string, number>;
+  // 規格 A v1.2：校準參考 bot 改為 MAXPIERCE（GRD 飽和）；以 --hp=A1:30,A2:39 覆寫 calibration.json 的 GRD 選值
+  const hpArg = process.argv.find((x) => x.startsWith('--hp='));
+  if (hpArg) for (const kv of hpArg.slice(5).split(',')) { const [m, v] = kv.split(':'); hp[m] = Number(v); }
   const boards = search(hp);
   mkdirSync(outUrl('.'), { recursive: true });
   writeFileSync(file, JSON.stringify({ range: [SEARCH_FROM, SEARCH_TO], hpE: hp, boards }, null, 1) + '\n');
