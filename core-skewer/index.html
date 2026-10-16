@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="串刺 研究">
+<meta name="theme-color" content="#11151B">
+<meta name="build-sha" content="a497fdb">
+<title>執刀者 串刺 研究片段</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="stylesheet" href="./style.css?v=a497fdb">
+</head>
+<body class="skewer">
+<header id="top">
+  <div class="warn"><b class="tag">研究片段</b> 串刺 core-skewer · 版本 <span id="sha"></span> · 非正式規則</div>
+  <div class="row">
+    <div id="modeRow" class="seg" role="group" aria-label="模式">
+      <button id="modeDraw" aria-pressed="true">畫線模式</button><button id="modePick" aria-pressed="false">點選模式</button>
+    </div>
+  </div>
+  <div class="row">
+    <label class="boardLbl">盤面 <select id="boardSel"></select></label><button id="nextBtn">下一局</button>
+  </div>
+  <div class="hud">
+    <div class="hp"><span>你</span><div class="bar"><i id="hpPBar"></i></div><b id="hpP"></b></div>
+    <div class="hp enemy"><span>怪物</span><div class="bar"><i id="hpEBar"></i></div><b id="hpE"></b></div>
+    <span id="turn" class="turn"></span>
+  </div>
+  <div id="info" class="info" role="status" aria-live="polite"></div>
+</header>
+<main><canvas id="board"></canvas></main>
+<footer>
+  <div id="pickRow" class="pickRow"></div>
+  <div class="actions"><button id="cancel">取消</button><button id="confirm" class="primary">確認這一刀</button></div>
+  <div class="tools"><button id="skip">跳過演出</button><button id="rulesBtn">規則</button><button id="exportBtn">複製紀錄</button></div>
+</footer>
+<section id="rules" class="review" hidden>
+  <h3>30 秒規則</h3>
+  <ul>
+    <li>每回合畫<b>一條貫穿全身的直線</b>（可以只切空肉，這回合沒有傷害）。</li>
+    <li>線穿過的器官受刀：<b>爪被摘除</b>；<b>心肉不會被摘除</b>，只受傷。</li>
+    <li>傷害＝線上器官的值總和 <b>× 串數</b>。</li>
+    <li><b>毒囊</b>被線碰到就在你身上爆開；<b>骨板</b>擋住的線畫不出來。</li>
+    <li>每回合結束，<b>剩下的爪</b>攻擊你。器官沿軌道每回合走一格，淡影是下一步。</li>
+    <li>在回合上限內把怪物打到 0 就贏；你的血先到 0 或回合用完就輸。</li>
+  </ul>
+  <p id="rulesBoard" class="basis"></p>
+  <button id="rulesClose">收起</button>
+</section>
+<section id="endPanel" class="end" hidden>
+  <h2 id="endTitle"></h2>
+  <div id="endSummary"></div>
+  <form id="survey" class="survey" onsubmit="return false"></form>
+  <div class="endBtns"><button id="retry" class="primary">再玩這盤</button><button id="next2">下一局</button><button id="exportBtn2">複製本局紀錄</button></div>
+</section>
+<section id="exportModal" class="modal" hidden><div class="box"><p>瀏覽器不允許自動複製。請長按下方文字全選複製：</p><textarea id="exportBox" readonly rows="8"></textarea><button id="exportClose">關閉</button></div></section>
+<script src="./app.js?v=a497fdb"></script>
+</body>
+</html>
