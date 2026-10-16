@@ -121,6 +121,14 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   const page = await ctx.newPage();
   await page.goto(url + '/');
   const man = await page.evaluate(async () => { const r = await fetch('./manifest.webmanifest'); const j = await r.json(); const icons = await Promise.all(j.icons.map((i) => fetch(i.src).then((x) => x.ok))); const apple = await fetch('./icon-180.png').then((x) => x.ok); return { ok: r.ok, display: j.display, start: j.start_url, icons, apple }; });
+  // 回歸：第一次造訪（service worker 首次安裝）不得重新載入頁面、打斷對局
+  {
+    const c2 = await browser.newContext(); const p2 = await c2.newPage(); let navs = 0;
+    p2.on('framenavigated', (f) => { if (f === p2.mainFrame()) navs++; });
+    await p2.goto(url + '/'); await p2.evaluate(() => navigator.serviceWorker.ready); await p2.waitForTimeout(1500);
+    check('T-15 回歸：首次安裝 service worker 不重新載入頁面', navs === 1, `navigations=${navs}`);
+    await c2.close();
+  }
   check('T-15① manifest 合法、圖示可取得、有 180×180 apple-touch-icon', man.ok && man.display === 'standalone' && man.icons.every(Boolean) && man.apple);
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload(); await page.waitForTimeout(300);
