@@ -8,11 +8,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="執刀者 B">
 <meta name="theme-color" content="#11151B">
-<meta name="build-sha" content="9255e5a">
+<meta name="build-sha" content="42fdb21">
 <title>執刀者 B 軌研究原型</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-180.png">
-<link rel="stylesheet" href="./style.css?v=9255e5a">
+<link rel="stylesheet" href="./style.css?v=42fdb21">
 </head>
 <body>
 <header id="top">
@@ -28,18 +28,18 @@
 </header>
 <main><canvas id="board"></canvas></main>
 <footer>
-  <div id="pending" class="pending" hidden>
+  <div class="pending-slot"><div id="pending" class="pending" hidden>
     <div class="who">確認後：屠夫先挑走一側，你拿剩下那側</div>
     <div class="pred">你猜屠夫拿哪側？<button id="predL" class="sideL">紫側</button><button id="predR" class="sideR">橙側</button></div>
     <label id="baitRow" class="bait" hidden><input type="checkbox" id="bait"> 🎯 我想讓牠吃毒囊</label>
     <div class="actions"><button id="cancel">取消</button><button id="confirm" class="primary">確認切割</button></div>
-  </div>
+  </div></div>
   <div class="tools"><button id="legendBtn">器官說明</button><button id="skip">跳過演出</button><button id="modeBtn"></button><button id="exportBtn">複製紀錄</button><button id="updateBtn">更新</button></div>
   <div id="hint" class="hint"></div>
 </footer>
 <section id="legend" class="review" hidden><h3>器官說明（研究候選數值）</h3><p class="basis">落側：沒被切穿、留在某一側的器官，歸<b>拿到那側的人</b>。刀中：被刀線切穿的器官，切下去<b>立刻</b>生效，在屠夫選側之前，不屬於任何一側。</p><table><thead><tr><th>器官</th><th>落側（持有者）</th><th>刀中（切穿時）</th></tr></thead><tbody></tbody></table><button onclick="document.getElementById('legend').hidden=true">收起</button></section>
 <section id="review" class="review" hidden><h3>因果回顧</h3><div id="reviewBody"></div><button onclick="document.getElementById('review').hidden=true">收起</button></section>
 <section id="endPanel" class="end" hidden><h2 id="endTitle"></h2><button id="retry" class="primary">同一局重來</button><button id="next">下一局</button></section>
-<script src="./app.js?v=9255e5a"></script>
+<script src="./app.js?v=42fdb21"></script>
 </body>
 </html>
