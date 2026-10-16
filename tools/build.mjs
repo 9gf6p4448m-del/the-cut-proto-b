@@ -31,5 +31,18 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-exp/${f}`, readFileSync(`public-exp/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', sub));
 }
 writeFileSync('dist-exp/.build-info.json', JSON.stringify({ sub, sha: short }) + '\n');
+// ---- 串刺研究片段（子路徑 core-skewer/）：獨立輸出 dist-skewer/；manifest／service worker 快取前綴與根網址、fun-exp-01 都分開 ----
+// 部署：node tools/deploy.mjs --sub core-skewer（只替換 gh-pages 的 core-skewer/）。上面兩份輸出（dist/、dist-exp/）不受這段影響。
+const SKEWER_SUB = 'core-skewer';
+rmSync('dist-skewer', { recursive: true, force: true });
+mkdirSync('dist-skewer', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/skewer_main.ts'], outfile: 'dist-skewer/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-skewer/${f}`);
+writeFileSync('dist-skewer/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-skewer/skewer.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-skewer/${f}`, readFileSync(`public-skewer/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', SKEWER_SUB));
+}
+writeFileSync('dist-skewer/.build-info.json', JSON.stringify({ sub: SKEWER_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
+console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);

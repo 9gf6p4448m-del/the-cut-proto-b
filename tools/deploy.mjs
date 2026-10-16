@@ -4,6 +4,7 @@
 // 兩種模式：
 //   node tools/deploy.mjs                          根網址版本：以 dist/ 取代 gh-pages 全部內容（原行為，未改動）
 //   node tools/deploy.mjs --sub fun-exp-01         FUN-EXP-01 實驗版：只替換 gh-pages 的 fun-exp-01/ 目錄（來源 dist-exp/）；
+//   node tools/deploy.mjs --sub core-skewer        串刺研究片段：只替換 gh-pages 的 core-skewer/ 目錄（來源 dist-skewer/）；規則同上
 //                                                  根目錄其他檔案一個位元都不能動——部署前後逐檔 SHA-256 比對，不同就中止（推送前、推送後各驗一次）
 //   --rehearsal --remote <url-or-path>             演練：改推到指定遠端（不得是 origin），略過「工作樹乾淨／HEAD 已推送／建置 SHA 相符」檢查；測試用
 import { execSync } from 'node:child_process';
@@ -27,7 +28,7 @@ const head = sh('git rev-parse --short=7 HEAD');
 const branch = sh('git rev-parse --abbrev-ref HEAD');
 
 if (!rehearsal) {
-  if (sh(`git status --porcelain -- src public${sub ? ' public-exp' : ''} shims engine tools`)) throw new Error('工作樹有未提交的變更');
+  if (sh(`git status --porcelain -- src public${sub ? ' public-exp public-skewer' : ''} shims engine tools`)) throw new Error('工作樹有未提交的變更');
   const remote = sh(`git ls-remote origin refs/heads/${sub ? branch : 'proto-b'}`).slice(0, 7);
   if (remote !== head) throw new Error(`HEAD ${head} 尚未推送（遠端 ${remote}）`);
 }
@@ -48,20 +49,21 @@ if (!sub) {
 } else {
   // ---- 實驗版子路徑 ----
   assertSubName(sub);
-  if (!existsSync('dist-exp/.build-info.json')) throw new Error('找不到 dist-exp/（先跑 node tools/build.mjs）');
-  const info = JSON.parse(readFileSync('dist-exp/.build-info.json', 'utf8'));
-  if (info.sub !== sub) throw new Error(`dist-exp 是為子路徑 ${info.sub} 建置的，不是 ${sub}`);
-  if (!rehearsal && info.sha !== head) throw new Error(`dist-exp 建置 SHA ${info.sha} ≠ HEAD ${head}：請在目前 HEAD 重新建置並重跑測試`);
+  const src = sub === 'core-skewer' ? 'dist-skewer' : 'dist-exp'; // 串刺研究片段有自己的建置輸出
+  if (!existsSync(`${src}/.build-info.json`)) throw new Error(`找不到 ${src}/（先跑 node tools/build.mjs）`);
+  const info = JSON.parse(readFileSync(`${src}/.build-info.json`, 'utf8'));
+  if (info.sub !== sub) throw new Error(`${src} 是為子路徑 ${info.sub} 建置的，不是 ${sub}`);
+  if (!rehearsal && info.sha !== head) throw new Error(`${src} 建置 SHA ${info.sha} ≠ HEAD ${head}：請在目前 HEAD 重新建置並重跑測試`);
   const before = rootSnapshot(dir, sub);
   const beforeTree = treeSnapshot(dir, 'HEAD', sub);
-  replaceSubdir(dir, sub, 'dist-exp');
+  replaceSubdir(dir, sub, src);
   assertRootUnchanged(before, rootSnapshot(dir, sub)); // 推送前：工作樹的根目錄檔案必須逐位元相同
   sh('git add -A', { cwd: dir });
   const touched = sh('git diff --cached --name-only', { cwd: dir }).split('\n').filter(Boolean);
   const outside = touched.filter((f) => !f.startsWith(`${sub}/`));
   if (outside.length) throw new Error(`本次提交會動到 ${sub}/ 以外的檔案，中止：${outside.slice(0, 10).join('、')}`);
   if (touched.length === 0) { console.log('沒有變更，不部署'); process.exit(0); }
-  sh(`git -c user.name="${an}" -c user.email="${ae}" commit -q -m "部署 FUN-EXP-01 實驗版 ${sub}/ ${head}"`, { cwd: dir });
+  sh(`git -c user.name="${an}" -c user.email="${ae}" commit -q -m "部署 ${sub === 'core-skewer' ? '串刺研究片段' : 'FUN-EXP-01 實驗版'} ${sub}/ ${head}"`, { cwd: dir });
   assertRootUnchanged(beforeTree, treeSnapshot(dir, 'HEAD', sub)); // 提交後：git blob id 逐檔相同（與換行轉換無關）
   sh('git push -q origin gh-pages', { cwd: dir });
   // 推送後：重新 clone 遠端 gh-pages，再比對一次根目錄

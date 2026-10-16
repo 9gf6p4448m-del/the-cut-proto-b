@@ -5,3 +5,4 @@ dist-test/
 test-output/
 *.png.tmp
 dist-exp/
+dist-skewer/
