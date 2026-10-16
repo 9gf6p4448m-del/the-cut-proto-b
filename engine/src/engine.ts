@@ -12,6 +12,8 @@ import type { PrngState } from './prng.ts';
 import { resolveRound } from './resolve.ts';
 import type { EnemyConfig, Ev, Organ, Result, Rules, Side } from './types.ts';
 import { ENGINE_VERSION, SPEC_VERSION } from './version.ts';
+import { expActionError, expInitState, expRunConfigOf, normalizeConfig, woundPrepare } from './experiment.ts'; // FUN-EXP-01 掛鉤 X-G1
+import type { ExpConfig, Wound } from './experiment.ts';
 
 export interface BattleConfig {
   seed: number;
@@ -23,6 +25,7 @@ export interface BattleConfig {
   r: number;
   anchorCount: number;
   maxRounds: number;
+  exp?: ExpConfig; // FUN-EXP-01 掛鉤 X-G2
 }
 
 export interface Board {
@@ -55,6 +58,7 @@ export interface BattleState {
   result: Result | null;
   sd1: boolean;
   stats: { templateAttempts: number; spawnFail: number; candOOR: number; anchorUnplaceable: number };
+  wound?: Wound | null; // FUN-EXP-01 掛鉤 X-G3（只有實驗 B 有此欄位）
 }
 
 export interface Action {
@@ -62,6 +66,7 @@ export interface Action {
   actor: 'P';
   i: number;
   j: number;
+  keepWound?: boolean; // FUN-EXP-01 掛鉤 X-G4
 }
 
 export interface Partition {
@@ -80,6 +85,7 @@ export function runConfigOf(cfg: BattleConfig, content: Content): Record<string,
     engineVersion: ENGINE_VERSION, specVersion: SPEC_VERSION, model: cfg.model, rules: cfg.rules, enemy: cfg.enemy,
     hpP: cfg.hpP, hpE: cfg.hpE, r: cfg.r, anchorCount: cfg.anchorCount, maxRounds: cfg.maxRounds,
     contentDigest: contentDigest(content), testOnlyContent: content.testOnly,
+    ...expRunConfigOf(cfg), // FUN-EXP-01 掛鉤 X-G5
   };
 }
 
@@ -182,6 +188,7 @@ export function newBattle(cfg0: BattleConfig, content: Content): { state: Battle
     result: null,
     sd1: false,
     stats: { templateAttempts: tr.attempts, spawnFail: 0, candOOR: 0, anchorUnplaceable: 0 },
+    ...expInitState(cfg), // FUN-EXP-01 掛鉤 X-G6
   };
   const events: Ev[] = [];
   if (!tr.poly) {
@@ -233,6 +240,7 @@ export function validateAction(s: BattleState, a: Action): void {
   if (a.round !== s.round) throw new InvalidAction(`回合不符：指令 ${a.round}，目前 ${s.round}`);
   const n = s.board ? s.board.anchors.length : 0;
   for (const k of [a.i, a.j]) if (!Number.isInteger(k) || k < 0 || k >= n) throw new InvalidAction(`錨點索引不合法：${k}`);
+  const xe = expActionError(s, a); if (xe) throw new InvalidAction(xe); // FUN-EXP-01 掛鉤 X-G7
 }
 
 /** 狀態與內容的綁定（PvP AP-3）：狀態的 configHash 必須等於以可信設定與目前內容重算的值。 */
@@ -241,7 +249,7 @@ const TRUSTED_CONFIG = new WeakSet<BattleConfig>();
 const bindingMemo = new WeakMap<Content, WeakMap<BattleConfig, string>>();
 
 export function trustedConfig(cfg: BattleConfig): BattleConfig {
-  const c = deepFreeze(structuredClone(cfg));
+  const c = deepFreeze(structuredClone(normalizeConfig(cfg))); // FUN-EXP-01 掛鉤 X-G8
   TRUSTED_CONFIG.add(c);
   return c;
 }
@@ -268,12 +276,16 @@ export function act(s: BattleState, a: Action, content: Content): { state: Battl
   const p = partitionOf(s, a.i, a.j);
   const events: Ev[] = [{ t: 'CUT', i: p.i, j: p.j, legal: p.legal, reason: p.reason }];
   if (!p.legal) return { state: s, events, legal: false };
+  const xw = woundPrepare(s, p, a); // FUN-EXP-01 掛鉤 X-G9（非實驗 B 為 null）
+  if (xw?.error) throw new InvalidAction(xw.error);
+  if (xw) events.push(...xw.events);
   const out = resolveRound({
-    hp: s.hp, maxHp: s.maxHp, pierced: p.pierced, L: p.L, R: p.R, area2: p.area2, fixedSide: 'R',
-    rules: s.config.rules, enemy: s.config.enemy, content, nextId: s.nextId, effectBase: s.board!.effectsAtStart,
+    hp: s.hp, maxHp: s.maxHp, pierced: xw ? xw.pierced : p.pierced, L: p.L, R: p.R, area2: p.area2, fixedSide: 'R',
+    rules: s.config.rules, enemy: s.config.enemy, content, nextId: xw ? xw.nextId : s.nextId, effectBase: s.board!.effectsAtStart,
   });
   events.push(...out.events);
   let ns: BattleState = { ...s, hp: out.hp, nextId: out.nextId, seedlingsPending: out.seedlings, board: null };
+  if (xw) ns = { ...ns, wound: out.result || ns.round >= s.config.maxRounds ? null : xw.wound }; // 戰鬥結束時傷口直接消失
   if (out.result) return { state: { ...ns, result: out.result, sd1: out.sd1 }, events, legal: true };
   if (ns.round >= s.config.maxRounds) {
     events.push({ t: 'END', result: 'STALL', sd1: false });
@@ -297,7 +309,7 @@ export function restoreState(text: string, trusted: BattleConfig, content: Conte
   if (s.engineVersion !== ENGINE_VERSION || s.specVersion !== SPEC_VERSION) {
     throw new Error(`版本不相容：快照 ${s.engineVersion}/${s.specVersion}，引擎 ${ENGINE_VERSION}/${SPEC_VERSION}`);
   }
-  if (canonical(s.config) !== canonical(trusted)) throw new Error('快照的設定與可信設定不同');
+  if (canonical(s.config) !== canonical(normalizeConfig(trusted))) throw new Error('快照的設定與可信設定不同'); // FUN-EXP-01 掛鉤 X-G10
   const h = hashOf(runConfigOf(trusted, content));
   if (s.configHash !== h) throw new Error('快照的設定雜湊與可信設定、內容重算的值不同');
   if (s.board && s.result) throw new Error('快照狀態不一致：戰鬥已結束卻仍有盤面');

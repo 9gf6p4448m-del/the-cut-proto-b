@@ -4,25 +4,27 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join, relative } from 'node:path';
-import { ROOT, sha, walk, snapshot, FORK_OLD, FORK_NEW, FORK_ADD, originalEngineDir, CFG } from './helpers.ts';
+import { ROOT, sha, walk, snapshot, FORK_ADD, FORK_HOOKS, FORK_NEW_FILES, undoHooks, originalEngineDir, CFG } from './helpers.ts';
 import { newBattle, setProtoBOrganPool } from '../../engine/src/engine.ts';
 import { loadContent } from '../../engine/src/content.ts';
 import { assertResearchLog } from '../../tools/import_guard.ts';
 
 const snap = snapshot();
 
-test('T-1 引擎快照：除凍結登記的一處外逐位元組相同', () => {
+// FUN-EXP-01（X-2）：由「只有一處 fork」改為「差異只在 ENGINE_FORK.md 列出的掛鉤」。
+test('T-1 引擎快照：差異只在 ENGINE_FORK.md 列出的掛鉤（撤銷全部掛鉤後逐位元組等於 3e2b9b4）', () => {
   const files = walk(join(ROOT, 'engine')).map((f) => relative(join(ROOT, 'engine'), f).replace(/\\/g, '/'));
-  assert.deepEqual(files.sort(), [...snap.keys()].sort(), '檔案集合與快照不同');
+  assert.deepEqual(files.sort(), [...snap.keys(), ...FORK_NEW_FILES].sort(), '檔案集合與「快照＋登記的新增檔」不同');
+  const doc = readFileSync(join(ROOT, 'ENGINE_FORK.md'), 'utf8');
+  for (const h of FORK_HOOKS) assert.ok(doc.includes(`\`${h.id}\``), `掛鉤 ${h.id} 未列入 ENGINE_FORK.md`);
+  for (const f of FORK_NEW_FILES) assert.ok(doc.includes(f), `新增檔 ${f} 未列入 ENGINE_FORK.md`);
   for (const f of files) {
-    const b = readFileSync(join(ROOT, 'engine', f));
-    if (f === 'src/engine.ts') {
-      const t = b.toString('utf8');
-      assert.equal(t.split(FORK_NEW).length - 1, 1, 'fork 呼叫點必須恰好一處');
-      assert.equal(t.includes(FORK_ADD), true, 'fork 宣告必須存在');
-      assert.equal(sha(t.replace(FORK_ADD, '').replace(FORK_NEW, FORK_OLD)), snap.get(f), '撤銷 fork 後必須等於 3e2b9b4 原檔');
-    } else assert.equal(sha(b), snap.get(f), `${f} 與 3e2b9b4 不同`);
+    if (FORK_NEW_FILES.includes(f)) continue;
+    const t = readFileSync(join(ROOT, 'engine', f), 'utf8');
+    for (const h of FORK_HOOKS.filter((x) => x.file === f)) assert.equal(t.split(h.new).length - 1, 1, `掛鉤 ${h.id} 在 ${f} 必須恰好出現一次`);
+    assert.equal(sha(undoHooks(f, t)), snap.get(f), `${f} 撤銷登記掛鉤後與 3e2b9b4 不同（有未登記的改動）`);
   }
+  assert.equal(readFileSync(join(ROOT, 'engine/src/engine.ts'), 'utf8').includes(FORK_ADD), true, 'B 軌器官池 fork 宣告必須存在');
 });
 
 test('T-1 反推的原始引擎與快照相同（供 T-5 跨環境重算）', () => {

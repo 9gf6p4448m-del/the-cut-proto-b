@@ -2,6 +2,7 @@
 // 可替換的策略：BOSS（理性）、性格加權（BUT/JUD/KNG）、天賦加權、天賦執念帶；條件式天賦只留接口。
 import { clip } from './int.ts';
 import type { Content } from './content.ts';
+import { obsessionSide } from './experiment.ts'; // FUN-EXP-01 掛鉤 X-E1
 import type { ChoiceBasis, ChoiceReason, EnemyConfig, Organ, SO, Side, SideFacts, TalentKey } from './types.ts';
 
 export class NotImplemented extends Error {}
@@ -19,6 +20,7 @@ export function preference(enemy: EnemyConfig, keep: Organ[], area2: number, are
     case 'BOSS':
       return [0, 1];
     case 'BUT':
+    case 'OBS_HEART': case 'OBS_AREA': // FUN-EXP-01 掛鉤 X-E2
       return [keep.reduce((s, o) => s + content.byKey[o.key].attack, 0), 20];
     case 'JUD':
       return [keep.length % 2 === 0 ? 1 : 0, 1];
@@ -91,6 +93,8 @@ export function choose(enemy: EnemyConfig, so: SO, L: SideFacts, R: SideFacts, f
       return { side: (c > 0) === wantMax ? 'L' : 'R', reason: so, basis };
     }
   }
+  const obs = !L.lethal && !R.lethal ? obsessionSide(enemy, L, R) : null; // FUN-EXP-01 掛鉤 X-E3
+  if (obs) return { side: obs, reason: 'OBSESSION', basis };
   const r = normalChain(enemy, L, R, fixed);
   return { side: r.side, reason: r.reason, basis };
 }

@@ -27,12 +27,14 @@ export type DmgKind = 'INC_DIRECT' | 'INC_POISON' | 'INC_POISON_SELF' | 'HARV_DI
 export const KIND_ORDER: DmgKind[] = ['INC_DIRECT', 'INC_POISON', 'INC_POISON_SELF', 'HARV_DIRECT', 'CORE', 'SELF_POISON', 'REFLECT'];
 
 export type ChoiceReason =
-  | 'SURVIVAL' | 'SO-1' | 'SO-2' | 'SO-3' | 'PREF' | 'BAND' | 'TIE-v' | 'TIE-area' | 'TIE-fixed' | 'FORCED';
+  | 'SURVIVAL' | 'SO-1' | 'SO-2' | 'SO-3' | 'PREF' | 'BAND' | 'TIE-v' | 'TIE-area' | 'TIE-fixed' | 'FORCED'
+  | 'OBSESSION'; // FUN-EXP-01 掛鉤 X-T1
 
 /** 敵人設定（R2 §4.3、天賦支線、R3 INT-10）。w10＝權重×10。 */
 export type EnemyConfig =
   | { kind: 'BOSS' }
   | { kind: 'BUT' | 'JUD' | 'KNG'; w10: number }
+  | { kind: 'OBS_HEART' | 'OBS_AREA'; w10: number } // FUN-EXP-01 掛鉤 X-T2
   | { kind: 'TALENT'; talent: TalentKey; mode: 'weighted'; w10: number }
   | { kind: 'TALENT'; talent: TalentKey; mode: 'band'; delta: number }
   | { kind: 'CONDITIONAL'; note: string };
@@ -57,6 +59,7 @@ export type Ev =
   | { t: 'DC'; pDead: boolean; eDead: boolean }
   | { t: 'CHOICE'; side: Side; reason: ChoiceReason; basis: ChoiceBasis | null }
   | { t: 'RE'; shieldP: number; shieldE: number }
+  | { t: 'WOUND'; op: 'KEEP' | 'TEAR' | 'HEAL'; organs: number[]; copies?: number[] } // FUN-EXP-01 掛鉤 X-T3
   | { t: 'CAP_EXCEEDED' }
   | { t: 'END'; result: Result; sd1: boolean };
 
@@ -71,6 +74,7 @@ export interface SideFacts {
   pNum: number;
   pDen: number;
   U: number;
+  hearts?: number; // FUN-EXP-01 掛鉤 X-T4
 }
 
 export interface ChoiceBasis {

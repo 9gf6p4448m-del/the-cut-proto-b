@@ -3,6 +3,7 @@
 import type { Content } from './content.ts';
 import { choose, preference, scoreU, w10Of } from './enemy.ts';
 import { KIND_ORDER } from './types.ts';
+import { obsFactsOf } from './experiment.ts'; // FUN-EXP-01 掛鉤 X-R1
 import type { DmgKind, EnemyConfig, Ev, Organ, Result, Rules, Side, SideFacts, Who } from './types.ts';
 
 export const EFFECT_CAP = 64;
@@ -191,7 +192,7 @@ export function resolveRound(inp: RoundInput): RoundOutput {
         const keep = holdingOf(side).E;
         const a2 = inp.area2[side];
         const [pNum, pDen] = preference(inp.enemy, keep, a2, inp.area2.L + inp.area2.R, inp.content);
-        return { pLoss, eLoss, v, lethal: sim.hp.E <= 0, area2: a2, pNum, pDen, U: scoreU(w10Of(inp.enemy), pNum, pDen, v) };
+        return { pLoss, eLoss, v, lethal: sim.hp.E <= 0, area2: a2, pNum, pDen, U: scoreU(w10Of(inp.enemy), pNum, pDen, v), ...obsFactsOf(inp.enemy, keep) }; // FUN-EXP-01 掛鉤 X-R2
       };
       const c = choose(inp.enemy, inp.rules.so, facts('L'), facts('R'), inp.fixedSide);
       choice = c.side;
