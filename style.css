@@ -35,3 +35,5 @@ button:disabled { opacity:.4; }
 .end { position:fixed; inset:0; background:#11151Bdd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:10; }
 .end button { width:70%; min-height:52px; flex:none; }
 .who { font-size:12px; color:var(--amber); margin-top:2px; }
+#legend table { width:100%; border-collapse:collapse; font-size:12px; } #legend td, #legend th { border-bottom:1px solid #3a4150; padding:4px 2px; text-align:left; vertical-align:top; }
+.tools { flex-wrap:nowrap; } .tools button { flex:1 1 0; padding:0 4px; }
