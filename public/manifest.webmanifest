@@ -1,0 +1,14 @@
+{
+  "name": "執刀者 B 軌研究原型",
+  "short_name": "執刀者 B",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#11151B",
+  "theme_color": "#11151B",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

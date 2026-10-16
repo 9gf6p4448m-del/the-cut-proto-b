@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="執刀者 B">
+<meta name="theme-color" content="#11151B">
+<meta name="build-sha" content="__BUILD_SHA__">
+<title>執刀者 B 軌研究原型</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="stylesheet" href="./style.css?v=__BUILD_SHA__">
+</head>
+<body>
+<header id="top">
+  <div class="warn">研究原型（非正式規則、非 Gate 證據）· <span id="mode"></span> · <span id="seed"></span> · 版本 <span id="sha"></span></div>
+  <div id="banner3" class="warn3">三器官體驗模式：研究引擎外的變體，非研究引擎結果、未經 golden 驗證</div>
+  <div class="hud">
+    <div class="hp"><span>你</span><div class="bar"><i id="hpPBar"></i></div><b id="hpP"></b></div>
+    <div class="hp enemy"><span>狂戰屠夫</span><div class="bar"><i id="hpEBar"></i></div><b id="hpE"></b></div>
+  </div>
+  <div class="rules"><span id="round"></span>｜結算順序：刀中效果 → 敵人選側 → 盾與治療 → 雙方傷害同時 → 死亡判定</div>
+  <div class="enemy-card">屠夫：70% 看哪側<b>攻擊器官</b>多、30% 看實際得失；<b>求生優先</b>：某側會讓牠死，牠就拿另一側</div>
+  <div id="preview" class="preview"></div>
+</header>
+<main><canvas id="board"></canvas></main>
+<footer>
+  <div id="pending" class="pending" hidden>
+    <div class="pred">你猜屠夫拿哪側？<button id="predL" class="sideL">紫側</button><button id="predR" class="sideR">橙側</button></div>
+    <label id="baitRow" class="bait" hidden><input type="checkbox" id="bait"> 🎯 我想讓牠吃毒囊</label>
+    <div class="actions"><button id="cancel">取消</button><button id="confirm" class="primary">確認切割</button></div>
+  </div>
+  <div class="tools"><button id="skip">跳過演出</button><button id="modeBtn"></button><button id="exportBtn">複製紀錄</button><button id="updateBtn">檢查更新</button></div>
+  <div id="hint" class="hint"></div>
+</footer>
+<section id="review" class="review" hidden><h3>因果回顧</h3><div id="reviewBody"></div><button onclick="document.getElementById('review').hidden=true">收起</button></section>
+<section id="endPanel" class="end" hidden><h2 id="endTitle"></h2><button id="retry" class="primary">同一局重來</button><button id="next">下一局</button></section>
+<script src="./app.js?v=__BUILD_SHA__"></script>
+</body>
+</html>
