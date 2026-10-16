@@ -1,0 +1,30 @@
+{
+ "identical": true,
+ "files": [
+  "calibration.json",
+  "bots.json",
+  "boards.json",
+  "exp_params.json"
+ ],
+ "runs": [
+  {
+   "calibration.json": "13552c1e26f0f3e118ae2764bb528a44e7483e286e62b770e04836991e33cf61",
+   "bots.json": "802940cef181991e7d6a34332a66d157e7bf07906ed9ea46d95c87e13e999cd4",
+   "boards.json": "949e8c4d206f2f64a7b2cf6144ea7fde092618b378aeef444e32efe4315328bf",
+   "exp_params.json": "9fe70121385a5dc72ee90fb1abffeb944c179dadb108efdb14381cbe501a43f8"
+  },
+  {
+   "calibration.json": "13552c1e26f0f3e118ae2764bb528a44e7483e286e62b770e04836991e33cf61",
+   "bots.json": "802940cef181991e7d6a34332a66d157e7bf07906ed9ea46d95c87e13e999cd4",
+   "boards.json": "949e8c4d206f2f64a7b2cf6144ea7fde092618b378aeef444e32efe4315328bf",
+   "exp_params.json": "9fe70121385a5dc72ee90fb1abffeb944c179dadb108efdb14381cbe501a43f8"
+  },
+  {
+   "calibration.json": "13552c1e26f0f3e118ae2764bb528a44e7483e286e62b770e04836991e33cf61",
+   "bots.json": "802940cef181991e7d6a34332a66d157e7bf07906ed9ea46d95c87e13e999cd4",
+   "boards.json": "949e8c4d206f2f64a7b2cf6144ea7fde092618b378aeef444e32efe4315328bf",
+   "exp_params.json": "9fe70121385a5dc72ee90fb1abffeb944c179dadb108efdb14381cbe501a43f8"
+  }
+ ],
+ "note": "runs[0]、runs[1]＝兩次獨立輸出；runs[2]＝提交的 results/"
+}

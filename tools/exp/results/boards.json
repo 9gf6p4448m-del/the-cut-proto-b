@@ -1,0 +1,357 @@
+{
+ "range": [
+  800001,
+  830000
+ ],
+ "hpE": {
+  "A1": 31,
+  "A2": 35,
+  "B": 30
+ },
+ "boards": [
+  {
+   "id": "A1-1",
+   "mode": "A1",
+   "board": 1,
+   "seed": 800007,
+   "hpE": 31,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "lines": 32,
+     "maxNet": 5,
+     "baitLines": 2,
+     "bestBaitNet": 5,
+     "nonTriggeringHigherThanBait": 0
+    },
+    "good": {
+     "round": 1,
+     "i": 2,
+     "j": 8,
+     "net": 5,
+     "note": "誘餌好刀：敵人因執念拿走含毒囊側（reason=OBSESSION）"
+    },
+    "trap": {
+     "round": 1,
+     "i": 1,
+     "j": 9,
+     "net": -4,
+     "note": "陷阱刀：執念側有毒囊的線但不划算（reason=OBSESSION，敵人被誘到卻讓你淨收益 ≤0）"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800007,
+    "scanned": 7,
+    "note": "第 7 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "A1-2",
+   "mode": "A1",
+   "board": 2,
+   "seed": 800001,
+   "hpE": 31,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "maxNet": 5,
+     "immediateBestTotal2g": 3,
+     "triggeringBestNet": 4,
+     "triggeringBestTotal2g": 4,
+     "triggeringLowerNetLines": 30
+    },
+    "good": {
+     "round": 1,
+     "i": 5,
+     "j": 11,
+     "net": 4,
+     "note": "誘導好刀：第 1 回合淨收益較低但觸發執念（2 回合貪婪總淨收益 4）"
+    },
+    "trap": {
+     "round": 1,
+     "i": 2,
+     "j": 8,
+     "net": 5,
+     "note": "貪婪陷阱：立即淨收益最大（5）但 2 回合貪婪總淨收益只有 3"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800001,
+    "scanned": 1,
+    "note": "第 1 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "A1-3",
+   "mode": "A1",
+   "board": 3,
+   "seed": 800111,
+   "hpE": 31,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "poisonObsLines": 14,
+     "poisonObsLinesNotFailing": 0,
+     "survivalDeflected": 0,
+     "poisonObsMaxNet": -1,
+     "otherPositiveLines": 9
+    },
+    "good": {
+     "round": 1,
+     "i": 1,
+     "j": 7,
+     "net": 6,
+     "note": "非誘餌的正收益好刀"
+    },
+    "trap": {
+     "round": 1,
+     "i": 0,
+     "j": 4,
+     "net": -1,
+     "note": "常見誘餌失效：執念側放毒囊（reason=OBSESSION，淨收益 -1）"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800111,
+    "scanned": 109,
+    "note": "第 109 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "A2-1",
+   "mode": "A2",
+   "board": 1,
+   "seed": 800004,
+   "hpE": 35,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "lines": 33,
+     "maxNet": 13,
+     "baitLines": 10,
+     "bestBaitNet": 13,
+     "nonTriggeringHigherThanBait": 0
+    },
+    "good": {
+     "round": 1,
+     "i": 3,
+     "j": 8,
+     "net": 13,
+     "note": "誘餌好刀：敵人因執念拿走含毒囊側（reason=OBSESSION）"
+    },
+    "trap": {
+     "round": 1,
+     "i": 2,
+     "j": 9,
+     "net": -1,
+     "note": "陷阱刀：執念側有毒囊的線但不划算（reason=OBSESSION，敵人被誘到卻讓你淨收益 ≤0）"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800004,
+    "scanned": 4,
+    "note": "第 4 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "A2-2",
+   "mode": "A2",
+   "board": 2,
+   "seed": 800115,
+   "hpE": 35,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "maxNet": 9,
+     "immediateBestTotal2g": 16,
+     "triggeringBestNet": 4,
+     "triggeringBestTotal2g": 19,
+     "triggeringLowerNetLines": 28
+    },
+    "good": {
+     "round": 1,
+     "i": 4,
+     "j": 11,
+     "net": 4,
+     "note": "誘導好刀：第 1 回合淨收益較低但觸發執念（2 回合貪婪總淨收益 19）"
+    },
+    "trap": {
+     "round": 1,
+     "i": 2,
+     "j": 8,
+     "net": 9,
+     "note": "貪婪陷阱：立即淨收益最大（9）但 2 回合貪婪總淨收益只有 16"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800115,
+    "scanned": 114,
+    "note": "第 114 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "A2-3",
+   "mode": "A2",
+   "board": 3,
+   "seed": 800748,
+   "hpE": 35,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "poisonObsLines": 22,
+     "poisonObsLinesNotFailing": 0,
+     "survivalDeflected": 0,
+     "poisonObsMaxNet": -1,
+     "otherPositiveLines": 4
+    },
+    "good": {
+     "round": 1,
+     "i": 1,
+     "j": 7,
+     "net": 8,
+     "note": "非誘餌的正收益好刀"
+    },
+    "trap": {
+     "round": 1,
+     "i": 6,
+     "j": 11,
+     "net": -1,
+     "note": "常見誘餌失效：執念側放毒囊（reason=OBSESSION，淨收益 -1）"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800748,
+    "scanned": 746,
+    "note": "第 746 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "B-1",
+   "mode": "B",
+   "board": 1,
+   "seed": 800002,
+   "hpE": 30,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "keepLines": 27,
+     "immediateBestNet1": 4,
+     "immediateBestTotal2g": 14,
+     "bestKeepTotal2g": 13,
+     "bestNoKeepTotal2g": 14
+    },
+    "good": {
+     "round": 1,
+     "i": 6,
+     "j": 11,
+     "net": 4,
+     "note": "立即發動的好刀（2 回合貪婪總淨收益 14）"
+    },
+    "trap": {
+     "round": 1,
+     "i": 1,
+     "j": 8,
+     "keep": true,
+     "net": 3,
+     "note": "留傷口的陷阱（最佳留傷口線，2 回合貪婪總淨收益只有 13）"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800002,
+    "scanned": 2,
+    "note": "第 2 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "B-2",
+   "mode": "B",
+   "board": 2,
+   "seed": 800003,
+   "hpE": 30,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "keepTearCombos": 510,
+     "bestKeepTearTotal": 15,
+     "bestNoKeepTotal": 12
+    },
+    "good": {
+     "round": 1,
+     "i": 2,
+     "j": 8,
+     "keep": true,
+     "net": 1,
+     "note": "第 1 回合留傷口；第 2 回合撕裂刀 anchor 5/10（淨收益 14），2 回合總淨收益 15"
+    },
+    "trap": {
+     "round": 1,
+     "i": 0,
+     "j": 7,
+     "net": 4,
+     "note": "不留傷口的最佳 2 回合組合只有總淨收益 12"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800003,
+    "scanned": 2,
+    "note": "第 2 個被掃描的 seed 命中"
+   }
+  },
+  {
+   "id": "B-3",
+   "mode": "B",
+   "board": 3,
+   "seed": 800004,
+   "hpE": 30,
+   "result": {
+    "pass": true,
+    "numbers": {
+     "poisonKeepLines": 6,
+     "tested": 6,
+     "round2BestTearNet": 5,
+     "round2BestAvoidNet": 8,
+     "margin": 3,
+     "tearLines": 26,
+     "avoidLines": 8
+    },
+    "good": {
+     "round": 2,
+     "i": 2,
+     "j": 7,
+     "net": 8,
+     "note": "第 2 回合避開傷口讓它癒合（第 1 回合留傷口刀 anchor 1/8，封存 poison+mirror，keep=true）"
+    },
+    "trap": {
+     "round": 2,
+     "i": 0,
+     "j": 5,
+     "net": 5,
+     "note": "第 2 回合最佳撕裂線（毒囊 ×2）"
+    },
+    "note": ""
+   },
+   "search": {
+    "from": 800001,
+    "to": 800004,
+    "scanned": 2,
+    "note": "第 2 個被掃描的 seed 命中"
+   }
+  }
+ ]
+}

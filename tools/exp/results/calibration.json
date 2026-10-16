@@ -1,0 +1,5114 @@
+{
+ "seeds": [
+  710001,
+  710500
+ ],
+ "baselineGRD": {
+  "n": 500,
+  "wins": 500,
+  "losses": 0,
+  "stalls": 0,
+  "invalid": 0,
+  "winRate": 1,
+  "winCI95": [
+   0.992375,
+   1
+  ],
+  "avgRounds": 3.888,
+  "netPerRound": 4.585905,
+  "myLossPerRound": 3.130144,
+  "enLossPerRound": 7.716049,
+  "zeroLossRoundRate": 0.264403,
+  "zeroLossAvailRate": 0.435185,
+  "obsTriggerRate": null,
+  "keepRate": null,
+  "keepsPerGame": null,
+  "tearRatePerWound": null,
+  "healRatePerWound": null,
+  "tearRounds": null,
+  "tearNetPerTearRound": null,
+  "tearCopyNetPerTear": null,
+  "nonTearNetPerRound": null,
+  "maxKeepStreak": null,
+  "woundAgeViolations": 0,
+  "baitAvailRate": null,
+  "baitTakenRate": null,
+  "baitSuccessRate": null,
+  "reasons": {
+   "PREF": 1275,
+   "SO-3": 270,
+   "TIE-area": 196,
+   "SURVIVAL": 8
+  }
+ },
+ "table": {
+  "A1": [
+   {
+    "hpE": 20,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.722,
+     "netPerRound": 4.123439,
+     "myLossPerRound": 3.2241,
+     "enLossPerRound": 7.347539,
+     "zeroLossRoundRate": 0.291697,
+     "zeroLossAvailRate": 0.436444,
+     "obsTriggerRate": 0.258633,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.40338,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 413,
+      "OBSESSION": 352,
+      "SO-3": 275,
+      "TIE-area": 122,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 21,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.824,
+     "netPerRound": 4.203258,
+     "myLossPerRound": 3.233003,
+     "enLossPerRound": 7.436261,
+     "zeroLossRoundRate": 0.286119,
+     "zeroLossAvailRate": 0.430595,
+     "obsTriggerRate": 0.266997,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.398017,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 430,
+      "OBSESSION": 377,
+      "SO-3": 270,
+      "TIE-area": 134,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 22,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.93,
+     "netPerRound": 4.346758,
+     "myLossPerRound": 3.161775,
+     "enLossPerRound": 7.508532,
+     "zeroLossRoundRate": 0.284642,
+     "zeroLossAvailRate": 0.434812,
+     "obsTriggerRate": 0.268259,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.392491,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 459,
+      "OBSESSION": 393,
+      "SO-3": 268,
+      "TIE-area": 142,
+      "SURVIVAL": 8
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 23,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.062,
+     "netPerRound": 4.418027,
+     "myLossPerRound": 3.093403,
+     "enLossPerRound": 7.51143,
+     "zeroLossRoundRate": 0.282169,
+     "zeroLossAvailRate": 0.438276,
+     "obsTriggerRate": 0.274984,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.391901,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 480,
+      "OBSESSION": 421,
+      "SO-3": 273,
+      "TIE-area": 148,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 24,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.166,
+     "netPerRound": 4.511055,
+     "myLossPerRound": 3.069488,
+     "enLossPerRound": 7.580543,
+     "zeroLossRoundRate": 0.285534,
+     "zeroLossAvailRate": 0.439672,
+     "obsTriggerRate": 0.281112,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.394188,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 513,
+      "OBSESSION": 445,
+      "SO-3": 259,
+      "TIE-area": 151,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 25,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.254,
+     "netPerRound": 4.607867,
+     "myLossPerRound": 3.074985,
+     "enLossPerRound": 7.682852,
+     "zeroLossRoundRate": 0.283344,
+     "zeroLossAvailRate": 0.440688,
+     "obsTriggerRate": 0.292563,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.395821,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 516,
+      "OBSESSION": 476,
+      "SO-3": 259,
+      "TIE-area": 159,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 26,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.368,
+     "netPerRound": 4.704276,
+     "myLossPerRound": 3.015439,
+     "enLossPerRound": 7.719715,
+     "zeroLossRoundRate": 0.276128,
+     "zeroLossAvailRate": 0.438836,
+     "obsTriggerRate": 0.303444,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.394893,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 551,
+      "OBSESSION": 511,
+      "SO-3": 257,
+      "TIE-area": 164,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 27,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.47,
+     "netPerRound": 4.795965,
+     "myLossPerRound": 2.985014,
+     "enLossPerRound": 7.78098,
+     "zeroLossRoundRate": 0.276081,
+     "zeroLossAvailRate": 0.43804,
+     "obsTriggerRate": 0.310086,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.394236,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 569,
+      "OBSESSION": 538,
+      "SO-3": 259,
+      "TIE-area": 164,
+      "SURVIVAL": 2
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 28,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.574,
+     "netPerRound": 4.827084,
+     "myLossPerRound": 3.007275,
+     "enLossPerRound": 7.834359,
+     "zeroLossRoundRate": 0.273083,
+     "zeroLossAvailRate": 0.437045,
+     "obsTriggerRate": 0.312255,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.391158,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 587,
+      "OBSESSION": 558,
+      "SO-3": 274,
+      "TIE-area": 168,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 29,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.69,
+     "netPerRound": 4.911653,
+     "myLossPerRound": 2.947425,
+     "enLossPerRound": 7.859079,
+     "zeroLossRoundRate": 0.272629,
+     "zeroLossAvailRate": 0.442276,
+     "obsTriggerRate": 0.316531,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.392954,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 621,
+      "OBSESSION": 584,
+      "SO-3": 257,
+      "TIE-area": 178,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 30,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.826,
+     "netPerRound": 5.016728,
+     "myLossPerRound": 2.82436,
+     "enLossPerRound": 7.841087,
+     "zeroLossRoundRate": 0.273915,
+     "zeroLossAvailRate": 0.444328,
+     "obsTriggerRate": 0.318348,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.391009,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 650,
+      "OBSESSION": 609,
+      "SO-3": 249,
+      "TIE-area": 184,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 31,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.886,
+     "netPerRound": 5.097787,
+     "myLossPerRound": 2.879568,
+     "enLossPerRound": 7.977355,
+     "zeroLossRoundRate": 0.257334,
+     "zeroLossAvailRate": 0.435409,
+     "obsTriggerRate": 0.324241,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.390118,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 654,
+      "OBSESSION": 630,
+      "SO-3": 264,
+      "TIE-area": 188,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 32,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4,
+     "netPerRound": 5.1445,
+     "myLossPerRound": 2.8555,
+     "enLossPerRound": 8,
+     "zeroLossRoundRate": 0.2575,
+     "zeroLossAvailRate": 0.4365,
+     "obsTriggerRate": 0.3285,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.389,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 678,
+      "OBSESSION": 657,
+      "SO-3": 265,
+      "TIE-area": 188,
+      "SURVIVAL": 11
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 33,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.106,
+     "netPerRound": 5.173892,
+     "myLossPerRound": 2.863127,
+     "enLossPerRound": 8.037019,
+     "zeroLossRoundRate": 0.253288,
+     "zeroLossAvailRate": 0.435947,
+     "obsTriggerRate": 0.330248,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.386751,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 705,
+      "OBSESSION": 678,
+      "SO-3": 260,
+      "TIE-area": 192,
+      "SURVIVAL": 13
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 34,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.206,
+     "netPerRound": 5.197337,
+     "myLossPerRound": 2.886353,
+     "enLossPerRound": 8.08369,
+     "zeroLossRoundRate": 0.248217,
+     "zeroLossAvailRate": 0.432715,
+     "obsTriggerRate": 0.331431,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.386115,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 724,
+      "OBSESSION": 697,
+      "SO-3": 273,
+      "TIE-area": 201,
+      "SURVIVAL": 15
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 35,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.284,
+     "netPerRound": 5.283847,
+     "myLossPerRound": 2.886088,
+     "enLossPerRound": 8.169935,
+     "zeroLossRoundRate": 0.247432,
+     "zeroLossAvailRate": 0.431373,
+     "obsTriggerRate": 0.336134,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.387955,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 748,
+      "OBSESSION": 720,
+      "SO-3": 272,
+      "TIE-area": 199,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 36,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.376,
+     "netPerRound": 5.334095,
+     "myLossPerRound": 2.892596,
+     "enLossPerRound": 8.226691,
+     "zeroLossRoundRate": 0.251371,
+     "zeroLossAvailRate": 0.435101,
+     "obsTriggerRate": 0.338665,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.388026,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 768,
+      "OBSESSION": 741,
+      "SO-3": 257,
+      "TIE-area": 203,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 37,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.502,
+     "netPerRound": 5.403376,
+     "myLossPerRound": 2.815193,
+     "enLossPerRound": 8.21857,
+     "zeroLossRoundRate": 0.251444,
+     "zeroLossAvailRate": 0.437583,
+     "obsTriggerRate": 0.344291,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.387828,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 798,
+      "OBSESSION": 775,
+      "SO-3": 244,
+      "TIE-area": 215,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 38,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.59,
+     "netPerRound": 5.430501,
+     "myLossPerRound": 2.848366,
+     "enLossPerRound": 8.278867,
+     "zeroLossRoundRate": 0.254031,
+     "zeroLossAvailRate": 0.43878,
+     "obsTriggerRate": 0.344662,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.389107,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 826,
+      "OBSESSION": 791,
+      "SO-3": 249,
+      "TIE-area": 215,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 39,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.7,
+     "netPerRound": 5.468085,
+     "myLossPerRound": 2.829787,
+     "enLossPerRound": 8.297872,
+     "zeroLossRoundRate": 0.250638,
+     "zeroLossAvailRate": 0.438723,
+     "obsTriggerRate": 0.346383,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.389787,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 845,
+      "OBSESSION": 814,
+      "SO-3": 253,
+      "TIE-area": 224,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 40,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.814,
+     "netPerRound": 5.53386,
+     "myLossPerRound": 2.775239,
+     "enLossPerRound": 8.309098,
+     "zeroLossRoundRate": 0.245118,
+     "zeroLossAvailRate": 0.434566,
+     "obsTriggerRate": 0.347736,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.388035,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 872,
+      "OBSESSION": 837,
+      "SO-3": 252,
+      "TIE-area": 232,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 41,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.898,
+     "netPerRound": 5.592078,
+     "myLossPerRound": 2.778685,
+     "enLossPerRound": 8.370764,
+     "zeroLossRoundRate": 0.244181,
+     "zeroLossAvailRate": 0.43283,
+     "obsTriggerRate": 0.34953,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.38873,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 893,
+      "OBSESSION": 856,
+      "SO-3": 254,
+      "TIE-area": 238,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 42,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.014,
+     "netPerRound": 5.638213,
+     "myLossPerRound": 2.738333,
+     "enLossPerRound": 8.376546,
+     "zeroLossRoundRate": 0.245712,
+     "zeroLossAvailRate": 0.435979,
+     "obsTriggerRate": 0.352214,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.388512,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 920,
+      "OBSESSION": 883,
+      "SO-3": 242,
+      "TIE-area": 243,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 43,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.106,
+     "netPerRound": 5.643165,
+     "myLossPerRound": 2.7783,
+     "enLossPerRound": 8.421465,
+     "zeroLossRoundRate": 0.243635,
+     "zeroLossAvailRate": 0.432041,
+     "obsTriggerRate": 0.352918,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.388171,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 941,
+      "OBSESSION": 901,
+      "SO-3": 239,
+      "TIE-area": 251,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 44,
+    "agg": {
+     "n": 500,
+     "wins": 499,
+     "losses": 1,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 0.998,
+     "winCI95": [
+      0.988759,
+      0.999647
+     ],
+     "avgRounds": 5.214,
+     "netPerRound": 5.715382,
+     "myLossPerRound": 2.723437,
+     "enLossPerRound": 8.438819,
+     "zeroLossRoundRate": 0.243191,
+     "zeroLossAvailRate": 0.433832,
+     "obsTriggerRate": 0.356732,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.390487,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 958,
+      "OBSESSION": 930,
+      "TIE-area": 254,
+      "SO-3": 241,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": -0.2
+   },
+   {
+    "hpE": 45,
+    "agg": {
+     "n": 500,
+     "wins": 499,
+     "losses": 1,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 0.998,
+     "winCI95": [
+      0.988759,
+      0.999647
+     ],
+     "avgRounds": 5.312,
+     "netPerRound": 5.75,
+     "myLossPerRound": 2.721386,
+     "enLossPerRound": 8.471386,
+     "zeroLossRoundRate": 0.239458,
+     "zeroLossAvailRate": 0.429217,
+     "obsTriggerRate": 0.358434,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.39006,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 982,
+      "OBSESSION": 952,
+      "SO-3": 237,
+      "TIE-area": 259,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": -0.2
+   },
+   {
+    "hpE": 46,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.436,
+     "netPerRound": 5.768948,
+     "myLossPerRound": 2.693157,
+     "enLossPerRound": 8.462104,
+     "zeroLossRoundRate": 0.238779,
+     "zeroLossAvailRate": 0.42936,
+     "obsTriggerRate": 0.357984,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.391096,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1008,
+      "OBSESSION": 973,
+      "TIE-area": 265,
+      "SO-3": 254,
+      "SURVIVAL": 8
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 47,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.53,
+     "netPerRound": 5.792043,
+     "myLossPerRound": 2.707052,
+     "enLossPerRound": 8.499096,
+     "zeroLossRoundRate": 0.235443,
+     "zeroLossAvailRate": 0.428933,
+     "obsTriggerRate": 0.360217,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.388427,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1028,
+      "OBSESSION": 996,
+      "TIE-area": 277,
+      "SO-3": 255,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 48,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.634,
+     "netPerRound": 5.843805,
+     "myLossPerRound": 2.675896,
+     "enLossPerRound": 8.519702,
+     "zeroLossRoundRate": 0.229677,
+     "zeroLossAvailRate": 0.424565,
+     "obsTriggerRate": 0.363862,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.389066,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1047,
+      "OBSESSION": 1025,
+      "TIE-area": 278,
+      "SO-3": 260,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 49,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.742,
+     "netPerRound": 5.856148,
+     "myLossPerRound": 2.677464,
+     "enLossPerRound": 8.533612,
+     "zeroLossRoundRate": 0.231975,
+     "zeroLossAvailRate": 0.425287,
+     "obsTriggerRate": 0.366771,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.389063,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1067,
+      "OBSESSION": 1053,
+      "TIE-area": 280,
+      "SO-3": 258,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 50,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.852,
+     "netPerRound": 5.879357,
+     "myLossPerRound": 2.66473,
+     "enLossPerRound": 8.544087,
+     "zeroLossRoundRate": 0.233424,
+     "zeroLossAvailRate": 0.426179,
+     "obsTriggerRate": 0.367738,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.389952,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1093,
+      "OBSESSION": 1076,
+      "TIE-area": 285,
+      "SO-3": 266,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 51,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.936,
+     "netPerRound": 5.928235,
+     "myLossPerRound": 2.66341,
+     "enLossPerRound": 8.591644,
+     "zeroLossRoundRate": 0.230121,
+     "zeroLossAvailRate": 0.423854,
+     "obsTriggerRate": 0.37062,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.391509,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1115,
+      "OBSESSION": 1100,
+      "TIE-area": 286,
+      "SO-3": 280,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 52,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 6.026,
+     "netPerRound": 5.930302,
+     "myLossPerRound": 2.698971,
+     "enLossPerRound": 8.629273,
+     "zeroLossRoundRate": 0.228012,
+     "zeroLossAvailRate": 0.425158,
+     "obsTriggerRate": 0.371391,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.390641,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1131,
+      "OBSESSION": 1119,
+      "TIE-area": 290,
+      "SO-3": 284,
+      "SURVIVAL": 13
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 53,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 6.104,
+     "netPerRound": 5.982307,
+     "myLossPerRound": 2.700524,
+     "enLossPerRound": 8.682831,
+     "zeroLossRoundRate": 0.227064,
+     "zeroLossAvailRate": 0.424967,
+     "obsTriggerRate": 0.373853,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.392202,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1158,
+      "OBSESSION": 1141,
+      "TIE-area": 293,
+      "SO-3": 279,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 54,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 6.214,
+     "netPerRound": 6.009656,
+     "myLossPerRound": 2.680399,
+     "enLossPerRound": 8.690055,
+     "zeroLossRoundRate": 0.230126,
+     "zeroLossAvailRate": 0.4271,
+     "obsTriggerRate": 0.374638,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.39234,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1178,
+      "OBSESSION": 1164,
+      "TIE-area": 305,
+      "SO-3": 260,
+      "SURVIVAL": 8
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 55,
+    "agg": {
+     "n": 500,
+     "wins": 498,
+     "losses": 1,
+     "stalls": 1,
+     "invalid": 0,
+     "winRate": 0.996,
+     "winCI95": [
+      0.985534,
+      0.998902
+     ],
+     "avgRounds": 6.328,
+     "netPerRound": 6.028761,
+     "myLossPerRound": 2.662137,
+     "enLossPerRound": 8.690898,
+     "zeroLossRoundRate": 0.231037,
+     "zeroLossAvailRate": 0.429204,
+     "obsTriggerRate": 0.37579,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.392225,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1210,
+      "OBSESSION": 1189,
+      "TIE-area": 311,
+      "SO-3": 255,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": -0.4
+   },
+   {
+    "hpE": 56,
+    "agg": {
+     "n": 500,
+     "wins": 496,
+     "losses": 3,
+     "stalls": 1,
+     "invalid": 0,
+     "winRate": 0.992,
+     "winCI95": [
+      0.979613,
+      0.996885
+     ],
+     "avgRounds": 6.404,
+     "netPerRound": 6.047783,
+     "myLossPerRound": 2.695815,
+     "enLossPerRound": 8.743598,
+     "zeroLossRoundRate": 0.230169,
+     "zeroLossAvailRate": 0.428482,
+     "obsTriggerRate": 0.37945,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.393192,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1216,
+      "OBSESSION": 1215,
+      "TIE-area": 311,
+      "SO-3": 265,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": -0.8
+   },
+   {
+    "hpE": 57,
+    "agg": {
+     "n": 500,
+     "wins": 496,
+     "losses": 3,
+     "stalls": 1,
+     "invalid": 0,
+     "winRate": 0.992,
+     "winCI95": [
+      0.979613,
+      0.996885
+     ],
+     "avgRounds": 6.508,
+     "netPerRound": 6.095882,
+     "myLossPerRound": 2.66134,
+     "enLossPerRound": 8.757222,
+     "zeroLossRoundRate": 0.229564,
+     "zeroLossAvailRate": 0.430547,
+     "obsTriggerRate": 0.381684,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.392133,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1235,
+      "OBSESSION": 1242,
+      "TIE-area": 316,
+      "SO-3": 261,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": -0.8
+   },
+   {
+    "hpE": 58,
+    "agg": {
+     "n": 500,
+     "wins": 496,
+     "losses": 3,
+     "stalls": 1,
+     "invalid": 0,
+     "winRate": 0.992,
+     "winCI95": [
+      0.979613,
+      0.996885
+     ],
+     "avgRounds": 6.588,
+     "netPerRound": 6.131148,
+     "myLossPerRound": 2.67122,
+     "enLossPerRound": 8.802368,
+     "zeroLossRoundRate": 0.22799,
+     "zeroLossAvailRate": 0.428658,
+     "obsTriggerRate": 0.384032,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.392228,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1252,
+      "OBSESSION": 1265,
+      "SO-3": 266,
+      "TIE-area": 313,
+      "SURVIVAL": 8
+     }
+    },
+    "diffPP": -0.8
+   },
+   {
+    "hpE": 59,
+    "agg": {
+     "n": 500,
+     "wins": 496,
+     "losses": 3,
+     "stalls": 1,
+     "invalid": 0,
+     "winRate": 0.992,
+     "winCI95": [
+      0.979613,
+      0.996885
+     ],
+     "avgRounds": 6.682,
+     "netPerRound": 6.143071,
+     "myLossPerRound": 2.686321,
+     "enLossPerRound": 8.829392,
+     "zeroLossRoundRate": 0.220593,
+     "zeroLossAvailRate": 0.42622,
+     "obsTriggerRate": 0.385513,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.3912,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1266,
+      "OBSESSION": 1288,
+      "SO-3": 273,
+      "TIE-area": 323,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": -0.8
+   },
+   {
+    "hpE": 60,
+    "agg": {
+     "n": 500,
+     "wins": 496,
+     "losses": 3,
+     "stalls": 1,
+     "invalid": 0,
+     "winRate": 0.992,
+     "winCI95": [
+      0.979613,
+      0.996885
+     ],
+     "avgRounds": 6.804,
+     "netPerRound": 6.176955,
+     "myLossPerRound": 2.6408,
+     "enLossPerRound": 8.817754,
+     "zeroLossRoundRate": 0.224574,
+     "zeroLossAvailRate": 0.426808,
+     "obsTriggerRate": 0.387125,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.392416,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "PREF": 1285,
+      "OBSESSION": 1317,
+      "SO-3": 248,
+      "TIE-area": 332,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": -0.8
+   }
+  ],
+  "A2": [
+   {
+    "hpE": 20,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.566,
+     "netPerRound": 5.166797,
+     "myLossPerRound": 2.627436,
+     "enLossPerRound": 7.794232,
+     "zeroLossRoundRate": 0.433359,
+     "zeroLossAvailRate": 0.564302,
+     "obsTriggerRate": 0.464536,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.647701,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 596,
+      "PREF": 183,
+      "SO-3": 244,
+      "TIE-area": 25,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 21,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.656,
+     "netPerRound": 5.301958,
+     "myLossPerRound": 2.604669,
+     "enLossPerRound": 7.906627,
+     "zeroLossRoundRate": 0.428464,
+     "zeroLossAvailRate": 0.557982,
+     "obsTriggerRate": 0.46988,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.646084,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 624,
+      "SO-3": 241,
+      "PREF": 200,
+      "SURVIVAL": 9,
+      "TIE-area": 26
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 22,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.742,
+     "netPerRound": 5.466083,
+     "myLossPerRound": 2.557257,
+     "enLossPerRound": 8.023341,
+     "zeroLossRoundRate": 0.412108,
+     "zeroLossAvailRate": 0.548505,
+     "obsTriggerRate": 0.475565,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.63895,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 652,
+      "SO-3": 246,
+      "PREF": 220,
+      "SURVIVAL": 6,
+      "TIE-area": 27
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 23,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.85,
+     "netPerRound": 5.545965,
+     "myLossPerRound": 2.524211,
+     "enLossPerRound": 8.070175,
+     "zeroLossRoundRate": 0.402105,
+     "zeroLossAvailRate": 0.549474,
+     "obsTriggerRate": 0.486316,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.637193,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 693,
+      "SO-3": 240,
+      "PREF": 227,
+      "SURVIVAL": 5,
+      "TIE-area": 31
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 24,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 2.936,
+     "netPerRound": 5.671662,
+     "myLossPerRound": 2.502725,
+     "enLossPerRound": 8.174387,
+     "zeroLossRoundRate": 0.405995,
+     "zeroLossAvailRate": 0.549728,
+     "obsTriggerRate": 0.489101,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639646,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 718,
+      "PREF": 246,
+      "TIE-area": 30,
+      "SO-3": 229,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 25,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.012,
+     "netPerRound": 5.780876,
+     "myLossPerRound": 2.519256,
+     "enLossPerRound": 8.300133,
+     "zeroLossRoundRate": 0.406375,
+     "zeroLossAvailRate": 0.552457,
+     "obsTriggerRate": 0.490704,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.64409,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 739,
+      "PREF": 259,
+      "TIE-area": 28,
+      "SO-3": 230,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 26,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.128,
+     "netPerRound": 5.868926,
+     "myLossPerRound": 2.443095,
+     "enLossPerRound": 8.31202,
+     "zeroLossRoundRate": 0.408568,
+     "zeroLossAvailRate": 0.56202,
+     "obsTriggerRate": 0.499361,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.646419,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 781,
+      "TIE-area": 30,
+      "SO-3": 249,
+      "PREF": 267,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 27,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.214,
+     "netPerRound": 5.931549,
+     "myLossPerRound": 2.469197,
+     "enLossPerRound": 8.400747,
+     "zeroLossRoundRate": 0.41257,
+     "zeroLossAvailRate": 0.563161,
+     "obsTriggerRate": 0.500933,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.646546,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 805,
+      "TIE-area": 31,
+      "SO-3": 239,
+      "PREF": 280,
+      "SURVIVAL": 14
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 28,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.292,
+     "netPerRound": 6.034629,
+     "myLossPerRound": 2.470838,
+     "enLossPerRound": 8.505468,
+     "zeroLossRoundRate": 0.4113,
+     "zeroLossAvailRate": 0.560146,
+     "obsTriggerRate": 0.510328,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.648846,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 840,
+      "TIE-area": 35,
+      "SO-3": 239,
+      "PREF": 288,
+      "SURVIVAL": 12
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 29,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.372,
+     "netPerRound": 6.160142,
+     "myLossPerRound": 2.440095,
+     "enLossPerRound": 8.600237,
+     "zeroLossRoundRate": 0.40866,
+     "zeroLossAvailRate": 0.561684,
+     "obsTriggerRate": 0.519573,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.647687,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 876,
+      "TIE-area": 34,
+      "SO-3": 231,
+      "PREF": 296,
+      "SURVIVAL": 8
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 30,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.45,
+     "netPerRound": 6.297391,
+     "myLossPerRound": 2.398261,
+     "enLossPerRound": 8.695652,
+     "zeroLossRoundRate": 0.410435,
+     "zeroLossAvailRate": 0.562899,
+     "obsTriggerRate": 0.526957,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.647536,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 909,
+      "TIE-area": 31,
+      "SO-3": 230,
+      "PREF": 310,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 31,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.52,
+     "netPerRound": 6.367045,
+     "myLossPerRound": 2.439773,
+     "enLossPerRound": 8.806818,
+     "zeroLossRoundRate": 0.401705,
+     "zeroLossAvailRate": 0.561932,
+     "obsTriggerRate": 0.527273,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.645455,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 928,
+      "TIE-area": 38,
+      "SO-3": 237,
+      "PREF": 325,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 32,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.622,
+     "netPerRound": 6.430149,
+     "myLossPerRound": 2.404749,
+     "enLossPerRound": 8.834898,
+     "zeroLossRoundRate": 0.408062,
+     "zeroLossAvailRate": 0.569299,
+     "obsTriggerRate": 0.532303,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.646052,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 964,
+      "TIE-area": 38,
+      "SO-3": 227,
+      "PREF": 332,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 33,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.712,
+     "netPerRound": 6.494612,
+     "myLossPerRound": 2.395474,
+     "enLossPerRound": 8.890086,
+     "zeroLossRoundRate": 0.407866,
+     "zeroLossAvailRate": 0.568966,
+     "obsTriggerRate": 0.542026,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.645474,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1006,
+      "TIE-area": 37,
+      "SO-3": 225,
+      "PREF": 333,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 34,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.796,
+     "netPerRound": 6.596417,
+     "myLossPerRound": 2.360379,
+     "enLossPerRound": 8.956797,
+     "zeroLossRoundRate": 0.403583,
+     "zeroLossAvailRate": 0.572181,
+     "obsTriggerRate": 0.544257,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.644362,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1033,
+      "TIE-area": 35,
+      "SO-3": 224,
+      "PREF": 357,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 35,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.87,
+     "netPerRound": 6.696641,
+     "myLossPerRound": 2.347287,
+     "enLossPerRound": 9.043928,
+     "zeroLossRoundRate": 0.400517,
+     "zeroLossAvailRate": 0.571576,
+     "obsTriggerRate": 0.545736,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.642377,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1056,
+      "TIE-area": 35,
+      "SO-3": 231,
+      "PREF": 370,
+      "SURVIVAL": 5
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 36,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 3.962,
+     "netPerRound": 6.763251,
+     "myLossPerRound": 2.323069,
+     "enLossPerRound": 9.08632,
+     "zeroLossRoundRate": 0.400303,
+     "zeroLossAvailRate": 0.575467,
+     "obsTriggerRate": 0.547198,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.64109,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1084,
+      "TIE-area": 39,
+      "PREF": 378,
+      "SO-3": 231,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 37,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.062,
+     "netPerRound": 6.768587,
+     "myLossPerRound": 2.340226,
+     "enLossPerRound": 9.108813,
+     "zeroLossRoundRate": 0.39094,
+     "zeroLossAvailRate": 0.57164,
+     "obsTriggerRate": 0.553914,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.645002,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1125,
+      "TIE-area": 42,
+      "PREF": 394,
+      "SO-3": 231,
+      "SURVIVAL": 3
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 38,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.138,
+     "netPerRound": 6.835669,
+     "myLossPerRound": 2.347511,
+     "enLossPerRound": 9.18318,
+     "zeroLossRoundRate": 0.386177,
+     "zeroLossAvailRate": 0.569841,
+     "obsTriggerRate": 0.555824,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.644273,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1150,
+      "TIE-area": 43,
+      "PREF": 405,
+      "SO-3": 234,
+      "SURVIVAL": 3
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 39,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.246,
+     "netPerRound": 6.887894,
+     "myLossPerRound": 2.297221,
+     "enLossPerRound": 9.185115,
+     "zeroLossRoundRate": 0.37918,
+     "zeroLossAvailRate": 0.566651,
+     "obsTriggerRate": 0.559114,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.642487,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1187,
+      "TIE-area": 44,
+      "PREF": 426,
+      "SO-3": 222,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 40,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.304,
+     "netPerRound": 6.987454,
+     "myLossPerRound": 2.306227,
+     "enLossPerRound": 9.29368,
+     "zeroLossRoundRate": 0.385223,
+     "zeroLossAvailRate": 0.573885,
+     "obsTriggerRate": 0.561338,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.643587,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1208,
+      "TIE-area": 45,
+      "PREF": 424,
+      "SO-3": 236,
+      "SURVIVAL": 8
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 41,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.39,
+     "netPerRound": 7.095216,
+     "myLossPerRound": 2.244191,
+     "enLossPerRound": 9.339408,
+     "zeroLossRoundRate": 0.38041,
+     "zeroLossAvailRate": 0.573576,
+     "obsTriggerRate": 0.566287,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.641913,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1243,
+      "TIE-area": 41,
+      "SO-3": 237,
+      "PREF": 436,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 42,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.472,
+     "netPerRound": 7.134168,
+     "myLossPerRound": 2.257603,
+     "enLossPerRound": 9.391771,
+     "zeroLossRoundRate": 0.377907,
+     "zeroLossAvailRate": 0.573792,
+     "obsTriggerRate": 0.570215,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639982,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1275,
+      "TIE-area": 43,
+      "PREF": 445,
+      "SO-3": 234,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 43,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.564,
+     "netPerRound": 7.178352,
+     "myLossPerRound": 2.243208,
+     "enLossPerRound": 9.42156,
+     "zeroLossRoundRate": 0.377739,
+     "zeroLossAvailRate": 0.57099,
+     "obsTriggerRate": 0.572743,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.638475,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1307,
+      "TIE-area": 45,
+      "PREF": 456,
+      "SO-3": 232,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 44,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.642,
+     "netPerRound": 7.218009,
+     "myLossPerRound": 2.260664,
+     "enLossPerRound": 9.478673,
+     "zeroLossRoundRate": 0.368807,
+     "zeroLossAvailRate": 0.567428,
+     "obsTriggerRate": 0.574752,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.641534,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1334,
+      "TIE-area": 43,
+      "PREF": 472,
+      "SO-3": 250,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 45,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.73,
+     "netPerRound": 7.238055,
+     "myLossPerRound": 2.275687,
+     "enLossPerRound": 9.513742,
+     "zeroLossRoundRate": 0.366596,
+     "zeroLossAvailRate": 0.562791,
+     "obsTriggerRate": 0.578013,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.642283,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1367,
+      "TIE-area": 41,
+      "PREF": 486,
+      "SO-3": 238,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 46,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.83,
+     "netPerRound": 7.247619,
+     "myLossPerRound": 2.27619,
+     "enLossPerRound": 9.52381,
+     "zeroLossRoundRate": 0.363975,
+     "zeroLossAvailRate": 0.565217,
+     "obsTriggerRate": 0.580124,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.644306,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1401,
+      "TIE-area": 40,
+      "SO-3": 255,
+      "PREF": 501,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 47,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 4.966,
+     "netPerRound": 7.248892,
+     "myLossPerRound": 2.215465,
+     "enLossPerRound": 9.464358,
+     "zeroLossRoundRate": 0.365284,
+     "zeroLossAvailRate": 0.566251,
+     "obsTriggerRate": 0.587193,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.64116,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1458,
+      "TIE-area": 45,
+      "SO-3": 241,
+      "PREF": 513,
+      "SURVIVAL": 3
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 48,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.04,
+     "netPerRound": 7.334524,
+     "myLossPerRound": 2.189286,
+     "enLossPerRound": 9.52381,
+     "zeroLossRoundRate": 0.363095,
+     "zeroLossAvailRate": 0.565079,
+     "obsTriggerRate": 0.587302,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.640476,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1480,
+      "TIE-area": 49,
+      "SO-3": 248,
+      "PREF": 518,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 49,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.128,
+     "netPerRound": 7.368955,
+     "myLossPerRound": 2.186427,
+     "enLossPerRound": 9.555382,
+     "zeroLossRoundRate": 0.359984,
+     "zeroLossAvailRate": 0.566693,
+     "obsTriggerRate": 0.590094,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.637285,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1513,
+      "TIE-area": 45,
+      "SO-3": 258,
+      "PREF": 521,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 50,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.226,
+     "netPerRound": 7.41791,
+     "myLossPerRound": 2.149636,
+     "enLossPerRound": 9.567547,
+     "zeroLossRoundRate": 0.358209,
+     "zeroLossAvailRate": 0.566781,
+     "obsTriggerRate": 0.590126,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.636816,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1542,
+      "TIE-area": 47,
+      "SO-3": 248,
+      "PREF": 533,
+      "SURVIVAL": 11
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 51,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.316,
+     "netPerRound": 7.445071,
+     "myLossPerRound": 2.148608,
+     "enLossPerRound": 9.593679,
+     "zeroLossRoundRate": 0.357788,
+     "zeroLossAvailRate": 0.566215,
+     "obsTriggerRate": 0.594056,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639955,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1579,
+      "TIE-area": 48,
+      "SO-3": 241,
+      "PREF": 549,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 52,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.434,
+     "netPerRound": 7.457858,
+     "myLossPerRound": 2.11152,
+     "enLossPerRound": 9.569378,
+     "zeroLossRoundRate": 0.357011,
+     "zeroLossAvailRate": 0.56717,
+     "obsTriggerRate": 0.594774,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.638204,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1616,
+      "TIE-area": 52,
+      "SO-3": 229,
+      "PREF": 577,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 53,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.484,
+     "netPerRound": 7.537199,
+     "myLossPerRound": 2.127279,
+     "enLossPerRound": 9.664478,
+     "zeroLossRoundRate": 0.355945,
+     "zeroLossAvailRate": 0.567834,
+     "obsTriggerRate": 0.600292,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.637856,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1646,
+      "TIE-area": 52,
+      "SO-3": 243,
+      "PREF": 579,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 54,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.57,
+     "netPerRound": 7.594255,
+     "myLossPerRound": 2.100539,
+     "enLossPerRound": 9.694794,
+     "zeroLossRoundRate": 0.361221,
+     "zeroLossAvailRate": 0.571634,
+     "obsTriggerRate": 0.603591,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639138,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1681,
+      "TIE-area": 56,
+      "SO-3": 233,
+      "PREF": 574,
+      "SURVIVAL": 9
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 55,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.678,
+     "netPerRound": 7.62839,
+     "myLossPerRound": 2.058119,
+     "enLossPerRound": 9.686509,
+     "zeroLossRoundRate": 0.363156,
+     "zeroLossAvailRate": 0.573441,
+     "obsTriggerRate": 0.605495,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639662,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1719,
+      "TIE-area": 53,
+      "SO-3": 243,
+      "PREF": 588,
+      "SURVIVAL": 10
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 56,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.754,
+     "netPerRound": 7.66041,
+     "myLossPerRound": 2.07195,
+     "enLossPerRound": 9.73236,
+     "zeroLossRoundRate": 0.360792,
+     "zeroLossAvailRate": 0.573514,
+     "obsTriggerRate": 0.606187,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639555,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1744,
+      "TIE-area": 56,
+      "SO-3": 237,
+      "PREF": 605,
+      "SURVIVAL": 12
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 57,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.852,
+     "netPerRound": 7.690021,
+     "myLossPerRound": 2.050239,
+     "enLossPerRound": 9.74026,
+     "zeroLossRoundRate": 0.36432,
+     "zeroLossAvailRate": 0.573137,
+     "obsTriggerRate": 0.611415,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.638756,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1789,
+      "TIE-area": 51,
+      "SO-3": 244,
+      "PREF": 608,
+      "SURVIVAL": 6
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 58,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 5.934,
+     "netPerRound": 7.743175,
+     "myLossPerRound": 2.031008,
+     "enLossPerRound": 9.774183,
+     "zeroLossRoundRate": 0.361982,
+     "zeroLossAvailRate": 0.574317,
+     "obsTriggerRate": 0.612066,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639029,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1816,
+      "TIE-area": 53,
+      "SO-3": 238,
+      "PREF": 626,
+      "SURVIVAL": 4
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 59,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 6.04,
+     "netPerRound": 7.792715,
+     "myLossPerRound": 1.975497,
+     "enLossPerRound": 9.768212,
+     "zeroLossRoundRate": 0.362583,
+     "zeroLossAvailRate": 0.575497,
+     "obsTriggerRate": 0.611921,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.639735,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1848,
+      "TIE-area": 56,
+      "SO-3": 239,
+      "PREF": 635,
+      "SURVIVAL": 7
+     }
+    },
+    "diffPP": 0
+   },
+   {
+    "hpE": 60,
+    "agg": {
+     "n": 500,
+     "wins": 500,
+     "losses": 0,
+     "stalls": 0,
+     "invalid": 0,
+     "winRate": 1,
+     "winCI95": [
+      0.992375,
+      1
+     ],
+     "avgRounds": 6.108,
+     "netPerRound": 7.843484,
+     "myLossPerRound": 1.979699,
+     "enLossPerRound": 9.823183,
+     "zeroLossRoundRate": 0.360511,
+     "zeroLossAvailRate": 0.574329,
+     "obsTriggerRate": 0.614931,
+     "keepRate": null,
+     "keepsPerGame": null,
+     "tearRatePerWound": null,
+     "healRatePerWound": null,
+     "tearRounds": null,
+     "tearNetPerTearRound": null,
+     "tearCopyNetPerTear": null,
+     "nonTearNetPerRound": null,
+     "maxKeepStreak": null,
+     "woundAgeViolations": 0,
+     "baitAvailRate": 0.640472,
+     "baitTakenRate": null,
+     "baitSuccessRate": null,
+     "reasons": {
+      "OBSESSION": 1878,
+      "TIE-area": 57,
+      "SO-3": 233,
+      "PREF": 646,
+      "SURVIVAL": 2
+     }
+    },
+    "diffPP": 0
+   }
+  ]
+ },
+ "chosen": {
+  "A1": {
+   "hpE": 31,
+   "ok": true,
+   "reason": "41 個 HP 落在 ±5pp 內（最小 20～最大 60）；依選值規則取 31"
+  },
+  "A2": {
+   "hpE": 35,
+   "ok": true,
+   "reason": "41 個 HP 落在 ±5pp 內（最小 20～最大 60）；依選值規則取 35"
+  }
+ },
+ "supplementary": {
+  "RND": {
+   "baseline": {
+    "hpE": 30,
+    "winRate": 0.082,
+    "avgRounds": 4.942,
+    "netPerRound": -4.539862
+   },
+   "A1": [
+    {
+     "hpE": 20,
+     "winRate": 0.326,
+     "avgRounds": 4.508,
+     "netPerRound": -4.782165
+    },
+    {
+     "hpE": 21,
+     "winRate": 0.292,
+     "avgRounds": 4.582,
+     "netPerRound": -4.738979
+    },
+    {
+     "hpE": 22,
+     "winRate": 0.258,
+     "avgRounds": 4.66,
+     "netPerRound": -4.693991
+    },
+    {
+     "hpE": 23,
+     "winRate": 0.234,
+     "avgRounds": 4.702,
+     "netPerRound": -4.659294
+    },
+    {
+     "hpE": 24,
+     "winRate": 0.202,
+     "avgRounds": 4.768,
+     "netPerRound": -4.619966
+    },
+    {
+     "hpE": 25,
+     "winRate": 0.182,
+     "avgRounds": 4.812,
+     "netPerRound": -4.556941
+    },
+    {
+     "hpE": 26,
+     "winRate": 0.158,
+     "avgRounds": 4.84,
+     "netPerRound": -4.524793
+    },
+    {
+     "hpE": 27,
+     "winRate": 0.132,
+     "avgRounds": 4.91,
+     "netPerRound": -4.499796
+    },
+    {
+     "hpE": 28,
+     "winRate": 0.114,
+     "avgRounds": 4.942,
+     "netPerRound": -4.467827
+    },
+    {
+     "hpE": 29,
+     "winRate": 0.092,
+     "avgRounds": 4.972,
+     "netPerRound": -4.444489
+    },
+    {
+     "hpE": 30,
+     "winRate": 0.094,
+     "avgRounds": 4.98,
+     "netPerRound": -4.384337
+    },
+    {
+     "hpE": 31,
+     "winRate": 0.086,
+     "avgRounds": 5.012,
+     "netPerRound": -4.313647
+    },
+    {
+     "hpE": 32,
+     "winRate": 0.078,
+     "avgRounds": 5.032,
+     "netPerRound": -4.280207
+    },
+    {
+     "hpE": 33,
+     "winRate": 0.068,
+     "avgRounds": 5.046,
+     "netPerRound": -4.233452
+    },
+    {
+     "hpE": 34,
+     "winRate": 0.068,
+     "avgRounds": 5.058,
+     "netPerRound": -4.209174
+    },
+    {
+     "hpE": 35,
+     "winRate": 0.05,
+     "avgRounds": 5.074,
+     "netPerRound": -4.199448
+    },
+    {
+     "hpE": 36,
+     "winRate": 0.05,
+     "avgRounds": 5.078,
+     "netPerRound": -4.181174
+    },
+    {
+     "hpE": 37,
+     "winRate": 0.038,
+     "avgRounds": 5.084,
+     "netPerRound": -4.18096
+    },
+    {
+     "hpE": 38,
+     "winRate": 0.032,
+     "avgRounds": 5.1,
+     "netPerRound": -4.163529
+    },
+    {
+     "hpE": 39,
+     "winRate": 0.024,
+     "avgRounds": 5.11,
+     "netPerRound": -4.154207
+    },
+    {
+     "hpE": 40,
+     "winRate": 0.02,
+     "avgRounds": 5.118,
+     "netPerRound": -4.137163
+    },
+    {
+     "hpE": 41,
+     "winRate": 0.022,
+     "avgRounds": 5.13,
+     "netPerRound": -4.123977
+    },
+    {
+     "hpE": 42,
+     "winRate": 0.022,
+     "avgRounds": 5.13,
+     "netPerRound": -4.11501
+    },
+    {
+     "hpE": 43,
+     "winRate": 0.022,
+     "avgRounds": 5.148,
+     "netPerRound": -4.096348
+    },
+    {
+     "hpE": 44,
+     "winRate": 0.018,
+     "avgRounds": 5.15,
+     "netPerRound": -4.098641
+    },
+    {
+     "hpE": 45,
+     "winRate": 0.016,
+     "avgRounds": 5.152,
+     "netPerRound": -4.093556
+    },
+    {
+     "hpE": 46,
+     "winRate": 0.01,
+     "avgRounds": 5.156,
+     "netPerRound": -4.090768
+    },
+    {
+     "hpE": 47,
+     "winRate": 0.012,
+     "avgRounds": 5.158,
+     "netPerRound": -4.081039
+    },
+    {
+     "hpE": 48,
+     "winRate": 0.012,
+     "avgRounds": 5.164,
+     "netPerRound": -4.077847
+    },
+    {
+     "hpE": 49,
+     "winRate": 0.01,
+     "avgRounds": 5.17,
+     "netPerRound": -4.070019
+    },
+    {
+     "hpE": 50,
+     "winRate": 0.01,
+     "avgRounds": 5.172,
+     "netPerRound": -4.061098
+    },
+    {
+     "hpE": 51,
+     "winRate": 0.008,
+     "avgRounds": 5.172,
+     "netPerRound": -4.063032
+    },
+    {
+     "hpE": 52,
+     "winRate": 0.006,
+     "avgRounds": 5.176,
+     "netPerRound": -4.062597
+    },
+    {
+     "hpE": 53,
+     "winRate": 0.008,
+     "avgRounds": 5.178,
+     "netPerRound": -4.054847
+    },
+    {
+     "hpE": 54,
+     "winRate": 0.006,
+     "avgRounds": 5.178,
+     "netPerRound": -4.050985
+    },
+    {
+     "hpE": 55,
+     "winRate": 0.006,
+     "avgRounds": 5.178,
+     "netPerRound": -4.049826
+    },
+    {
+     "hpE": 56,
+     "winRate": 0.004,
+     "avgRounds": 5.178,
+     "netPerRound": -4.051371
+    },
+    {
+     "hpE": 57,
+     "winRate": 0.004,
+     "avgRounds": 5.178,
+     "netPerRound": -4.05253
+    },
+    {
+     "hpE": 58,
+     "winRate": 0.002,
+     "avgRounds": 5.182,
+     "netPerRound": -4.049788
+    },
+    {
+     "hpE": 59,
+     "winRate": 0.002,
+     "avgRounds": 5.182,
+     "netPerRound": -4.049016
+    },
+    {
+     "hpE": 60,
+     "winRate": 0.004,
+     "avgRounds": 5.184,
+     "netPerRound": -4.04321
+    }
+   ],
+   "A2": [
+    {
+     "hpE": 20,
+     "winRate": 0.368,
+     "avgRounds": 4.424,
+     "netPerRound": -4.348553
+    },
+    {
+     "hpE": 21,
+     "winRate": 0.344,
+     "avgRounds": 4.5,
+     "netPerRound": -4.299111
+    },
+    {
+     "hpE": 22,
+     "winRate": 0.328,
+     "avgRounds": 4.558,
+     "netPerRound": -4.154015
+    },
+    {
+     "hpE": 23,
+     "winRate": 0.32,
+     "avgRounds": 4.588,
+     "netPerRound": -4.037053
+    },
+    {
+     "hpE": 24,
+     "winRate": 0.282,
+     "avgRounds": 4.688,
+     "netPerRound": -3.994027
+    },
+    {
+     "hpE": 25,
+     "winRate": 0.248,
+     "avgRounds": 4.776,
+     "netPerRound": -3.94598
+    },
+    {
+     "hpE": 26,
+     "winRate": 0.234,
+     "avgRounds": 4.824,
+     "netPerRound": -3.833333
+    },
+    {
+     "hpE": 27,
+     "winRate": 0.214,
+     "avgRounds": 4.92,
+     "netPerRound": -3.783333
+    },
+    {
+     "hpE": 28,
+     "winRate": 0.206,
+     "avgRounds": 4.988,
+     "netPerRound": -3.689655
+    },
+    {
+     "hpE": 29,
+     "winRate": 0.184,
+     "avgRounds": 5.052,
+     "netPerRound": -3.631433
+    },
+    {
+     "hpE": 30,
+     "winRate": 0.174,
+     "avgRounds": 5.094,
+     "netPerRound": -3.565371
+    },
+    {
+     "hpE": 31,
+     "winRate": 0.162,
+     "avgRounds": 5.132,
+     "netPerRound": -3.479735
+    },
+    {
+     "hpE": 32,
+     "winRate": 0.146,
+     "avgRounds": 5.16,
+     "netPerRound": -3.40814
+    },
+    {
+     "hpE": 33,
+     "winRate": 0.138,
+     "avgRounds": 5.21,
+     "netPerRound": -3.288676
+    },
+    {
+     "hpE": 34,
+     "winRate": 0.128,
+     "avgRounds": 5.246,
+     "netPerRound": -3.212734
+    },
+    {
+     "hpE": 35,
+     "winRate": 0.114,
+     "avgRounds": 5.282,
+     "netPerRound": -3.195002
+    },
+    {
+     "hpE": 36,
+     "winRate": 0.116,
+     "avgRounds": 5.306,
+     "netPerRound": -3.132303
+    },
+    {
+     "hpE": 37,
+     "winRate": 0.104,
+     "avgRounds": 5.33,
+     "netPerRound": -3.088931
+    },
+    {
+     "hpE": 38,
+     "winRate": 0.094,
+     "avgRounds": 5.364,
+     "netPerRound": -3.055556
+    },
+    {
+     "hpE": 39,
+     "winRate": 0.09,
+     "avgRounds": 5.388,
+     "netPerRound": -3.017817
+    },
+    {
+     "hpE": 40,
+     "winRate": 0.08,
+     "avgRounds": 5.426,
+     "netPerRound": -3.005898
+    },
+    {
+     "hpE": 41,
+     "winRate": 0.064,
+     "avgRounds": 5.458,
+     "netPerRound": -2.998901
+    },
+    {
+     "hpE": 42,
+     "winRate": 0.066,
+     "avgRounds": 5.464,
+     "netPerRound": -2.937775
+    },
+    {
+     "hpE": 43,
+     "winRate": 0.062,
+     "avgRounds": 5.47,
+     "netPerRound": -2.903473
+    },
+    {
+     "hpE": 44,
+     "winRate": 0.056,
+     "avgRounds": 5.488,
+     "netPerRound": -2.888484
+    },
+    {
+     "hpE": 45,
+     "winRate": 0.052,
+     "avgRounds": 5.5,
+     "netPerRound": -2.884364
+    },
+    {
+     "hpE": 46,
+     "winRate": 0.044,
+     "avgRounds": 5.51,
+     "netPerRound": -2.876588
+    },
+    {
+     "hpE": 47,
+     "winRate": 0.04,
+     "avgRounds": 5.522,
+     "netPerRound": -2.857298
+    },
+    {
+     "hpE": 48,
+     "winRate": 0.04,
+     "avgRounds": 5.534,
+     "netPerRound": -2.811709
+    },
+    {
+     "hpE": 49,
+     "winRate": 0.036,
+     "avgRounds": 5.542,
+     "netPerRound": -2.804042
+    },
+    {
+     "hpE": 50,
+     "winRate": 0.038,
+     "avgRounds": 5.548,
+     "netPerRound": -2.782264
+    },
+    {
+     "hpE": 51,
+     "winRate": 0.034,
+     "avgRounds": 5.554,
+     "netPerRound": -2.757292
+    },
+    {
+     "hpE": 52,
+     "winRate": 0.034,
+     "avgRounds": 5.562,
+     "netPerRound": -2.728875
+    },
+    {
+     "hpE": 53,
+     "winRate": 0.03,
+     "avgRounds": 5.566,
+     "netPerRound": -2.726195
+    },
+    {
+     "hpE": 54,
+     "winRate": 0.03,
+     "avgRounds": 5.57,
+     "netPerRound": -2.701616
+    },
+    {
+     "hpE": 55,
+     "winRate": 0.03,
+     "avgRounds": 5.586,
+     "netPerRound": -2.683852
+    },
+    {
+     "hpE": 56,
+     "winRate": 0.026,
+     "avgRounds": 5.59,
+     "netPerRound": -2.689445
+    },
+    {
+     "hpE": 57,
+     "winRate": 0.022,
+     "avgRounds": 5.598,
+     "netPerRound": -2.690247
+    },
+    {
+     "hpE": 58,
+     "winRate": 0.026,
+     "avgRounds": 5.598,
+     "netPerRound": -2.677028
+    },
+    {
+     "hpE": 59,
+     "winRate": 0.026,
+     "avgRounds": 5.598,
+     "netPerRound": -2.671668
+    },
+    {
+     "hpE": 60,
+     "winRate": 0.018,
+     "avgRounds": 5.608,
+     "netPerRound": -2.684736
+    }
+   ],
+   "closestWinRate": {
+    "A1": 31,
+    "A2": 40
+   }
+  },
+  "MAXPIERCE": {
+   "baseline": {
+    "hpE": 30,
+    "winRate": 0.714,
+    "avgRounds": 5.568,
+    "netPerRound": -0.194325
+   },
+   "A1": [
+    {
+     "hpE": 20,
+     "winRate": 0.944,
+     "avgRounds": 4.028,
+     "netPerRound": -0.371897
+    },
+    {
+     "hpE": 21,
+     "winRate": 0.926,
+     "avgRounds": 4.164,
+     "netPerRound": -0.330932
+    },
+    {
+     "hpE": 22,
+     "winRate": 0.91,
+     "avgRounds": 4.358,
+     "netPerRound": -0.342818
+    },
+    {
+     "hpE": 23,
+     "winRate": 0.894,
+     "avgRounds": 4.564,
+     "netPerRound": -0.352761
+    },
+    {
+     "hpE": 24,
+     "winRate": 0.87,
+     "avgRounds": 4.728,
+     "netPerRound": -0.32445
+    },
+    {
+     "hpE": 25,
+     "winRate": 0.85,
+     "avgRounds": 4.86,
+     "netPerRound": -0.242387
+    },
+    {
+     "hpE": 26,
+     "winRate": 0.834,
+     "avgRounds": 5.022,
+     "netPerRound": -0.228594
+    },
+    {
+     "hpE": 27,
+     "winRate": 0.814,
+     "avgRounds": 5.178,
+     "netPerRound": -0.215527
+    },
+    {
+     "hpE": 28,
+     "winRate": 0.796,
+     "avgRounds": 5.298,
+     "netPerRound": -0.1661
+    },
+    {
+     "hpE": 29,
+     "winRate": 0.766,
+     "avgRounds": 5.414,
+     "netPerRound": -0.133727
+    },
+    {
+     "hpE": 30,
+     "winRate": 0.726,
+     "avgRounds": 5.548,
+     "netPerRound": -0.150685
+    },
+    {
+     "hpE": 31,
+     "winRate": 0.702,
+     "avgRounds": 5.682,
+     "netPerRound": -0.141147
+    },
+    {
+     "hpE": 32,
+     "winRate": 0.668,
+     "avgRounds": 5.798,
+     "netPerRound": -0.09762
+    },
+    {
+     "hpE": 33,
+     "winRate": 0.644,
+     "avgRounds": 5.926,
+     "netPerRound": -0.062437
+    },
+    {
+     "hpE": 34,
+     "winRate": 0.62,
+     "avgRounds": 6.008,
+     "netPerRound": -0.011984
+    },
+    {
+     "hpE": 35,
+     "winRate": 0.596,
+     "avgRounds": 6.146,
+     "netPerRound": -0.012691
+    },
+    {
+     "hpE": 36,
+     "winRate": 0.572,
+     "avgRounds": 6.23,
+     "netPerRound": 0.013162
+    },
+    {
+     "hpE": 37,
+     "winRate": 0.546,
+     "avgRounds": 6.294,
+     "netPerRound": 0.039403
+    },
+    {
+     "hpE": 38,
+     "winRate": 0.5,
+     "avgRounds": 6.37,
+     "netPerRound": 0.067818
+    },
+    {
+     "hpE": 39,
+     "winRate": 0.47,
+     "avgRounds": 6.44,
+     "netPerRound": 0.085093
+    },
+    {
+     "hpE": 40,
+     "winRate": 0.448,
+     "avgRounds": 6.512,
+     "netPerRound": 0.11855
+    },
+    {
+     "hpE": 41,
+     "winRate": 0.434,
+     "avgRounds": 6.58,
+     "netPerRound": 0.148024
+    },
+    {
+     "hpE": 42,
+     "winRate": 0.402,
+     "avgRounds": 6.658,
+     "netPerRound": 0.172424
+    },
+    {
+     "hpE": 43,
+     "winRate": 0.39,
+     "avgRounds": 6.726,
+     "netPerRound": 0.203687
+    },
+    {
+     "hpE": 44,
+     "winRate": 0.372,
+     "avgRounds": 6.792,
+     "netPerRound": 0.236749
+    },
+    {
+     "hpE": 45,
+     "winRate": 0.344,
+     "avgRounds": 6.862,
+     "netPerRound": 0.25153
+    },
+    {
+     "hpE": 46,
+     "winRate": 0.32,
+     "avgRounds": 6.91,
+     "netPerRound": 0.2767
+    },
+    {
+     "hpE": 47,
+     "winRate": 0.298,
+     "avgRounds": 6.968,
+     "netPerRound": 0.288462
+    },
+    {
+     "hpE": 48,
+     "winRate": 0.274,
+     "avgRounds": 6.99,
+     "netPerRound": 0.304149
+    },
+    {
+     "hpE": 49,
+     "winRate": 0.258,
+     "avgRounds": 7.062,
+     "netPerRound": 0.32512
+    },
+    {
+     "hpE": 50,
+     "winRate": 0.24,
+     "avgRounds": 7.092,
+     "netPerRound": 0.345742
+    },
+    {
+     "hpE": 51,
+     "winRate": 0.224,
+     "avgRounds": 7.12,
+     "netPerRound": 0.357303
+    },
+    {
+     "hpE": 52,
+     "winRate": 0.2,
+     "avgRounds": 7.15,
+     "netPerRound": 0.38014
+    },
+    {
+     "hpE": 53,
+     "winRate": 0.19,
+     "avgRounds": 7.184,
+     "netPerRound": 0.394488
+    },
+    {
+     "hpE": 54,
+     "winRate": 0.172,
+     "avgRounds": 7.208,
+     "netPerRound": 0.40677
+    },
+    {
+     "hpE": 55,
+     "winRate": 0.15,
+     "avgRounds": 7.232,
+     "netPerRound": 0.420077
+    },
+    {
+     "hpE": 56,
+     "winRate": 0.136,
+     "avgRounds": 7.264,
+     "netPerRound": 0.438326
+    },
+    {
+     "hpE": 57,
+     "winRate": 0.13,
+     "avgRounds": 7.278,
+     "netPerRound": 0.464413
+    },
+    {
+     "hpE": 58,
+     "winRate": 0.122,
+     "avgRounds": 7.304,
+     "netPerRound": 0.470701
+    },
+    {
+     "hpE": 59,
+     "winRate": 0.098,
+     "avgRounds": 7.324,
+     "netPerRound": 0.478427
+    },
+    {
+     "hpE": 60,
+     "winRate": 0.094,
+     "avgRounds": 7.346,
+     "netPerRound": 0.48734
+    }
+   ],
+   "A2": [
+    {
+     "hpE": 20,
+     "winRate": 0.972,
+     "avgRounds": 3.738,
+     "netPerRound": 0.563403
+    },
+    {
+     "hpE": 21,
+     "winRate": 0.956,
+     "avgRounds": 3.856,
+     "netPerRound": 0.610477
+    },
+    {
+     "hpE": 22,
+     "winRate": 0.942,
+     "avgRounds": 3.998,
+     "netPerRound": 0.650325
+    },
+    {
+     "hpE": 23,
+     "winRate": 0.93,
+     "avgRounds": 4.174,
+     "netPerRound": 0.632008
+    },
+    {
+     "hpE": 24,
+     "winRate": 0.924,
+     "avgRounds": 4.33,
+     "netPerRound": 0.690069
+    },
+    {
+     "hpE": 25,
+     "winRate": 0.912,
+     "avgRounds": 4.424,
+     "netPerRound": 0.836799
+    },
+    {
+     "hpE": 26,
+     "winRate": 0.902,
+     "avgRounds": 4.59,
+     "netPerRound": 0.870588
+    },
+    {
+     "hpE": 27,
+     "winRate": 0.896,
+     "avgRounds": 4.738,
+     "netPerRound": 0.953145
+    },
+    {
+     "hpE": 28,
+     "winRate": 0.894,
+     "avgRounds": 4.856,
+     "netPerRound": 1.023888
+    },
+    {
+     "hpE": 29,
+     "winRate": 0.876,
+     "avgRounds": 4.958,
+     "netPerRound": 1.078661
+    },
+    {
+     "hpE": 30,
+     "winRate": 0.854,
+     "avgRounds": 5.134,
+     "netPerRound": 1.078302
+    },
+    {
+     "hpE": 31,
+     "winRate": 0.846,
+     "avgRounds": 5.262,
+     "netPerRound": 1.096161
+    },
+    {
+     "hpE": 32,
+     "winRate": 0.84,
+     "avgRounds": 5.348,
+     "netPerRound": 1.245699
+    },
+    {
+     "hpE": 33,
+     "winRate": 0.82,
+     "avgRounds": 5.458,
+     "netPerRound": 1.290216
+    },
+    {
+     "hpE": 34,
+     "winRate": 0.816,
+     "avgRounds": 5.54,
+     "netPerRound": 1.365343
+    },
+    {
+     "hpE": 35,
+     "winRate": 0.806,
+     "avgRounds": 5.684,
+     "netPerRound": 1.336735
+    },
+    {
+     "hpE": 36,
+     "winRate": 0.784,
+     "avgRounds": 5.812,
+     "netPerRound": 1.338954
+    },
+    {
+     "hpE": 37,
+     "winRate": 0.784,
+     "avgRounds": 5.89,
+     "netPerRound": 1.440747
+    },
+    {
+     "hpE": 38,
+     "winRate": 0.746,
+     "avgRounds": 6,
+     "netPerRound": 1.437333
+    },
+    {
+     "hpE": 39,
+     "winRate": 0.708,
+     "avgRounds": 6.104,
+     "netPerRound": 1.440039
+    },
+    {
+     "hpE": 40,
+     "winRate": 0.698,
+     "avgRounds": 6.202,
+     "netPerRound": 1.4505
+    },
+    {
+     "hpE": 41,
+     "winRate": 0.688,
+     "avgRounds": 6.314,
+     "netPerRound": 1.492239
+    },
+    {
+     "hpE": 42,
+     "winRate": 0.676,
+     "avgRounds": 6.39,
+     "netPerRound": 1.564945
+    },
+    {
+     "hpE": 43,
+     "winRate": 0.668,
+     "avgRounds": 6.51,
+     "netPerRound": 1.588018
+    },
+    {
+     "hpE": 44,
+     "winRate": 0.654,
+     "avgRounds": 6.608,
+     "netPerRound": 1.631053
+    },
+    {
+     "hpE": 45,
+     "winRate": 0.636,
+     "avgRounds": 6.668,
+     "netPerRound": 1.664967
+    },
+    {
+     "hpE": 46,
+     "winRate": 0.622,
+     "avgRounds": 6.716,
+     "netPerRound": 1.722156
+    },
+    {
+     "hpE": 47,
+     "winRate": 0.61,
+     "avgRounds": 6.774,
+     "netPerRound": 1.771774
+    },
+    {
+     "hpE": 48,
+     "winRate": 0.592,
+     "avgRounds": 6.842,
+     "netPerRound": 1.792458
+    },
+    {
+     "hpE": 49,
+     "winRate": 0.576,
+     "avgRounds": 6.926,
+     "netPerRound": 1.842333
+    },
+    {
+     "hpE": 50,
+     "winRate": 0.566,
+     "avgRounds": 7.006,
+     "netPerRound": 1.883814
+    },
+    {
+     "hpE": 51,
+     "winRate": 0.534,
+     "avgRounds": 7.092,
+     "netPerRound": 1.863508
+    },
+    {
+     "hpE": 52,
+     "winRate": 0.526,
+     "avgRounds": 7.174,
+     "netPerRound": 1.885141
+    },
+    {
+     "hpE": 53,
+     "winRate": 0.512,
+     "avgRounds": 7.216,
+     "netPerRound": 1.93847
+    },
+    {
+     "hpE": 54,
+     "winRate": 0.486,
+     "avgRounds": 7.322,
+     "netPerRound": 1.958754
+    },
+    {
+     "hpE": 55,
+     "winRate": 0.48,
+     "avgRounds": 7.358,
+     "netPerRound": 2.007067
+    },
+    {
+     "hpE": 56,
+     "winRate": 0.464,
+     "avgRounds": 7.46,
+     "netPerRound": 2.02252
+    },
+    {
+     "hpE": 57,
+     "winRate": 0.436,
+     "avgRounds": 7.526,
+     "netPerRound": 2.044114
+    },
+    {
+     "hpE": 58,
+     "winRate": 0.412,
+     "avgRounds": 7.644,
+     "netPerRound": 2.03506
+    },
+    {
+     "hpE": 59,
+     "winRate": 0.38,
+     "avgRounds": 7.684,
+     "netPerRound": 2.054138
+    },
+    {
+     "hpE": 60,
+     "winRate": 0.366,
+     "avgRounds": 7.716,
+     "netPerRound": 2.087351
+    }
+   ],
+   "closestWinRate": {
+    "A1": 30,
+    "A2": 39
+   }
+  },
+  "SAFE": {
+   "baseline": {
+    "hpE": 30,
+    "winRate": 1,
+    "avgRounds": 4.956,
+    "netPerRound": 3.937853
+   },
+   "A1": [
+    {
+     "hpE": 20,
+     "winRate": 1,
+     "avgRounds": 3.6,
+     "netPerRound": 3.561667
+    },
+    {
+     "hpE": 21,
+     "winRate": 1,
+     "avgRounds": 3.7,
+     "netPerRound": 3.682703
+    },
+    {
+     "hpE": 22,
+     "winRate": 1,
+     "avgRounds": 3.854,
+     "netPerRound": 3.7452
+    },
+    {
+     "hpE": 23,
+     "winRate": 1,
+     "avgRounds": 3.95,
+     "netPerRound": 3.842025
+    },
+    {
+     "hpE": 24,
+     "winRate": 1,
+     "avgRounds": 4.076,
+     "netPerRound": 3.950932
+    },
+    {
+     "hpE": 25,
+     "winRate": 1,
+     "avgRounds": 4.168,
+     "netPerRound": 4.06382
+    },
+    {
+     "hpE": 26,
+     "winRate": 1,
+     "avgRounds": 4.296,
+     "netPerRound": 4.096369
+    },
+    {
+     "hpE": 27,
+     "winRate": 1,
+     "avgRounds": 4.392,
+     "netPerRound": 4.162568
+    },
+    {
+     "hpE": 28,
+     "winRate": 1,
+     "avgRounds": 4.504,
+     "netPerRound": 4.221581
+    },
+    {
+     "hpE": 29,
+     "winRate": 1,
+     "avgRounds": 4.616,
+     "netPerRound": 4.30156
+    },
+    {
+     "hpE": 30,
+     "winRate": 1,
+     "avgRounds": 4.714,
+     "netPerRound": 4.395418
+    },
+    {
+     "hpE": 31,
+     "winRate": 0.998,
+     "avgRounds": 4.854,
+     "netPerRound": 4.435517
+    },
+    {
+     "hpE": 32,
+     "winRate": 0.998,
+     "avgRounds": 5,
+     "netPerRound": 4.46
+    },
+    {
+     "hpE": 33,
+     "winRate": 0.998,
+     "avgRounds": 5.148,
+     "netPerRound": 4.491453
+    },
+    {
+     "hpE": 34,
+     "winRate": 0.998,
+     "avgRounds": 5.252,
+     "netPerRound": 4.562072
+    },
+    {
+     "hpE": 35,
+     "winRate": 0.998,
+     "avgRounds": 5.36,
+     "netPerRound": 4.620522
+    },
+    {
+     "hpE": 36,
+     "winRate": 0.996,
+     "avgRounds": 5.504,
+     "netPerRound": 4.639898
+    },
+    {
+     "hpE": 37,
+     "winRate": 0.996,
+     "avgRounds": 5.612,
+     "netPerRound": 4.690306
+    },
+    {
+     "hpE": 38,
+     "winRate": 0.996,
+     "avgRounds": 5.716,
+     "netPerRound": 4.76732
+    },
+    {
+     "hpE": 39,
+     "winRate": 0.998,
+     "avgRounds": 5.854,
+     "netPerRound": 4.788521
+    },
+    {
+     "hpE": 40,
+     "winRate": 0.996,
+     "avgRounds": 5.99,
+     "netPerRound": 4.827045
+    },
+    {
+     "hpE": 41,
+     "winRate": 0.994,
+     "avgRounds": 6.132,
+     "netPerRound": 4.84801
+    },
+    {
+     "hpE": 42,
+     "winRate": 0.994,
+     "avgRounds": 6.272,
+     "netPerRound": 4.859056
+    },
+    {
+     "hpE": 43,
+     "winRate": 0.994,
+     "avgRounds": 6.406,
+     "netPerRound": 4.90384
+    },
+    {
+     "hpE": 44,
+     "winRate": 0.992,
+     "avgRounds": 6.472,
+     "netPerRound": 4.979295
+    },
+    {
+     "hpE": 45,
+     "winRate": 0.992,
+     "avgRounds": 6.57,
+     "netPerRound": 5.029224
+    },
+    {
+     "hpE": 46,
+     "winRate": 0.99,
+     "avgRounds": 6.674,
+     "netPerRound": 5.049446
+    },
+    {
+     "hpE": 47,
+     "winRate": 0.992,
+     "avgRounds": 6.81,
+     "netPerRound": 5.073128
+    },
+    {
+     "hpE": 48,
+     "winRate": 0.99,
+     "avgRounds": 6.956,
+     "netPerRound": 5.078206
+    },
+    {
+     "hpE": 49,
+     "winRate": 0.984,
+     "avgRounds": 7.086,
+     "netPerRound": 5.083827
+    },
+    {
+     "hpE": 50,
+     "winRate": 0.982,
+     "avgRounds": 7.196,
+     "netPerRound": 5.104503
+    },
+    {
+     "hpE": 51,
+     "winRate": 0.976,
+     "avgRounds": 7.312,
+     "netPerRound": 5.118709
+    },
+    {
+     "hpE": 52,
+     "winRate": 0.972,
+     "avgRounds": 7.418,
+     "netPerRound": 5.152602
+    },
+    {
+     "hpE": 53,
+     "winRate": 0.972,
+     "avgRounds": 7.534,
+     "netPerRound": 5.17202
+    },
+    {
+     "hpE": 54,
+     "winRate": 0.97,
+     "avgRounds": 7.682,
+     "netPerRound": 5.199167
+    },
+    {
+     "hpE": 55,
+     "winRate": 0.966,
+     "avgRounds": 7.79,
+     "netPerRound": 5.224647
+    },
+    {
+     "hpE": 56,
+     "winRate": 0.96,
+     "avgRounds": 7.886,
+     "netPerRound": 5.253614
+    },
+    {
+     "hpE": 57,
+     "winRate": 0.96,
+     "avgRounds": 7.966,
+     "netPerRound": 5.277178
+    },
+    {
+     "hpE": 58,
+     "winRate": 0.952,
+     "avgRounds": 8.06,
+     "netPerRound": 5.320596
+    },
+    {
+     "hpE": 59,
+     "winRate": 0.944,
+     "avgRounds": 8.19,
+     "netPerRound": 5.329426
+    },
+    {
+     "hpE": 60,
+     "winRate": 0.942,
+     "avgRounds": 8.274,
+     "netPerRound": 5.386512
+    }
+   ],
+   "A2": [
+    {
+     "hpE": 20,
+     "winRate": 1,
+     "avgRounds": 3.164,
+     "netPerRound": 4.682048
+    },
+    {
+     "hpE": 21,
+     "winRate": 1,
+     "avgRounds": 3.242,
+     "netPerRound": 4.821098
+    },
+    {
+     "hpE": 22,
+     "winRate": 1,
+     "avgRounds": 3.342,
+     "netPerRound": 4.938959
+    },
+    {
+     "hpE": 23,
+     "winRate": 1,
+     "avgRounds": 3.436,
+     "netPerRound": 5.0844
+    },
+    {
+     "hpE": 24,
+     "winRate": 1,
+     "avgRounds": 3.516,
+     "netPerRound": 5.192833
+    },
+    {
+     "hpE": 25,
+     "winRate": 1,
+     "avgRounds": 3.616,
+     "netPerRound": 5.313606
+    },
+    {
+     "hpE": 26,
+     "winRate": 1,
+     "avgRounds": 3.728,
+     "netPerRound": 5.372318
+    },
+    {
+     "hpE": 27,
+     "winRate": 1,
+     "avgRounds": 3.838,
+     "netPerRound": 5.43408
+    },
+    {
+     "hpE": 28,
+     "winRate": 1,
+     "avgRounds": 3.956,
+     "netPerRound": 5.462588
+    },
+    {
+     "hpE": 29,
+     "winRate": 1,
+     "avgRounds": 4.07,
+     "netPerRound": 5.527764
+    },
+    {
+     "hpE": 30,
+     "winRate": 1,
+     "avgRounds": 4.212,
+     "netPerRound": 5.575973
+    },
+    {
+     "hpE": 31,
+     "winRate": 1,
+     "avgRounds": 4.31,
+     "netPerRound": 5.656613
+    },
+    {
+     "hpE": 32,
+     "winRate": 1,
+     "avgRounds": 4.404,
+     "netPerRound": 5.755223
+    },
+    {
+     "hpE": 33,
+     "winRate": 1,
+     "avgRounds": 4.48,
+     "netPerRound": 5.861161
+    },
+    {
+     "hpE": 34,
+     "winRate": 1,
+     "avgRounds": 4.598,
+     "netPerRound": 5.897347
+    },
+    {
+     "hpE": 35,
+     "winRate": 1,
+     "avgRounds": 4.706,
+     "netPerRound": 5.946876
+    },
+    {
+     "hpE": 36,
+     "winRate": 1,
+     "avgRounds": 4.824,
+     "netPerRound": 6.019486
+    },
+    {
+     "hpE": 37,
+     "winRate": 1,
+     "avgRounds": 4.962,
+     "netPerRound": 6.023378
+    },
+    {
+     "hpE": 38,
+     "winRate": 1,
+     "avgRounds": 5.036,
+     "netPerRound": 6.100874
+    },
+    {
+     "hpE": 39,
+     "winRate": 1,
+     "avgRounds": 5.152,
+     "netPerRound": 6.128882
+    },
+    {
+     "hpE": 40,
+     "winRate": 1,
+     "avgRounds": 5.24,
+     "netPerRound": 6.208015
+    },
+    {
+     "hpE": 41,
+     "winRate": 1,
+     "avgRounds": 5.308,
+     "netPerRound": 6.298794
+    },
+    {
+     "hpE": 42,
+     "winRate": 1,
+     "avgRounds": 5.434,
+     "netPerRound": 6.313581
+    },
+    {
+     "hpE": 43,
+     "winRate": 1,
+     "avgRounds": 5.538,
+     "netPerRound": 6.348862
+    },
+    {
+     "hpE": 44,
+     "winRate": 0.998,
+     "avgRounds": 5.648,
+     "netPerRound": 6.374646
+    },
+    {
+     "hpE": 45,
+     "winRate": 1,
+     "avgRounds": 5.754,
+     "netPerRound": 6.412583
+    },
+    {
+     "hpE": 46,
+     "winRate": 1,
+     "avgRounds": 5.866,
+     "netPerRound": 6.464371
+    },
+    {
+     "hpE": 47,
+     "winRate": 0.998,
+     "avgRounds": 5.986,
+     "netPerRound": 6.492148
+    },
+    {
+     "hpE": 48,
+     "winRate": 0.998,
+     "avgRounds": 6.086,
+     "netPerRound": 6.51561
+    },
+    {
+     "hpE": 49,
+     "winRate": 0.998,
+     "avgRounds": 6.158,
+     "netPerRound": 6.591751
+    },
+    {
+     "hpE": 50,
+     "winRate": 0.996,
+     "avgRounds": 6.238,
+     "netPerRound": 6.621032
+    },
+    {
+     "hpE": 51,
+     "winRate": 0.996,
+     "avgRounds": 6.36,
+     "netPerRound": 6.629245
+    },
+    {
+     "hpE": 52,
+     "winRate": 0.996,
+     "avgRounds": 6.462,
+     "netPerRound": 6.675333
+    },
+    {
+     "hpE": 53,
+     "winRate": 0.994,
+     "avgRounds": 6.514,
+     "netPerRound": 6.781394
+    },
+    {
+     "hpE": 54,
+     "winRate": 0.994,
+     "avgRounds": 6.618,
+     "netPerRound": 6.812934
+    },
+    {
+     "hpE": 55,
+     "winRate": 0.994,
+     "avgRounds": 6.71,
+     "netPerRound": 6.850671
+    },
+    {
+     "hpE": 56,
+     "winRate": 0.994,
+     "avgRounds": 6.814,
+     "netPerRound": 6.870854
+    },
+    {
+     "hpE": 57,
+     "winRate": 0.994,
+     "avgRounds": 6.902,
+     "netPerRound": 6.906983
+    },
+    {
+     "hpE": 58,
+     "winRate": 0.994,
+     "avgRounds": 7.08,
+     "netPerRound": 6.857627
+    },
+    {
+     "hpE": 59,
+     "winRate": 0.994,
+     "avgRounds": 7.162,
+     "netPerRound": 6.900586
+    },
+    {
+     "hpE": 60,
+     "winRate": 0.994,
+     "avgRounds": 7.252,
+     "netPerRound": 6.94043
+    }
+   ],
+   "closestWinRate": {
+    "A1": 20,
+    "A2": 20
+   }
+  }
+ }
+}
