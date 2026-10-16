@@ -31,19 +31,27 @@ async function findLegal(page) {
   return null;
 }
 async function waitIdleOrEnd(page) { await page.waitForFunction(() => ['IDLE', 'END'].includes(window.__proto.ui), null, { timeout: 5000 }); }
-/** T-16：由引擎回傳的 events 獨立推出「畫面上每一行因果回顧應含的文字」（不呼叫 src 的 evText，免得與被測碼同源）。 */
+/** T-16：由引擎回傳的 events 與「出刀前的盤面器官」獨立推出畫面上每一行因果回顧的**全文**（不呼叫 src 的 evText，免得與被測碼同源）。
+ *  器官名由「出刀前盤面 id→key」＋本回合 SPAWN 事件的 key 查表；效果／原因／傷害種類文字在此獨立寫死。逐行用 === 全文核對。 */
 const W = { P: '你', E: '屠夫' };
-function expectedLines(events) {
+const ORGAN_NAME = { heart: '狂暴心臟', shield: '骨盾腺', poison: '劇毒膽囊', fission: '裂變魔核', regen: '再生腺', mirror: '反傷鏡膜', core: '裂變核心', seedling: '小再生腺' };
+const INC_EFFECT = { SPAWN_CORES: '兩側生成核心', SCHEDULE_SEEDLING: '下回合長出小再生腺', DESTROY: '鏡膜被切碎' };
+const CHOICE_REASON = { SURVIVAL: '求生優先：另一側會讓牠死', 'SO-3': '兩側都致死：選讓你損失最小的一側（SO-3）', PREF: '依偏好評分較高', BAND: '依偏好帶', 'TIE-v': '評分相同，比實際得失', 'TIE-area': '再相同，比面積', 'TIE-fixed': '再相同，固定側', FORCED: '只剩一側', 'SO-1': 'SO-1', 'SO-2': 'SO-2' };
+const DMG_WHAT = { SELF_POISON: '劇毒膽囊反噬', INC_POISON: '毒囊被切破', INC_POISON_SELF: '毒囊被切破', CORE: '裂變核心', REFLECT: '鏡膜反射', INC_DIRECT: '攻擊', HARV_DIRECT: '攻擊' };
+function expectedLines(events, beforeOrgans) {
+  const keyOf = new Map(beforeOrgans.map((o) => [o.id, o.key]));
+  for (const e of events) if (e.t === 'SPAWN') keyOf.set(e.id, e.key);
+  const nm = (id) => { const k = keyOf.get(id); if (!k || !ORGAN_NAME[k]) throw new Error(`器官 id ${id} 查不到名稱（key=${k}）`); return ORGAN_NAME[k]; };
   const out = [];
   for (const e of events) {
     switch (e.t) {
-      case 'PIERCE': out.push('刀鋒穿刺：'); break;
-      case 'INC': out.push('刀中效果：'); break;
+      case 'PIERCE': out.push(`刀鋒穿刺：${nm(e.id)}`); break;
+      case 'INC': out.push(`刀中效果：${nm(e.id)}（${INC_EFFECT[e.effect]}）`); break;
       case 'STEP': if (e.name === 'INCISION') out.push('— 刀中效果 —'); else if (e.name === 'HARVEST') out.push('— 盾、治療、傷害 —'); break;
-      case 'CHOICE': out.push(`屠夫拿走 ${e.side === 'L' ? '紫側' : '橙側'}`); break;
+      case 'CHOICE': out.push(`屠夫拿走 ${e.side === 'L' ? '紫側' : '橙側'}（${CHOICE_REASON[e.reason]}）`); break;
       case 'SHIELD': out.push(`${W[e.who]}獲得 ${e.n} 盾`); break;
       case 'HEAL': out.push(`${W[e.who]}回復 ${e.actual}`); break;
-      case 'DMG': out.push(`${W[e.src]} → ${W[e.dst]} ${e.raw} 傷（盾吸收 ${e.abs}，實扣 ${e.loss}）`); break;
+      case 'DMG': out.push(`${DMG_WHAT[e.kind]}：${W[e.src]} → ${W[e.dst]} ${e.raw} 傷（盾吸收 ${e.abs}，實扣 ${e.loss}）`); break;
       case 'REFL': out.push(`${W[e.who]}的鏡膜反射 ${e.amount}`); break;
       case 'END': out.push(`結束：${e.result}`); break;
       default: break;
@@ -51,11 +59,12 @@ function expectedLines(events) {
   }
   return out;
 }
+const SKIP_MAX_FRAMES = 5, SKIP_MAX_MS = 550;
 const groups = {};
 /** 確認前裝探針：HUD 文字每次被寫入、以及演出期間每個 frame 都取樣（HUD vs 引擎 HP）。 */
 async function armProbe(page) {
   await page.evaluate(() => {
-    const P = window.__proto, samples = []; window.__samples = samples;
+    const P = window.__proto, samples = []; window.__samples = samples; window.__before = JSON.parse(JSON.stringify(P.state.board.organs)); // 出刀前盤面器官（供 T-16 獨立查名）
     const snap = (src) => { const s = P.state; samples.push({ src, ui: P.ui, p: document.getElementById('hpP').textContent, e: document.getElementById('hpE').textContent, want: { p: `${s.hp.P}/${s.maxHp.P}`, e: `${s.hp.E}/${s.maxHp.E}` } }); };
     const mo = new MutationObserver(() => snap('mut')); window.__mo = mo;
     mo.observe(document.getElementById('hpP'), { childList: true, characterData: true, subtree: true });
@@ -67,13 +76,13 @@ async function armProbe(page) {
 async function verifyRound(page, g) {
   const r = await page.evaluate(() => {
     window.__mo.disconnect(); window.__run = false;
-    return { samples: window.__samples, lis: [...document.querySelectorAll('#reviewBody li')].map((l) => l.textContent), events: JSON.parse(JSON.stringify(window.__proto.lastEvents)), log: JSON.parse(JSON.stringify(window.__proto.log.rounds.at(-1).events)) };
+    return { samples: window.__samples, lis: [...document.querySelectorAll('#reviewBody li')].map((l) => l.textContent), events: JSON.parse(JSON.stringify(window.__proto.lastEvents)), before: window.__before, log: JSON.parse(JSON.stringify(window.__proto.log.rounds.at(-1).events)) };
   });
   g.rounds++;
-  const exp = expectedLines(r.events);
+  const exp = expectedLines(r.events, r.before);
   if (JSON.stringify(r.events) !== JSON.stringify(r.log)) g.bad.push(`R${g.rounds} 紀錄事件≠引擎回傳事件`);
   if (r.lis.length !== exp.length) g.bad.push(`R${g.rounds} 回顧行數 畫面${r.lis.length}≠引擎${exp.length}`);
-  else r.lis.forEach((t, k) => { if (!t.includes(exp[k])) g.bad.push(`R${g.rounds} 第${k + 1}行 畫面「${t}」不含引擎事件「${exp[k]}」`); });
+  else r.lis.forEach((t, k) => { if (t !== exp[k]) g.bad.push(`R${g.rounds} 第${k + 1}行 畫面「${t}」≠引擎推導全文「${exp[k]}」`); });
   for (const sm of r.samples) {
     if (sm.src === 'raf') g.raf++;
     if (sm.ui === 'EXECUTE') g.exec++;
@@ -83,13 +92,13 @@ async function verifyRound(page, g) {
 }
 function checkGroup(bname, label, normal) {
   const g = groups[label];
-  const live = g.rounds > 0 && g.events > 0 && g.exec >= g.rounds && (!normal || g.raf >= 2 * g.rounds);
-  check(`[${bname}] T-16 ${label}：畫面因果回顧順序／內容＝引擎事件，HUD 於演出期間與結束皆＝引擎 HP`, g.bad.length === 0 && live, `${g.rounds} 回合 ${g.events} 事件行 EXECUTE取樣${g.exec}（rAF ${g.raf}）${g.bad.slice(0, 2).join(' | ')}`);
+  const live = g.rounds > 0 && g.events > 0 && g.exec >= g.rounds && (!normal || g.raf >= 2 * g.rounds) && (!label.includes('按跳過鈕') || g.skips.length === g.rounds);
+  check(`[${bname}] T-16 ${label}：畫面因果回顧順序／內容＝引擎事件，HUD 於演出期間與結束皆＝引擎 HP`, g.bad.length === 0 && live, `${g.rounds} 回合 ${g.events} 事件行 EXECUTE取樣${g.exec}（rAF ${g.raf}）${g.skips.length ? `跳過 ${g.skips.map((k) => k.frames + 'f/' + Math.round(k.ms) + 'ms').join(',')} ` : ''}${g.bad.slice(0, 2).join(' | ')}`);
 }
 /** how: 'set'＝setSkip(true)；'normal'＝正常演出；'button'＝正常演出中按「跳過演出」。fixedCuts 有值時照切法重播。 */
 async function playToEnd(page, how, label, fixedCuts) {
   await page.evaluate((v) => window.__proto.setSkip(v), how === 'set');
-  const g = groups[label] = { rounds: 0, events: 0, exec: 0, raf: 0, bad: [] };
+  const g = groups[label] = { rounds: 0, events: 0, exec: 0, raf: 0, skips: [], bad: [] };
   const cuts = [];
   for (let r = 0; r < 12; r++) {
     if (await page.evaluate(() => window.__proto.ui === 'END')) break;
@@ -97,7 +106,23 @@ async function playToEnd(page, how, label, fixedCuts) {
     else { const c = await findLegal(page); if (!c) break; cuts.push(c); }
     await armProbe(page);
     await page.click('#confirm');
-    if (how === 'button') await page.evaluate(() => document.getElementById('skip').click()); // 因果回顧面板會蓋住跳過鈕，改走 DOM click 觸發同一個 onclick
+    if (how === 'button') {
+      // 因果回顧面板會蓋住跳過鈕，改走 DOM click 觸發同一個 onclick。
+      // F-1-b：點擊當下必須仍在 EXECUTE（否則點擊是空轟），並量「點擊→離開 EXECUTE」的 rAF 幀數與毫秒，證明跳過真的讓演出提前結束。
+      // 門檻依據：正常演出固定 1100ms（src/main.ts anim.dur），約 66 幀@60Hz；跳過後 dur=0，下一個 tick 即 finishRound，理論 1 幀。
+      // 幀數上限 SKIP_MAX_FRAMES=5（留 4 幀餘裕給排程抖動，仍不到正常演出 66 幀的 8%）；毫秒上限 SKIP_MAX_MS=550（正常時長 1100ms 的一半）。
+      // 把 onclick 改成空函式時，演出需自然跑完剩餘時間（約 1000ms、約 60 幀），兩項都會超標。
+      const sk = await page.evaluate(() => new Promise((res) => {
+        const P = window.__proto, wasExec = P.ui === 'EXECUTE', t0 = performance.now(); let frames = 0;
+        document.getElementById('skip').click();
+        const step = () => { if (P.ui !== 'EXECUTE' || frames > 400) { res({ wasExec, frames, ms: performance.now() - t0 }); return; } frames++; requestAnimationFrame(step); };
+        step();
+      }));
+      g.skips.push(sk);
+      if (!sk.wasExec) g.bad.push(`R${g.rounds + 1} 點擊跳過時已不在 EXECUTE（無法證明跳過生效）`);
+      if (sk.frames > SKIP_MAX_FRAMES) g.bad.push(`R${g.rounds + 1} 跳過後 ${sk.frames} 幀才離開 EXECUTE（上限 ${SKIP_MAX_FRAMES}）`);
+      if (sk.ms > SKIP_MAX_MS) g.bad.push(`R${g.rounds + 1} 跳過後 ${Math.round(sk.ms)}ms 才離開 EXECUTE（上限 ${SKIP_MAX_MS}）`);
+    }
     await waitIdleOrEnd(page);
     await verifyRound(page, g);
     // T-5 畫面一致：畫面上的 HP 等於引擎狀態
