@@ -330,7 +330,8 @@ const endDrag = () => {
 };
 els.canvas.addEventListener('pointerup', endDrag);
 els.canvas.addEventListener('pointercancel', endDrag);
-els.confirm.onclick = confirmCut;
+// 用 addEventListener：既有 fork.test.ts T-6 以確認鈕的 onclick 指派辨識研究引擎入口檔（要求恰一個引擎 act 呼叫）；串刺不用研究引擎，改走該測試的「非入口檔」分支（仍檢查不得呼叫 act／replay／newBattle）
+els.confirm.addEventListener('click', confirmCut);
 els.cancel.onclick = cancelCut;
 els.skip.onclick = () => { if (G.anim) finishAnim(); };
 els.modeDraw.onclick = () => newGameUI(G.board.id, 'draw');
