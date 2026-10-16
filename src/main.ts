@@ -194,6 +194,25 @@ function organList(os: Organ[]): string {
   return Object.entries(c).map(([k, n]) => `${ORGAN_UI[k]?.glyph ?? k}×${n}`).join(' ');
 }
 function attackSum(os: Organ[]): number { return os.reduce((s, o) => s + attackOf(o.key), 0); }
+type Def = { harvest?: Record<string, number | string>; incision?: Record<string, number | string> };
+const defOf = (key: string): Def => ((content.byKey as unknown as Record<string, Def>)[key] ?? {}) as Def;
+/** 落側效果（持有者得到）：只把內容檔數值換成文字並加總，不模擬結算。 */
+function holdText(os: Organ[]): string {
+  const sum: Record<string, number> = {};
+  for (const o of os) { const h = defOf(o.key).harvest ?? {}; for (const [k, v] of Object.entries(h)) if (typeof v === 'number') sum[k] = (sum[k] ?? 0) + v; }
+  const parts: string[] = [];
+  if (sum.damage) parts.push(`對對手 ${sum.damage} 傷`);
+  if (sum.shield) parts.push(`+${sum.shield} 盾`);
+  if (sum.heal) parts.push(`回復 ${sum.heal}`);
+  if (sum.selfDamage) parts.push(`<span class="bad">自己受 ${sum.selfDamage} 傷</span>`);
+  if (sum.reflectPct) parts.push(`反彈直接傷害 ${sum.reflectPct}%`);
+  return parts.length ? parts.join('、') : '沒有效果';
+}
+const INC_TEXT: Record<string, string> = { heart: '你對屠夫 3 傷', shield: '你 +3 盾', poison: '雙方各受 2 傷', fission: '兩側各長出一顆核心', regen: '下回合長出小再生腺', mirror: '鏡膜被切碎失效' };
+function incText(os: Organ[]): string {
+  if (os.length === 0) return '沒有';
+  return os.map((o) => `${ORGAN_UI[o.key]?.glyph ?? o.key}→${INC_TEXT[o.key] ?? '—'}`).join('；');
+}
 function updatePreview(): void {
   const p = G.part;
   if (!p) {
@@ -204,9 +223,9 @@ function updatePreview(): void {
   const tot = p.area2.L + p.area2.R;
   const pl = Math.round((100 * p.area2.L) / tot);
   els.preview.innerHTML =
-    `<div><span class="sideL">紫側</span> ${organList(p.L)}　面積 ${pl}%　<small>攻擊值 ${attackSum(p.L)}</small></div>` +
-    `<div><span class="sideR">橙側</span> ${organList(p.R)}　面積 ${100 - pl}%　<small>攻擊值 ${attackSum(p.R)}</small></div>` +
-    `<div><span class="pierce">刀中穿刺</span> ${organList(p.pierced)}</div>` +
+    `<div><span class="sideL">紫側</span> ${organList(p.L)}　<small>面積 ${pl}%・攻擊值 ${attackSum(p.L)}</small><br><small>拿到的人：${holdText(p.L)}</small></div>` +
+    `<div><span class="sideR">橙側</span> ${organList(p.R)}　<small>面積 ${100 - pl}%・攻擊值 ${attackSum(p.R)}</small><br><small>拿到的人：${holdText(p.R)}</small></div>` +
+    `<div><span class="pierce">刀中穿刺（切下去立刻發生）</span> ${incText(p.pierced)}</div>` +
     `<div class="who">屠夫會先挑一側拿走，<b>另一側歸你</b></div>`;
 }
 function showPending(): void {
@@ -320,7 +339,7 @@ function syncHud(_after = false): void {
   els.mode.textContent = G.mode === 'research6' ? '六器官研究模式' : '三器官體驗模式';
   els.seed.textContent = `seed ${currentSeed()}`;
   els.banner3.hidden = G.mode !== 'experience3';
-  els.modeBtn.textContent = G.mode === 'research6' ? '切換到三器官體驗' : '切換到六器官研究';
+  els.modeBtn.textContent = G.mode === 'research6' ? '換三器官' : '換六器官';
 }
 
 // ---------------- 繪圖 ----------------
@@ -428,6 +447,13 @@ els.exportBtn.onclick = async () => {
   try { await navigator.clipboard.writeText(text); els.hint.textContent = '紀錄已複製到剪貼簿'; } catch { els.hint.textContent = '無法複製（瀏覽器不允許）'; }
 };
 els.sha.textContent = BUILD_SHA;
+const legendBtn = document.getElementById('legendBtn');
+const legend = document.getElementById('legend');
+if (legendBtn && legend) {
+  legend.querySelector('tbody')!.innerHTML = ['heart', 'shield', 'poison', 'fission', 'regen', 'mirror'].map((k) =>
+    `<tr><td><b>${ORGAN_UI[k].glyph}</b> ${ORGAN_UI[k].name}</td><td>${holdText([{ id: 0, key: k as Organ['key'], x: 0, y: 0 }])}</td><td>${INC_TEXT[k]}</td></tr>`).join('');
+  legendBtn.onclick = () => { legend.hidden = !legend.hidden; };
+}
 window.addEventListener('resize', () => { layout(); draw(); });
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
