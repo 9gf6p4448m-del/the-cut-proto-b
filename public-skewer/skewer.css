@@ -35,3 +35,4 @@ body.skewer { height:100dvh; overflow:hidden; }
 .modal { position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; z-index:20; padding:16px; }
 .modal .box { background:#1b2029; border:1px solid #3a4150; border-radius:12px; padding:12px; width:100%; max-width:420px; }
 .modal textarea { width:100%; border-radius:8px; border:1px solid #3a4150; background:#1b2029; color:var(--bone); font-size:16px; padding:6px; -webkit-user-select:text; user-select:text; }
+.info .hint { color:var(--bone); opacity:.7; font-size:12px; }

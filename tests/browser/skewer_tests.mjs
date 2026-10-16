@@ -1,6 +1,7 @@
 // 串刺（core-skewer）瀏覽器測試（作者測試；Chromium＋WebKit 模擬，不是 iPhone 實機）。由 run.mjs 逐瀏覽器呼叫。
 // 涵蓋：K-2 淡影與決定性、K-3 示例路線經真實拖曳重現、K-4 預覽不給答案、K-5 點選對照組、K-6 紀錄與問卷、K-7 盤面循環、
 // K-8 手機版面（iPhone 14 Pro、iPhone SE）、子路徑 PWA（scope／快取前綴／manifest 獨立）。
+// R2 揮刀模式：S-1～S-8、S-11（ACCEPTANCE_SWIPE_FROZEN.md；真實滑鼠／觸控拖曳）。
 // 判定來源：規則模組（src/skewer/*，與 Node 單元測試同一份）或測試自己寫死的 brief 數值；不讀畫面文字函式。
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -207,6 +208,200 @@ export async function runSkewerTests({ bname, btype, devices, url, check, shotsD
     const st = await S(page);
     check(`${tag} K-8 ${sname}：真實拖曳切線可完成一刀`, st.turn === 2 && st.hpE === 26 && st.hpP === 14, JSON.stringify(st));
     check(`${tag} K-8 ${sname}：無頁面錯誤`, page.__errs.length === 0, page.__errs.join(' | '));
+    await ctx.close();
+  }
+
+  // ===== 揮刀模式（R2 凍結驗收 S-1～S-8、S-11；真實滑鼠／觸控拖曳，不呼叫內部結算函式） =====
+  {
+    const { evalLine } = await import('../../src/skewer/rules.ts');
+    const isClaw = (bid, id) => boardById(bid).organs.find((o) => o.id === id)?.kind === 'claw';
+    const { ctx, page } = await newPage(browser, bname, devices, 393, 852);
+    await page.goto(U);
+    // S-1 預設揮刀、放開即出刀（新開頁面，不呼叫 newGame）
+    const m0 = await page.evaluate(() => window.__skewer.mode);
+    const confirmVisible = await page.evaluate(() => [...document.querySelectorAll('button')].some((b) => b.offsetParent !== null && getComputedStyle(b).visibility !== 'hidden' && b.textContent.includes('確認')));
+    await page.evaluate(() => window.__skewer.setSkip(true));
+    const s0 = await S(page);
+    await dragLine(page, heartLine('A', 1)); // 放開；不點任何按鈕
+    await waitIdleOrEnd(page).catch(() => {}); // 沒出刀時不中斷整組測試，交給下方判定記 FAIL
+    const s1 = await S(page); const lg1 = await page.evaluate(() => window.__skewer.log);
+    check(`${tag} S-1 預設揮刀：新開頁面模式＝swipe、沒有可見的確認鈕；真實拖曳放開即出刀（回合＋1、紀錄多一刀、模式欄位 swipe）`,
+      m0 === 'swipe' && !confirmVisible && s0.turn === 1 && s1.turn === 2 && lg1.rounds.length === 1 && lg1.mode === 'swipe', JSON.stringify({ m0, confirmVisible, s0, s1, n: lg1.rounds.length, mode: lg1.mode }));
+
+    // S-2 同一結算：揮刀真實拖曳重現甲-2（win、3、14）、甲-1（輸）；同一組線 draw 與 swipe 逐值相同
+    const playSwipe = async (route) => {
+      await page.evaluate((id) => window.__skewer.newGame(id, 'swipe'), route.board);
+      for (const l of route.lines) { await dragLine(page, l); await waitIdleOrEnd(page); }
+      return { st: await S(page), log: await page.evaluate(() => window.__skewer.log) };
+    };
+    for (const name of ['A-2', 'A-1', 'B-now', 'B-wait']) {
+      const r = ROUTES[name];
+      const sw = await playSwipe(r);
+      const dr = await playDraw(page, r);
+      check(`${tag} S-2 ${name}（揮刀）：${r.result === 'win' ? '勝' : '輸'}、第 ${r.turn} 回合、玩家 ${r.hpP}；與畫線模式同一組線結算逐值相同`,
+        sw.st.result === r.result && sw.st.turn === r.turn && sw.st.hpP === r.hpP && sw.st.hpE === r.hpE && sw.st.ui === 'END' && sw.log.mode === 'swipe'
+        && JSON.stringify(strip(sw.log)) === JSON.stringify(strip(dr.log)) && JSON.stringify(sw.log.rounds.map((x) => x.line)) === JSON.stringify(dr.log.rounds.map((x) => x.line)),
+        JSON.stringify(sw.st));
+    }
+
+    // S-3 防誤觸：輕觸、短線 → 什麼都不算；非法線（骨板、沒穿過身體）→ 不出刀、原因文字 ≥ 1 秒
+    await page.evaluate(() => window.__skewer.newGame('A', 'swipe'));
+    { const p = await page.evaluate(() => window.__skewer.toScreen(500, 500)); await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.mouse.up(); }
+    const tapSt = await S(page);
+    await dragLine(page, [450, 500, 530, 500]); // 長 80 < 120
+    const shortSt = await S(page);
+    const sv = await page.evaluate(() => ({ rounds: window.__skewer.log.rounds.length, cancels: window.__skewer.cancels }));
+    check(`${tag} S-3 輕觸與短線（< 120）：不出刀、回合不變、不計刀、不計取消`, tapSt.turn === 1 && tapSt.ui === 'IDLE' && shortSt.turn === 1 && shortSt.ui === 'IDLE' && sv.rounds === 0 && sv.cancels === 0, JSON.stringify({ tapSt, shortSt, sv }));
+    const NOBODY = [150, 215, 280, 190];
+    for (const [bid, l, label] of [['C', CLAWS_T1, '骨板'], ['A', NOBODY, '沒穿過身體']]) {
+      await page.evaluate((id) => window.__skewer.newGame(id, 'swipe'), bid);
+      const ev = evalLine(boardById(bid), await page.evaluate(() => window.__skewer.state), l);
+      await dragLine(page, l);
+      const a0 = await page.evaluate(() => ({ info: document.getElementById('info').innerText, turn: window.__skewer.state.turn, rounds: window.__skewer.log.rounds.length, ui: window.__skewer.ui }));
+      await page.waitForTimeout(1000);
+      const a1 = await page.evaluate(() => document.getElementById('info').innerText);
+      check(`${tag} S-3 非法線（${label}）放開：不出刀、回合不變，原因文字「${ev.reason}」顯示 ≥ 1 秒`,
+        !ev.legal && !!ev.reason && a0.turn === 1 && a0.rounds === 0 && a0.ui === 'IDLE' && a0.info.includes(ev.reason) && a1.includes(ev.reason), `${a0.info}｜1s後 ${a1}`);
+    }
+
+    // S-4 刀痕跟手；放開後 ≤ 400ms 淡出到 0
+    await page.evaluate(() => { window.__skewer.setSkip(true); window.__skewer.newGame('A', 'swipe'); });
+    const L4 = heartLine('A', 1);
+    // 「最後一個 pointer 位置」取瀏覽器實際送出的最後一個 pointermove（WebKit 會把滑鼠座標取整到 CSS px），再用 toScreen 的線性關係換回棋盤座標
+    await page.evaluate(() => { window.__lastPtr = null; document.getElementById('board').addEventListener('pointermove', (e) => { window.__lastPtr = [e.clientX, e.clientY]; }); });
+    await dragLine(page, L4, false);
+    const tr = await page.evaluate(() => window.__skewer.fx.trail);
+    const last = tr[tr.length - 1] || [NaN, NaN];
+    const ptrBoard = await page.evaluate(() => { const o = window.__skewer.toScreen(0, 0), q = window.__skewer.toScreen(1000, 1000), [cx, cy] = window.__lastPtr; return [(cx - o.x) * 1000 / (q.x - o.x), (cy - o.y) * 1000 / (q.y - o.y)]; });
+    await page.evaluate(() => {
+      window.__fadeP = new Promise((res) => {
+        window.addEventListener('pointerup', () => {
+          const t0 = performance.now(); let n0 = -1;
+          const step = () => { const n = window.__skewer.fx.trail.length; if (n0 < 0) n0 = n; if (n === 0 && n0 >= 0) res({ ms: performance.now() - t0, n0 }); else if (performance.now() - t0 > 3000) res({ ms: 9999, n0 }); else requestAnimationFrame(step); };
+          setTimeout(step, 0);
+        }, { once: true, capture: true });
+      });
+    });
+    await page.mouse.up();
+    const fade = await page.evaluate(() => window.__fadeP);
+    check(`${tag} S-4 拖曳中刀痕跟手（最後一點＝最後 pointer 位置，誤差 ≤ 2 單位）、放開後 ≤ 400ms 淡出到 0`,
+      tr.length > 1 && Math.hypot(last[0] - ptrBoard[0], last[1] - ptrBoard[1]) <= 2 && Math.hypot(last[0] - L4[2], last[1] - L4[3]) <= 6 && fade.n0 > 0 && fade.ms <= 400, JSON.stringify({ len: tr.length, last, ptrBoard, fade }));
+
+    // S-5 切開的回饋：碎塊＝2×摘除數、心肉閃爍、頓格 ≥ 50ms、震幅 串3 > 串1 > 空切＝0
+    await page.evaluate(() => { window.__skewer.setSkip(false); window.__skewer.newGame('A', 'swipe'); });
+    const fxAfter = async (l) => {
+      const st = await page.evaluate(() => window.__skewer.state);
+      const ev = evalLine(boardById(st.boardId), st, l);
+      await dragLine(page, l);
+      const f = await page.evaluate(() => window.__skewer.fx);
+      await waitIdleOrEnd(page);
+      return { f, hits: ev.hits, removed: ev.hits.filter((id) => isClaw(st.boardId, id)) };
+    };
+    const c1 = await fxAfter(heartLine('A', 1)); // 串 1（心肉）
+    const c3 = await fxAfter(SKEWER3); // 串 3（兩爪＋心肉）
+    await page.evaluate(() => window.__skewer.newGame('A', 'swipe'));
+    const EMPTY = [650, 250, 650, 700];
+    const c0 = await fxAfter(EMPTY); // 空切
+    await page.evaluate(() => window.__skewer.newGame('A', 'swipe'));
+    const cc = await fxAfter([250, 300, 250, 700]); // 串 1（只穿爪甲）
+    const okPieces = [c1, c3, c0, cc].every((c) => c.f.pieces === 2 * c.removed.length);
+    check(`${tag} S-5 演出：碎塊＝2×摘除數、心肉被穿有閃爍、頓格 ≥ 50ms、震幅 串3 > 串1 > 空切＝0`,
+      c1.hits.length === 1 && c3.hits.length === 3 && c0.hits.length === 0 && cc.hits.length === 1 && cc.removed.length === 1 && c3.removed.length === 2
+      && okPieces && c3.f.pieces === 4 && cc.f.pieces === 2 && c1.f.flash.includes('heart') && c3.f.flash.includes('heart') && !c0.f.flash.length
+      && [c1, c3, c0, cc].every((c) => c.f.hitstopMs >= 50) && c3.f.shake > c1.f.shake && c1.f.shake > c0.f.shake && c0.f.shake === 0,
+      JSON.stringify({ c1: c1.f, c3: c3.f, c0: c0.f, cc: cc.f }));
+
+    // S-6 不拖節奏：每刀演出 ≤ 1200ms 回到 IDLE／END（不按跳過）；跳過仍有效
+    await page.evaluate(() => { window.__skewer.setSkip(false); window.__skewer.newGame('A', 'swipe'); });
+    const timed = async (l) => {
+      await page.evaluate(() => {
+        window.__animP = new Promise((res) => {
+          window.addEventListener('pointerup', () => {
+            const t0 = performance.now(); let sawAnim = false;
+            const step = () => { const u = window.__skewer.ui; if (u === 'ANIM') sawAnim = true; if (sawAnim && (u === 'IDLE' || u === 'END')) res({ ms: performance.now() - t0, sawAnim }); else if (performance.now() - t0 > 5000) res({ ms: 9999, sawAnim }); else requestAnimationFrame(step); };
+            setTimeout(step, 0);
+          }, { once: true, capture: true });
+        });
+      });
+      await dragLine(page, l);
+      return page.evaluate(() => window.__animP);
+    };
+    const t1 = await timed(heartLine('A', 1)), t3 = await timed(SKEWER3);
+    await dragLine(page, heartLine('A', 3));
+    const sk = await page.evaluate(() => new Promise((res) => {
+      const P = window.__skewer, was = P.ui === 'ANIM', t0 = performance.now(); let frames = 0;
+      document.getElementById('skip').click();
+      const step = () => { if (P.ui !== 'ANIM' || frames > 400) { res({ was, frames, ms: performance.now() - t0, ui: P.ui }); return; } frames++; requestAnimationFrame(step); };
+      step();
+    }));
+    check(`${tag} S-6 每刀演出 ≤ 1200ms 回到可操作（串 1、串 3）；演出中按「跳過演出」立即結束`,
+      t1.sawAnim && t3.sawAnim && t1.ms <= 1200 && t3.ms <= 1200 && sk.was && sk.frames <= 5 && sk.ms < 300 && sk.ui === 'END', JSON.stringify({ t1, t3, sk }));
+
+    // S-7 預覽不給答案（K-4）＋ S-11 拖曳中提示「拉回起點放開＝取消」
+    await page.evaluate(() => { window.__skewer.setSkip(true); window.__skewer.newGame('A', 'swipe'); });
+    await dragLine(page, heartLine('A', 1)); await waitIdleOrEnd(page);
+    await dragLine(page, SKEWER3, false);
+    const dur7 = await page.evaluate(() => ({ text: document.body.innerText, html: document.body.innerHTML, prev: window.__skewer.preview, ui: window.__skewer.ui }));
+    if (shotsDir && bname === 'webkit') await page.screenshot({ path: join(shotsDir, 'iPhone14Pro_揮刀模式_拖曳中.png') });
+    await page.mouse.up(); await waitIdleOrEnd(page);
+    const noAns7 = (t) => !t.includes('24') && !/×\s*\d/.test(t) && !t.includes('倍率');
+    check(`${tag} S-7 揮刀拖曳中：高亮穿到的三顆器官，DOM 不含傷害 24 或倍率；S-11 拖曳中有提示「拉回起點放開＝取消」`,
+      dur7.ui === 'DRAG' && JSON.stringify(dur7.prev.hits) === '["clawL","heart","clawR"]' && noAns7(dur7.text) && !dur7.text.includes('×') && noAns7(dur7.html) && dur7.text.includes('拉回起點放開＝取消'), dur7.text.slice(0, 160));
+
+    // S-11 揮刀可取消：先拉出去（≥120）再拉回起點附近放開 → 不出刀、回合不變、取消＋1；接著再劃一刀正常出刀
+    await page.evaluate(() => { window.__skewer.setSkip(true); window.__skewer.newGame('A', 'swipe'); });
+    {
+      const A0 = await page.evaluate(() => window.__skewer.toScreen(300, 560)), A1 = await page.evaluate(() => window.__skewer.toScreen(520, 560)), A2 = await page.evaluate(() => window.__skewer.toScreen(310, 565));
+      await page.mouse.move(A0.x, A0.y); await page.mouse.down();
+      await page.mouse.move(A1.x, A1.y, { steps: 5 });
+      const midHint = await page.evaluate(() => document.getElementById('info').innerText);
+      await page.mouse.move(A2.x, A2.y, { steps: 5 }); await page.mouse.up();
+      const cs = await page.evaluate(() => ({ turn: window.__skewer.state.turn, ui: window.__skewer.ui, rounds: window.__skewer.log.rounds.length, cancels: window.__skewer.cancels }));
+      await dragLine(page, heartLine('A', 1)); await waitIdleOrEnd(page);
+      const after = await page.evaluate(() => ({ turn: window.__skewer.state.turn, rounds: window.__skewer.log.rounds.length, c0: window.__skewer.log.rounds[0]?.cancels }));
+      check(`${tag} S-11 拉出去再拉回起點放開＝取消：不出刀、回合不變、取消次數＋1；之後再劃一刀正常出刀（紀錄第 1 刀 cancels＝1）`,
+        midHint.includes('拉回起點放開＝取消') && cs.turn === 1 && cs.ui === 'IDLE' && cs.rounds === 0 && cs.cancels === 1 && after.turn === 2 && after.rounds === 1 && after.c0 === 1, JSON.stringify({ cs, after }));
+    }
+    check(`${tag} 揮刀段全程無頁面錯誤`, page.__errs.length === 0, page.__errs.join(' | '));
+    await ctx.close();
+  }
+
+  // ===== S-8 手機：iPhone 14 Pro、iPhone SE；揮刀模式版面、touch-action、觸控拖曳出刀、頁面不捲動不縮放 =====
+  for (const [sname, [w, h]] of Object.entries(SIZES)) {
+    const { ctx, page } = await newPage(browser, bname, devices, w, h);
+    await page.goto(U);
+    await page.evaluate(() => window.__skewer.setSkip(true));
+    for (const id of ['A', 'C']) {
+      await page.evaluate((id) => window.__skewer.newGame(id, 'swipe'), id);
+      const L = await layoutCheck(page, w, h);
+      check(`${tag} S-8 ${sname} 揮刀／${id}：按鈕 ≥44px、不重疊、不出界；器官與身體在畫布內、無介面遮擋、無橫向捲動`,
+        L.small.length === 0 && L.overlap.length === 0 && L.out.length === 0 && L.organsOut.length === 0 && L.bodyOut === 0 && L.covered.length === 0 && L.sandwich && !L.hscroll && L.cvH >= 200, JSON.stringify(L));
+    }
+    await page.evaluate(() => window.__skewer.newGame('A', 'swipe'));
+    const ta = await page.evaluate(() => getComputedStyle(document.getElementById('board')).touchAction);
+    await page.evaluate(() => { window.__ptypes = []; document.getElementById('board').addEventListener('pointerdown', (e) => window.__ptypes.push(e.pointerType)); });
+    const v0 = await page.evaluate(() => ({ sx: window.scrollX, sy: window.scrollY, z: window.visualViewport ? window.visualViewport.scale : 1 }));
+    const l = heartLine('A', 1);
+    let how = 'mouse';
+    if (bname === 'chromium') {
+      // 真實觸控輸入（CDP Input.dispatchTouchEvent 走瀏覽器輸入管線，產生 pointerType=touch）
+      how = 'touch';
+      const cdp = await ctx.newCDPSession(page);
+      const a = await page.evaluate(([x, y]) => window.__skewer.toScreen(x, y), [l[0], l[1]]), b = await page.evaluate(([x, y]) => window.__skewer.toScreen(x, y), [l[2], l[3]]);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: a.x, y: a.y }] });
+      for (let k = 1; k <= 8; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: a.x + ((b.x - a.x) * k) / 8, y: a.y + ((b.y - a.y) * k) / 8 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      // Playwright 的 WebKit 沒有觸控拖曳 API（touchscreen 只有 tap）：改用真實滑鼠拖曳；touch-action 另以計算樣式驗證
+      await dragLine(page, l);
+    }
+    await waitIdleOrEnd(page);
+    const st = await S(page);
+    const v1 = await page.evaluate(() => ({ sx: window.scrollX, sy: window.scrollY, z: window.visualViewport ? window.visualViewport.scale : 1, types: window.__ptypes }));
+    check(`${tag} S-8 ${sname}：canvas touch-action:none；${how === 'touch' ? '觸控' : '滑鼠'}拖曳可出刀（回合 2、怪物 26、你 14）；拖曳前後頁面不捲動不縮放`,
+      ta === 'none' && st.turn === 2 && st.hpE === 26 && st.hpP === 14 && v0.sx === v1.sx && v0.sy === v1.sy && v0.z === v1.z && v1.types.length === 1 && v1.types[0] === how,
+      JSON.stringify({ ta, st, v0, v1 }));
+    check(`${tag} S-8 ${sname}：無頁面錯誤`, page.__errs.length === 0, page.__errs.join(' | '));
     await ctx.close();
   }
 

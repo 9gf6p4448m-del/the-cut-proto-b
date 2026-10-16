@@ -19,7 +19,7 @@
   <div class="warn"><b class="tag">研究片段</b> 串刺 core-skewer · 版本 <span id="sha"></span> · 非正式規則</div>
   <div class="row">
     <div id="modeRow" class="seg" role="group" aria-label="模式">
-      <button id="modeDraw" aria-pressed="true">畫線模式</button><button id="modePick" aria-pressed="false">點選模式</button>
+      <button id="modeSwipe" aria-pressed="true">揮刀模式</button><button id="modeDraw" aria-pressed="false">畫線模式</button><button id="modePick" aria-pressed="false">點選模式</button>
     </div>
   </div>
   <div class="row">
@@ -35,13 +35,13 @@
 <main><canvas id="board"></canvas></main>
 <footer>
   <div id="pickRow" class="pickRow"></div>
-  <div class="actions"><button id="cancel">取消</button><button id="confirm" class="primary">確認這一刀</button></div>
+  <div id="actions" class="actions"><button id="cancel">取消</button><button id="confirm" class="primary">確認這一刀</button></div>
   <div class="tools"><button id="skip">跳過演出</button><button id="rulesBtn">規則</button><button id="exportBtn">複製紀錄</button></div>
 </footer>
 <section id="rules" class="review" hidden>
   <h3>30 秒規則</h3>
   <ul>
-    <li>每回合畫<b>一條貫穿全身的直線</b>（可以只切空肉，這回合沒有傷害）。</li>
+    <li>每回合劃<b>一刀＝一條貫穿全身的直線</b>（可以只切空肉，這回合沒有傷害）。揮刀模式：手指劃過去、放開就切下去；拉回起點放開＝取消。</li>
     <li>線穿過的器官受刀：<b>爪被摘除</b>；<b>心肉不會被摘除</b>，只受傷。</li>
     <li>傷害＝線上器官的值總和 <b>× 串數</b>。</li>
     <li><b>毒囊</b>被線碰到就在你身上爆開；<b>骨板</b>擋住的線畫不出來。</li>

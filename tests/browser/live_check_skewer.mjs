@@ -1,5 +1,5 @@
 // 串刺部署檢查（作者測試；模擬，不是實機）：子路徑 HTTPS、版本 SHA、「研究片段」字樣、自己的 service worker（scope＝core-skewer/）、
-// 畫線模式以真實拖曳打完示例甲路線甲-2（第 3 回合勝、玩家剩 14），點選模式完成一刀。用法：node tests/browser/live_check_skewer.mjs <網址> <SHA>
+// 預設（不指定模式）＝揮刀模式：真實拖曳放開即出刀打完甲-2（第 3 回合勝、玩家剩 14）；畫線模式同樣重現甲-2，點選模式完成一刀。用法：node tests/browser/live_check_skewer.mjs <網址> <SHA>
 import { chromium, webkit, devices } from 'playwright';
 import { newPage } from './exp_tests.mjs';
 import { boardById } from '../../src/skewer/boards.ts';
@@ -24,7 +24,12 @@ for (const [name, bt] of [['webkit', webkit], ['chromium', chromium]]) {
   const sha = await page.getAttribute('meta[name="build-sha"]', 'content');
   const text = await page.evaluate(() => document.body.innerText);
   const sw = await page.evaluate(async () => { if (!('serviceWorker' in navigator)) return 'no-sw-api'; const r = await Promise.race([navigator.serviceWorker.ready, new Promise((x) => setTimeout(() => x(null), 8000))]); return r ? r.scope : 'timeout'; });
-  await page.evaluate(() => { window.__skewer.setSkip(true); window.__skewer.newGame('A', 'draw'); });
+  // 預設模式（不呼叫 newGame）：揮刀，放開即出刀、不按確認
+  await page.evaluate(() => window.__skewer.setSkip(true));
+  const mode0 = await page.evaluate(() => window.__skewer.mode);
+  for (const l of A2) { await drag(page, l); await idle(page); }
+  const swipe = await page.evaluate(() => ({ m: window.__skewer.log.mode, r: window.__skewer.state.result, t: window.__skewer.state.turn, p: window.__skewer.state.hpP }));
+  await page.evaluate(() => window.__skewer.newGame('A', 'draw'));
   for (const l of A2) { await drag(page, l); await page.click('#confirm'); await idle(page); }
   const draw = await page.evaluate(() => ({ r: window.__skewer.state.result, t: window.__skewer.state.turn, p: window.__skewer.state.hpP }));
   await page.evaluate(() => window.__skewer.newGame('A', 'pick'));
@@ -32,10 +37,11 @@ for (const [name, bt] of [['webkit', webkit], ['chromium', chromium]]) {
   await page.click('#cand0'); await page.click('#confirm'); await idle(page);
   const pickTurn = await page.evaluate(() => window.__skewer.state.turn);
   const drawOk = draw.r === 'win' && draw.t === 3 && draw.p === 14;
+  const swipeOk = mode0 === 'swipe' && swipe.m === 'swipe' && swipe.r === 'win' && swipe.t === 3 && swipe.p === 14;
   const ok = URL.startsWith('https://') && sha === SHA && text.includes(SHA) && text.includes('研究片段') && typeof sw === 'string' && sw.endsWith('/core-skewer/')
-    && drawOk && n >= 3 && n <= 5 && pickTurn === 2 && page.__errs.length === 0 && bad.length === 0;
+    && swipeOk && drawOk && n >= 3 && n <= 5 && pickTurn === 2 && page.__errs.length === 0 && bad.length === 0;
   if (!ok) fail++;
-  console.log(`${ok ? 'PASS' : 'FAIL'} [${name}] https=${URL.startsWith('https://')} sha=${sha} swScope=${sw} draw=${JSON.stringify(draw)} pickCands=${n} pickTurn=${pickTurn} errs=${page.__errs.length} bad=${bad.join(',')}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'} [${name}] https=${URL.startsWith('https://')} sha=${sha} swScope=${sw} swipe=${JSON.stringify(swipe)} draw=${JSON.stringify(draw)} pickCands=${n} pickTurn=${pickTurn} errs=${page.__errs.length} bad=${bad.join(',')}`);
   await b.close();
 }
 process.exit(fail ? 1 : 0);

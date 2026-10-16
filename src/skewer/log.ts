@@ -1,7 +1,7 @@
 // 串刺紀錄與問卷（純函式，不碰 DOM）。只收研究需要的欄位：不含名字、裝置、時間戳等個人識別資訊。
 import type { BoardDef, GameState, Line, LoseReason, Result, TurnRecord } from './rules.ts';
 
-export type PlayMode = 'draw' | 'pick';
+export type PlayMode = 'swipe' | 'draw' | 'pick';
 export const LOG_FORMAT = 'thecut-skewer-log/1';
 
 export const SURVEY_Q: { id: 'q1' | 'q2' | 'q3'; text: string; opts: string[] }[] = [
