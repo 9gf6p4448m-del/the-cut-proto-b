@@ -1,0 +1,15 @@
+{
+  "note": "研究參數，出自藍圖 §4 與 R2-SPEC §4.2；不是正式數值。種類 ID 依 R2-SPEC §14.12。",
+  "organs": [
+    { "id": 0, "key": "heart", "harvest": { "damage": 6, "kind": "HARV_DIRECT" }, "incision": { "damage": 3, "kind": "INC_DIRECT" }, "attack": 6 },
+    { "id": 1, "key": "shield", "harvest": { "shield": 5 }, "incision": { "shield": 3 }, "attack": 0 },
+    { "id": 2, "key": "poison", "harvest": { "selfDamage": 8 }, "incision": { "bothDamage": 2 }, "attack": 0 },
+    { "id": 3, "key": "fission", "harvest": { "damage": 4, "kind": "HARV_DIRECT" }, "incision": { "spawnCores": 1 }, "attack": 4 },
+    { "id": 4, "key": "regen", "harvest": { "heal": 4 }, "incision": { "scheduleSeedling": 1 }, "attack": 0 },
+    { "id": 5, "key": "mirror", "harvest": { "reflectPct": 50 }, "incision": { "destroy": 1 }, "attack": 0 }
+  ],
+  "derived": [
+    { "key": "core", "harvest": { "damage": 5, "kind": "CORE" }, "attack": 5, "inert": true },
+    { "key": "seedling", "harvest": { "heal": 2 }, "attack": 0, "inert": true }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "the-cut-proto-b",
+  "private": true,
+  "type": "module",
+  "description": "THE CUT 3.0 B 軌研究原型（可丟棄；非正式規則、非 Gate 證據）",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test:node": "node --test tests/node/*.test.ts",
+    "test:browser": "node tests/browser/run.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "playwright": "^1.64.1",
+    "typescript": "^5.9.3"
+  }
+}
