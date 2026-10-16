@@ -16,7 +16,10 @@ const COMMON: BotName[] = ['RND', 'GRD', 'MAXPIERCE', 'SAFE', 'LOOK2'];
 add('BASELINE', 30, false, COMMON);
 for (const m of ['A1', 'A2'] as const) {
   add(m, 30, false, [...COMMON, 'BAIT']);
-  const h = cal.chosen[m].hpE;
+  // 規格 A v1.2：--hp=A1:30,A2:39 覆寫 calibration.json（GRD 飽和，改以 MAXPIERCE 對齊）
+  const hpArg = process.argv.find((x) => x.startsWith('--hp='));
+  const ov = hpArg ? Object.fromEntries(hpArg.slice(5).split(',').map((kv) => kv.split(':'))) as Record<string, string> : {};
+  const h = ov[m] !== undefined ? Number(ov[m]) : cal.chosen[m].hpE;
   if (h !== null && h !== 30) add(m, h, true, [...COMMON, 'BAIT']);
 }
 add('B', 30, false, [...COMMON, 'LOOK2NK', 'KEEPHOLD']);
