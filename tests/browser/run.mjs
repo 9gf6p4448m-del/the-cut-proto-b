@@ -4,6 +4,7 @@
 import { chromium, webkit, devices } from 'playwright';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { serve } from './serve.mjs';
+import { runExpTests } from './exp_tests.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
 const results = [];
@@ -192,6 +193,11 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   const after = await page.evaluate(() => ({ ui: window.__proto.ui, round: window.__proto.state.round }));
   check(`[${bname}] T-12 橫直切換不出界、重載回到開局`, land && land.x >= 0 && land.y >= 0 && land.x + land.width <= 853 && after.ui === 'IDLE' && after.round === 1);
   await ctx.close(); await browser.close();
+}
+
+// ---- FUN-EXP-01 第二階段：實驗版 UI／紀錄／問卷／子路徑部署（X-3、X-4、X-10、X-11、X-12） ----
+for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
+  await runExpTests({ bname, btype, devices, url, check, logDir: 'test-output/exp_logs', shotsDir: process.env.EXP_SHOTS_DIR });
 }
 
 // ---- T-15①～③ PWA（Chromium；localhost 視為安全來源） ----

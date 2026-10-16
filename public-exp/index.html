@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="執刀者 實驗">
+<meta name="theme-color" content="#11151B">
+<meta name="build-sha" content="__BUILD_SHA__">
+<title>執刀者 實驗版 FUN-EXP-01</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="stylesheet" href="./style.css?v=__BUILD_SHA__">
+</head>
+<body>
+<header id="top">
+  <div class="warn"><b class="tag">實驗版</b> FUN-EXP-01 研究原型 · 版本 <span id="sha"></span> · <span id="seed"></span></div>
+  <div id="modeRow" class="seg" role="group" aria-label="模式">
+    <button id="modeBASELINE" data-top="BASELINE" aria-pressed="false">原版對照</button><button id="modeA" data-top="A" aria-pressed="false">實驗 A 執念</button><button id="modeB" data-top="B" aria-pressed="false">實驗 B 傷口</button>
+  </div>
+  <div class="cfg">
+    <label id="variantWrap" hidden>敵人 <select id="variantSel"><option value="A1">A1 狂心屠夫</option><option value="A2">A2 傲慢血王</option></select></label>
+    <label>盤面 <select id="boardSel"><option value="free">自由（隨機 seed）</option><option value="1">測試盤面 1</option><option value="2">測試盤面 2</option><option value="3">測試盤面 3</option></select></label>
+  </div>
+  <div id="notice" class="notice" role="status" aria-live="polite"></div>
+  <div class="titleRow"><b id="modeName"></b><span id="round"></span></div>
+  <div class="hud">
+    <div class="hp"><span id="enemyNameYou">你</span><div class="bar"><i id="hpPBar"></i></div><b id="hpP"></b></div>
+    <div class="hp enemy"><span id="enemyName">屠夫</span><div class="bar"><i id="hpEBar"></i></div><b id="hpE"></b></div>
+  </div>
+  <div id="blurb" class="enemy-card"></div>
+  <div id="preview" class="preview"></div>
+</header>
+<main><canvas id="board"></canvas></main>
+<footer>
+  <div class="pending-slot"><div id="pending" class="pending" hidden>
+    <div class="pred">猜屠夫拿哪側？<button id="predL" class="sideL">紫側</button><button id="predR" class="sideR">橙側</button><label id="baitRow" class="bait" hidden><input type="checkbox" id="bait"> 🎯 想讓牠吃毒</label></div>
+    <div id="keepRow" class="keep" hidden><label><input type="checkbox" id="keepWound"> 留下傷口</label><span id="keepWhy" class="why"></span></div>
+    <div class="actions"><button id="cancel">取消</button><button id="confirm" class="primary">確認切割</button></div>
+  </div></div>
+  <div class="tools"><button id="legendBtn">器官說明</button><button id="skip">跳過演出</button><button id="exportBtn">複製紀錄</button><button id="updateBtn">更新</button></div>
+  <div id="hint" class="hint"></div>
+</footer>
+<section id="legend" class="review" hidden><h3>器官說明（研究候選數值）</h3><p class="basis">落側：沒被切穿、留在某一側的器官，歸<b>拿到那側的人</b>。刀中：被刀線切穿的器官，切下去<b>立刻</b>生效，在屠夫選側之前，不屬於任何一側。實驗 B 留下傷口時，刀中效果延到下回合並加倍。</p><table><thead><tr><th>器官</th><th>落側（持有者）</th><th>刀中（切穿時）</th></tr></thead><tbody></tbody></table><button onclick="document.getElementById('legend').hidden=true">收起</button></section>
+<section id="endPanel" class="end" hidden>
+  <h2 id="endTitle"></h2>
+  <div id="endSummary"></div>
+  <form id="survey" class="survey" onsubmit="return false"></form>
+  <div class="endBtns"><button id="retry" class="primary">同一局重來</button><button id="next">下一局</button><button id="exportBtn2">複製本局紀錄</button><button id="exportRecent">複製最近幾局</button></div>
+</section>
+<section id="exportModal" class="modal" hidden><div class="box"><p>瀏覽器不允許自動複製。請長按下方文字全選複製：</p><textarea id="exportBox" readonly rows="8"></textarea><button id="exportClose">關閉</button></div></section>
+<script src="./app.js?v=__BUILD_SHA__"></script>
+</body>
+</html>

@@ -55,7 +55,9 @@ test('T-4 三器官模式：每回合只出現心臟、骨盾、毒囊；設回 
 
 test('T-6 前端只匯入允許清單；act 只有一個呼叫點且在確認處理器內；預覽不試算', () => {
   // setProtoBOrganPool：模式設定，不是規則計算（規格 v2 修訂紀錄：T-1 要求它存在、T-4 要求前端能切換模式，T-6 原清單漏列，三者不可能同時成立）
-  const ALLOW = new Set(['act', 'newBattle', 'partitionOf', 'legalLines', 'stateHash', 'toVector', 'replay', 'loadContent', 'setProtoBOrganPool', 'BattleConfig', 'BattleState', 'Partition', 'Ev', 'Organ']);
+  const ALLOW = new Set(['act', 'newBattle', 'partitionOf', 'legalLines', 'stateHash', 'toVector', 'replay', 'loadContent', 'setProtoBOrganPool', 'BattleConfig', 'BattleState', 'Partition', 'Ev', 'Organ',
+    // FUN-EXP-01 第二階段：experiment.ts 的 UI 用純函式／常數與型別（不含 act／replay 等會結算的函式）
+    'EXP_SPEC', 'TEAR_MULTIPLIER', 'expRoundFacts', 'keepWoundCheck', 'obsessionPreview', 'tearPreview', 'woundCrossedBy', 'ExpRoundFacts', 'KeepWoundReason', 'ObsessionPreview']);
   const FORBIDDEN_MOD = /from '\.\.\/engine\/src\/(resolve|enemy|geom|int|prng|triggers|bots|canon)\.ts'/;
   for (const f of walk(join(ROOT, 'src'))) {
     const t = readFileSync(f, 'utf8');
@@ -64,6 +66,11 @@ test('T-6 前端只匯入允許清單；act 只有一個呼叫點且在確認處
       for (const n of m[1].split(',').map((x) => x.trim()).filter(Boolean)) assert.ok(ALLOW.has(n), `${f} 匯入不在允許清單：${n}`);
     }
     const calls = [...t.matchAll(/[^.\w]act\(/g)].length;
+    // FUN-EXP-01：入口檔（有確認處理器的 main.ts、exp_main.ts）act 恰好 1 個且在確認處理器內；其餘檔（exp_ui.ts、exp_params.ts）不得有任何 act／replay／newBattle 呼叫
+    if (!t.includes('els.confirm.onclick')) {
+      assert.equal(/[^.\w](?:act|replay|newBattle)\(/.test(t), false, `${f} 不是入口檔卻呼叫了結算／試算函式`);
+      continue;
+    }
     assert.equal(calls, 1, `act 呼叫點應恰好 1 個，實際 ${calls}`);
     const prev = t.slice(t.indexOf('function updatePreview'), t.indexOf('function showPending'));
     assert.equal(/\bact\(|replay\(|newBattle\(/.test(prev), false, '預覽路徑呼叫了試算函式');
