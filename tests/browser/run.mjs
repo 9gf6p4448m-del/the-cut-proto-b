@@ -30,13 +30,75 @@ async function findLegal(page) {
   return null;
 }
 async function waitIdleOrEnd(page) { await page.waitForFunction(() => ['IDLE', 'END'].includes(window.__proto.ui), null, { timeout: 5000 }); }
-async function playToEnd(page, skip) {
-  await page.evaluate((v) => window.__proto.setSkip(v), skip);
+/** T-16：由引擎回傳的 events 獨立推出「畫面上每一行因果回顧應含的文字」（不呼叫 src 的 evText，免得與被測碼同源）。 */
+const W = { P: '你', E: '屠夫' };
+function expectedLines(events) {
+  const out = [];
+  for (const e of events) {
+    switch (e.t) {
+      case 'PIERCE': out.push('刀鋒穿刺：'); break;
+      case 'INC': out.push('刀中效果：'); break;
+      case 'STEP': if (e.name === 'INCISION') out.push('— 刀中效果 —'); else if (e.name === 'HARVEST') out.push('— 盾、治療、傷害 —'); break;
+      case 'CHOICE': out.push(`屠夫拿走 ${e.side === 'L' ? '紫側' : '橙側'}`); break;
+      case 'SHIELD': out.push(`${W[e.who]}獲得 ${e.n} 盾`); break;
+      case 'HEAL': out.push(`${W[e.who]}回復 ${e.actual}`); break;
+      case 'DMG': out.push(`${W[e.src]} → ${W[e.dst]} ${e.raw} 傷（盾吸收 ${e.abs}，實扣 ${e.loss}）`); break;
+      case 'REFL': out.push(`${W[e.who]}的鏡膜反射 ${e.amount}`); break;
+      case 'END': out.push(`結束：${e.result}`); break;
+      default: break;
+    }
+  }
+  return out;
+}
+const groups = {};
+/** 確認前裝探針：HUD 文字每次被寫入、以及演出期間每個 frame 都取樣（HUD vs 引擎 HP）。 */
+async function armProbe(page) {
+  await page.evaluate(() => {
+    const P = window.__proto, samples = []; window.__samples = samples;
+    const snap = (src) => { const s = P.state; samples.push({ src, ui: P.ui, p: document.getElementById('hpP').textContent, e: document.getElementById('hpE').textContent, want: { p: `${s.hp.P}/${s.maxHp.P}`, e: `${s.hp.E}/${s.maxHp.E}` } }); };
+    const mo = new MutationObserver(() => snap('mut')); window.__mo = mo;
+    mo.observe(document.getElementById('hpP'), { childList: true, characterData: true, subtree: true });
+    mo.observe(document.getElementById('hpE'), { childList: true, characterData: true, subtree: true });
+    window.__run = true; const loop = () => { if (!window.__run) return; if (P.ui === 'EXECUTE') snap('raf'); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  });
+}
+async function verifyRound(page, g) {
+  const r = await page.evaluate(() => {
+    window.__mo.disconnect(); window.__run = false;
+    return { samples: window.__samples, lis: [...document.querySelectorAll('#reviewBody li')].map((l) => l.textContent), events: JSON.parse(JSON.stringify(window.__proto.lastEvents)), log: JSON.parse(JSON.stringify(window.__proto.log.rounds.at(-1).events)) };
+  });
+  g.rounds++;
+  const exp = expectedLines(r.events);
+  if (JSON.stringify(r.events) !== JSON.stringify(r.log)) g.bad.push(`R${g.rounds} 紀錄事件≠引擎回傳事件`);
+  if (r.lis.length !== exp.length) g.bad.push(`R${g.rounds} 回顧行數 畫面${r.lis.length}≠引擎${exp.length}`);
+  else r.lis.forEach((t, k) => { if (!t.includes(exp[k])) g.bad.push(`R${g.rounds} 第${k + 1}行 畫面「${t}」不含引擎事件「${exp[k]}」`); });
+  for (const sm of r.samples) {
+    if (sm.src === 'raf') g.raf++;
+    if (sm.ui === 'EXECUTE') g.exec++;
+    if (sm.p !== sm.want.p || sm.e !== sm.want.e) g.bad.push(`R${g.rounds} HUD(${sm.src},${sm.ui}) ${sm.p}|${sm.e} ≠ 引擎 ${sm.want.p}|${sm.want.e}`);
+  }
+  g.events += exp.length;
+}
+function checkGroup(bname, label, normal) {
+  const g = groups[label];
+  const live = g.rounds > 0 && g.events > 0 && g.exec >= g.rounds && (!normal || g.raf >= 2 * g.rounds);
+  check(`[${bname}] T-16 ${label}：畫面因果回顧順序／內容＝引擎事件，HUD 於演出期間與結束皆＝引擎 HP`, g.bad.length === 0 && live, `${g.rounds} 回合 ${g.events} 事件行 EXECUTE取樣${g.exec}（rAF ${g.raf}）${g.bad.slice(0, 2).join(' | ')}`);
+}
+/** how: 'set'＝setSkip(true)；'normal'＝正常演出；'button'＝正常演出中按「跳過演出」。fixedCuts 有值時照切法重播。 */
+async function playToEnd(page, how, label, fixedCuts) {
+  await page.evaluate((v) => window.__proto.setSkip(v), how === 'set');
+  const g = groups[label] = { rounds: 0, events: 0, exec: 0, raf: 0, bad: [] };
   const cuts = [];
   for (let r = 0; r < 12; r++) {
     if (await page.evaluate(() => window.__proto.ui === 'END')) break;
-    const c = await findLegal(page); if (!c) break;
-    cuts.push(c); await page.click('#confirm'); await waitIdleOrEnd(page);
+    if (fixedCuts) { if (r >= fixedCuts.length) break; await dragCut(page, ...fixedCuts[r]); cuts.push(fixedCuts[r]); }
+    else { const c = await findLegal(page); if (!c) break; cuts.push(c); }
+    await armProbe(page);
+    await page.click('#confirm');
+    if (how === 'button') await page.evaluate(() => document.getElementById('skip').click()); // 因果回顧面板會蓋住跳過鈕，改走 DOM click 觸發同一個 onclick
+    await waitIdleOrEnd(page);
+    await verifyRound(page, g);
     // T-5 畫面一致：畫面上的 HP 等於引擎狀態
     const hud = await page.evaluate(() => ({ p: document.getElementById('hpP').textContent, e: document.getElementById('hpE').textContent, s: window.__proto.state.hp, m: window.__proto.state.maxHp }));
     if (hud.p !== `${hud.s.P}/${hud.m.P}` || hud.e !== `${hud.s.E}/${hud.m.E}`) hudMismatch.push(JSON.stringify(hud));
@@ -84,25 +146,32 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   const h1 = await page.evaluate(() => window.__proto.stateHash(window.__proto.state));
   check(`[${bname}] T-10 起點不在錨點、放開在空處、確認前取消：狀態不變`, t10a === 'IDLE' && t10b === 'IDLE' && !!c1 && h0 === h1 && (await page.evaluate(() => window.__proto.ui)) === 'IDLE');
   // ---- T-9 演出不改結果（同 seed、同切法，跳過 vs 正常）＋ T-8 devfreeze 下全程無 TypeError ----
-  const runA = await playToEnd(page, true);
+  const runA = await playToEnd(page, 'set', '三器官／跳過演出(setSkip)');
+  checkGroup(bname, '三器官／跳過演出(setSkip)', false);
   writeFileSync(`test-output/logs/${bname}_exp3_a.json`, JSON.stringify(runA.log));
   await page.click('#retry');
   const hRetry = await page.evaluate(() => window.__proto.stateHash(window.__proto.state));
   check(`[${bname}] T-11 重開：新局等於同 seed 開局`, hRetry === h0);
-  await page.evaluate(() => window.__proto.setSkip(false));
-  for (const [i, j] of runA.cuts) {
-    if (await page.evaluate(() => window.__proto.ui === 'END')) break;
-    await dragCut(page, i, j); await page.click('#confirm'); await waitIdleOrEnd(page);
-    await page.evaluate(() => { document.getElementById('review').hidden = true; });
-  }
-  const hB = await page.evaluate(() => window.__proto.stateHash(window.__proto.state));
+  const runB = await playToEnd(page, 'normal', '三器官／正常演出', runA.cuts);
+  checkGroup(bname, '三器官／正常演出', true);
+  await page.click('#retry');
+  await playToEnd(page, 'button', '三器官／演出中按跳過鈕', runA.cuts);
+  checkGroup(bname, '三器官／演出中按跳過鈕', false);
+  const hB = runB.hash;
   check(`[${bname}] T-5 畫面上的 HP 每回合等於引擎狀態`, hudMismatch.length === 0, hudMismatch.slice(0, 2).join(' | '));
   check(`[${bname}] T-9 跳過演出與正常演出最終 stateHash 相同`, hB === runA.hash, `${runA.cuts.length} 刀`);
   check(`[${bname}] T-8 devfreeze 下全程無頁面錯誤`, errs.length === 0, errs.join(' | '));
   // ---- 六器官研究模式一局（供 T-5）＋ 模式標示 ----
   await page.evaluate(() => window.__proto.setMode('research6'));
-  const research = await playToEnd(page, true);
+  const research = await playToEnd(page, 'set', '六器官／跳過演出(setSkip)');
+  checkGroup(bname, '六器官／跳過演出(setSkip)', false);
   writeFileSync(`test-output/logs/${bname}_res6.json`, JSON.stringify(research.log));
+  await page.click('#retry');
+  await playToEnd(page, 'normal', '六器官／正常演出', research.cuts);
+  checkGroup(bname, '六器官／正常演出', true);
+  await page.click('#retry');
+  await playToEnd(page, 'button', '六器官／演出中按跳過鈕', research.cuts);
+  checkGroup(bname, '六器官／演出中按跳過鈕', false);
   check(`[${bname}] 研究模式紀錄帶 format／fork／protoMode`, research.log.format === 'thecut-protoB-log/1' && research.log.fork === 'proto-b' && research.log.protoMode === 'research6' && runA.log.protoMode === 'experience3');
   check(`[${bname}] 研究模式不顯示三器官警告`, !(await page.isVisible('#banner3')));
   // ---- T-13 可讀性（三種尺寸） ----

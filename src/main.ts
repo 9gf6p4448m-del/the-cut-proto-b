@@ -464,7 +464,7 @@ document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: fals
 
 // 測試掛勾（只讀；不改規則）
 (window as any).__proto = {
-  get state() { return G.state; }, get ui() { return G.ui; }, get log() { return G.log; }, stateHash,
+  get state() { return G.state; }, get ui() { return G.ui; }, get log() { return G.log; }, get lastEvents() { return G.lastEvents; }, stateHash,
   anchorScreen: (k: number) => { const a = G.state!.board!.anchors[k]; const r = canvas.getBoundingClientRect(); return { x: r.left + sx(a.x), y: r.top + sy(a.y) }; },
   setSkip: (v: boolean) => { G.skipAnim = v; },
   setMode: (m: ProtoMode) => { G.mode = m; newGame(); },
