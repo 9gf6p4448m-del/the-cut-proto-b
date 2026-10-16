@@ -443,8 +443,10 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
   navigator.serviceWorker.register('./sw.js').then((reg) => {
     els.updateBtn.onclick = () => { reg.update(); els.hint.textContent = '檢查更新中…'; };
   });
+  // 只在「已有舊版控制頁面、換成新版」時重新載入；第一次安裝時不重載，避免打斷正在進行的對局
+  const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
 }
 
 newGame();
