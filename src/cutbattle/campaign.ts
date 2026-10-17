@@ -20,30 +20,45 @@ function stream(seed: number, salt: number): () => number {
   return () => { const [u, n] = rand(x); x = n; return u; };
 }
 const dist = (a: V, b: V) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-function placeOne(side: Side, rnd: () => number, taken: V[], body?: Record<Side, V[]>): V {
+function placeOne(side: Side, rnd: () => number, taken: V[], body?: Record<Side, V[]>, r = R): V {
   const poly = body?.[side] ?? BODY[side], xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   for (let t = 0; t < 4000; t++) {
     const p: V = [Math.round(x0 + rnd() * (x1 - x0)), Math.round(y0 + rnd() * (y1 - y0))];
-    if (validSpot(p, side, body) && taken.every((q) => dist(p, q) >= 2 * R + 4)) return p;
+    if (validSpot(p, side, body, r) && taken.every((q) => dist(p, q) >= 2 * r + 4)) return p;
   }
   throw new Error(`placeOne：${side} 找不到合法位置`);
 }
 /** 藍方基礎 9 個器官：整個征途固定（玩家擺縫合時要避開它們）。 */
-export function genBlueBase(seed: number, body?: Record<Side, V[]>): OrganDef[] {
-  const rnd = stream(seed, 1), taken: V[] = [];
-  return CB.BASE_KINDS.map((kind, i) => { const p = placeOne('blue', rnd, taken, body); taken.push(p); return { id: `藍${KIND_ZH[kind]}${i + 1}`, side: 'blue', kind, p }; });
+export function genBlueBase(seed: number, body?: Record<Side, V[]>, r = R): OrganDef[] {
+  return retry((attempt) => {
+    const rnd = stream(seed, 1 + 1000 * attempt), taken: V[] = [];
+    return CB.BASE_KINDS.map((kind, i) => { const p = placeOne('blue', rnd, taken, body, r); taken.push(p); return { id: `藍${KIND_ZH[kind]}${i + 1}`, side: 'blue', kind, p }; });
+  });
+}
+/** 生成統計（duel3 半徑 34 時回報生成失敗率用）：first＝第一次就失敗、換亂數流重抽的次數；final＝20 次都失敗。 */
+export const genStats = { calls: 0, first: 0, final: 0 };
+/** 依序擺放時可能把後面的器官擠到沒位置（半徑 34 的窄龍身較常見）：整組換一個確定的亂數流重抽，最多 20 次。
+ *  第一次（attempt 0）的亂數流與舊版相同，所以 duel／duel2（半徑 28，從未失敗）的盤面一字不變。 */
+function retry<T>(gen: (attempt: number) => T): T {
+  genStats.calls++;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try { return gen(attempt); } catch (e) { if (attempt === 0) genStats.first++; if (attempt === 19) { genStats.final++; throw e; } }
+  }
+  throw new Error('unreachable');
 }
 /** 對手：基礎 9 個＋第 2／3 場額外 1／2 個（第 2 隻偏骨、第 3 隻偏毒）；避開藍方所有器官。 */
-export function genRed(seed: number, stage: number, blue: OrganDef[], body?: Record<Side, V[]>): OrganDef[] {
-  const rnd = stream(seed, 100 + stage), taken: V[] = blue.map((o) => o.p);
+export function genRed(seed: number, stage: number, blue: OrganDef[], body?: Record<Side, V[]>, r = R): OrganDef[] {
+  return retry((attempt) => {
+    const rnd = stream(seed, 100 + stage + 1000 * attempt), taken: V[] = blue.map((o) => o.p);
   const kinds = [...CB.BASE_KINDS];
   const w = CB.EXTRA_WEIGHTS[stage];
   for (let i = 0; i < CB.EXTRA[stage] && w; i++) {
     let t = rnd() * ALL_KINDS.reduce((s, k) => s + w[k], 0);
     kinds.push(ALL_KINDS.find((k) => (t -= w[k]) < 0) ?? 'claw');
   }
-  return kinds.map((kind, i) => { const p = placeOne('red', rnd, taken, body); taken.push(p); return { id: `紅${KIND_ZH[kind]}${i + 1}`, side: 'red', kind, p }; });
+  return kinds.map((kind, i) => { const p = placeOne('red', rnd, taken, body, r); taken.push(p); return { id: `紅${KIND_ZH[kind]}${i + 1}`, side: 'red', kind, p }; });
+  });
 }
 
 export interface Stitch { kind: Kind; p: V }
@@ -51,12 +66,14 @@ export interface StageLog { stage: number; winner: Side | 'draw'; how: string; c
 export interface Campaign {
   seed: number; stage: number; blueBase: OrganDef[]; stitches: Stitch[];
   body?: Record<Side, V[]>;                         // duel2：獸身多邊形（不給＝BODY，duel v0.1）
+  r?: number;                                       // duel3：器官判定半徑 34（不給＝R）
   phase: 'cut' | 'battle' | 'pick' | 'place' | 'won' | 'lost';
   offer: Kind[]; picked: Kind | null; history: StageLog[];
 }
-export function newCampaign(seed: number, body?: Record<Side, V[]>): Campaign {
-  const c: Campaign = { seed: seed >>> 0, stage: 0, blueBase: genBlueBase(seed, body), stitches: [], phase: 'cut', offer: [], picked: null, history: [] };
+export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number): Campaign {
+  const c: Campaign = { seed: seed >>> 0, stage: 0, blueBase: genBlueBase(seed, body, r ?? R), stitches: [], phase: 'cut', offer: [], picked: null, history: [] };
   if (body) c.body = body;
+  if (r !== undefined) c.r = r;
   return c;
 }
 export const blueOrgans = (c: Campaign): OrganDef[] => [
@@ -65,11 +82,12 @@ export const blueOrgans = (c: Campaign): OrganDef[] => [
 export function modeFor(c: Campaign, nBlue: number, nRed: number): Mode {
   const m: Mode = { ...MODE_RT2, cutSteps: CB.CUT_SECONDS * 60, maxPerSide: { blue: nBlue, red: nRed }, spawnRule: 'cb', aiJitter: CB.AI_JITTER[c.stage] };
   if (c.body) m.body = c.body;
+  if (c.r !== undefined) m.r = c.r;
   return m;
 }
 /** 這一場的切割期起始狀態（rt-cut2 規則＋本版設定）。 */
 export function matchFor(c: Campaign): GameState {
-  const blue = blueOrgans(c), red = genRed(c.seed, c.stage, blue, c.body);
+  const blue = blueOrgans(c), red = genRed(c.seed, c.stage, blue, c.body, c.r ?? R);
   return newGame((c.seed + 7919 * (c.stage + 1)) >>> 0, modeFor(c, blue.length, red.length), [...blue, ...red]);
 }
 /** 切割期結束時雙方存活的器官（含萌芽中）→ 戰鬥參與者。 */
@@ -99,9 +117,10 @@ export function pickStitch(c: Campaign, k: Kind): Campaign {
 export type PlaceReject = 'outside' | 'unreachable' | 'overlap';
 /** 擺放合法性：整個圓在獸身內、對方刀碰得到（與切割期生成／再生同一套規則）、不和其他藍方器官重疊。 */
 export function placeCheck(c: Campaign, p: V): PlaceReject | null {
-  if (!circleInside(p, 'blue', R, c.body)) return 'outside';
-  if (!reachableBy(p, 'red', R, c.body)) return 'unreachable';
-  if (blueOrgans(c).some((o) => dist(o.p, p) < 2 * R + 4)) return 'overlap';
+  const r = c.r ?? R;
+  if (!circleInside(p, 'blue', r, c.body)) return 'outside';
+  if (!reachableBy(p, 'red', r, c.body)) return 'unreachable';
+  if (blueOrgans(c).some((o) => dist(o.p, p) < 2 * r + 4)) return 'overlap';
   return null;
 }
 export function placeStitch(c: Campaign, p: V): { c: Campaign; reject: PlaceReject | null } {

@@ -30,7 +30,10 @@ export interface Mode {
   spawnRule?: 'cb';                          // 'cb'＝再生位置另須整個圓在獸身內、對方刀碰得到（DUEL_BLADE_V01 補述 1）
   aiJitter?: number;                         // AI 出刀間隔＝冷卻＋0～aiJitter 步；不給＝AI_JITTER_STEPS
   body?: Record<Side, V[]>;                  // 獸身多邊形（duel2：由已確認的 beast_boundary.json 換成世界座標）；不給＝BODY
+  r?: number;                                // 器官判定半徑（duel3：34，DUEL_V03_FEEL 二）；不給＝R（28）
 }
+/** 這一局的器官判定半徑。 */
+export const radOf = (mode: { r?: number }): number => mode.r ?? R;
 /** 這一局的獸身多邊形（起刀、再生、位置規則都用它）。 */
 export const bodyOf = (mode: { body?: Record<Side, V[]> }, side: Side): V[] => mode.body?.[side] ?? BODY[side];
 export const MODE_RT1: Mode = { knockout: false, regen: false };
@@ -115,7 +118,7 @@ export function reachableBy(p: V, attacker: Side, r = R, body?: Record<Side, V[]
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) d = Math.min(d, segPointDist(p, poly[j], poly[i]));
   return d <= MAX_LEN + r - 1;
 }
-export const validSpot = (p: V, side: Side, body?: Record<Side, V[]>) => circleInside(p, side, R, body) && reachableBy(p, other(side), R, body);
+export const validSpot = (p: V, side: Side, body?: Record<Side, V[]>, r = R) => circleInside(p, side, r, body) && reachableBy(p, other(side), r, body);
 
 // ---------------------------------------------------------------- 狀態
 export type Phase = 'cut' | 'duel' | 'ko';
@@ -140,6 +143,8 @@ export interface GameState {
   severedN: Record<Side, number>;     // 各方切掉對方的總數
   regenRng: number;                   // 再生位置亂數（與 AI 亂數分開）
   end: { by: 'ko' | 'time'; winner: Side | 'draw' } | null;
+  // ---- duel3 即時劃刀：進行中的刀（只有用到即時劃刀時才出現；其他模式沒有這個欄位） ----
+  stroke?: Partial<Record<Side, Stroke | null>>;
 }
 export interface DuelResult { claws: Record<Side, number>; hearts: Record<Side, number>; power: Record<Side, number>; winner: Side | 'draw' }
 
@@ -153,8 +158,10 @@ export function newGame(seed: number, mode: Mode = MODE_RT1, organs: OrganDef[] 
   };
 }
 function clone(s: GameState): GameState {
-  return { ...s, alive: [...s.alive], lockUntil: [...s.lockUntil], cdUntil: { ...s.cdUntil }, drag: { ...s.drag }, aim: s.aim && { ...s.aim }, result: s.result,
+  const c: GameState = { ...s, alive: [...s.alive], lockUntil: [...s.lockUntil], cdUntil: { ...s.cdUntil }, drag: { ...s.drag }, aim: s.aim && { ...s.aim }, result: s.result,
     organs: s.organs, readyAt: [...s.readyAt], severedQ: { blue: [...s.severedQ.blue], red: [...s.severedQ.red] }, severedN: { ...s.severedN } };
+  if (s.stroke) c.stroke = { ...s.stroke };
+  return c;
 }
 /** mulberry32：回傳 [0,1) 與新狀態。 */
 export function rand(x: number): [number, number] {
@@ -184,7 +191,8 @@ export function resolveStrike(s: GameState, side: Side, raw: Line): StrikeResult
   if (!inside(raw.a, bodyOf(s.mode, side))) return { ...base, ok: false, reject: 'start' };
   const line = clampLine(raw);
   const hits: { i: number; t: number }[] = [];
-  s.organs.forEach((o, i) => { if (!isReady(s, i)) return; const t = entryDist(line.a, line.b, o.p); if (t !== null) hits.push({ i, t }); });
+  const rr = radOf(s.mode);
+  s.organs.forEach((o, i) => { if (!isReady(s, i)) return; const t = entryDist(line.a, line.b, o.p, rr); if (t !== null) hits.push({ i, t }); });
   hits.sort((x, y) => x.t - y.t || x.i - y.i);
   const locks: number[] = [];
   const L = Math.hypot(line.b[0] - line.a[0], line.b[1] - line.a[1]);
@@ -204,8 +212,12 @@ export type GameEvent =
   | { t: 'aim'; aim: Aim }
   | { t: 'duel'; result: DuelResult }
   | { t: 'ko'; winner: Side | 'draw'; result: DuelResult }
-  | { t: 'spawn'; i: number };
-export interface StepInput { blue?: Line | null; drag?: Line | null }
+  | { t: 'spawn'; i: number }
+  | { t: 'freeStart'; side: Side; p: V }
+  | { t: 'freeReject'; side: Side; reason: Reject }
+  | { t: 'freeLock'; side: Side; i: number }
+  | { t: 'freeEnd'; side: Side; why: FreeEndWhy; locks: number[]; severed: number | null; blocked: number | null; end: V; dir: V; len: number };
+export interface StepInput { blue?: Line | null; drag?: Line | null; free?: Partial<Record<Side, Piece[]>> }
 export interface StepOut { state: GameState; events: GameEvent[] }
 
 /** 再生位置：獸身多邊形內、與所有現存器官（含萌芽中、含對方）中心距 ≥2R；用再生亂數流取樣，最多 400 次。改寫 s.regenRng。 */
@@ -217,8 +229,9 @@ function spawnPoint(s: GameState, side: Side): V | null {
     [u, s.regenRng] = rand(s.regenRng); [v, s.regenRng] = rand(s.regenRng);
     const p: V = [Math.round(x0 + u * (x1 - x0)), Math.round(y0 + v * (y1 - y0))];
     if (!inside(p, poly)) continue;
-    if (s.mode.spawnRule === 'cb' && !validSpot(p, side, s.mode.body)) continue;
-    if (s.organs.some((o, i) => s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 2 * R)) continue;
+    const rr = radOf(s.mode);
+    if (s.mode.spawnRule === 'cb' && !validSpot(p, side, s.mode.body, rr)) continue;
+    if (s.organs.some((o, i) => s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 2 * rr)) continue;
     return p;
   }
   return null;
@@ -232,6 +245,7 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
   if (k >= endStep(s)) {
     // 剛好達局長（原版 40 秒）：凍結盤面、拖曳作廢、預告作廢、進入對決
     s.phase = 'duel'; s.drag = { blue: null, red: null }; s.aim = null; s.result = duel(s); s.end = { by: 'time', winner: s.result.winner };
+    if (s.stroke) s.stroke = { blue: null, red: null };   // 進行中的即時刀作廢（切割期已結束）
     if (input.blue) ev.push({ t: 'reject', side: 'blue', reason: 'phase' });
     ev.push({ t: 'duel', result: s.result });
     return { state: s, events: ev };
@@ -244,18 +258,32 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
   const strikes: StrikeResult[] = [];
   if (input.blue) { const r = resolveStrike(s0, 'blue', input.blue); if (r.ok) strikes.push(r); else ev.push({ t: 'reject', side: 'blue', reason: r.reject! }); }
   if (red) { const r = resolveStrike(s0, 'red', red); if (r.ok) strikes.push(r); else ev.push({ t: 'reject', side: 'red', reason: r.reject! }); }
+  // duel3 即時劃刀：本步的輸入片段同樣在步開始狀態 s0 上判（鎖、切、撞鎖都看 s0），結果和直線刀一起套用
+  const frees: FreeOut[] = [];
+  for (const side of SIDES) {
+    const pcs = input.free?.[side];
+    if (!pcs || !pcs.length) continue;
+    const out = freeStep(s0, side, s.stroke?.[side] ?? null, pcs, k);
+    s.stroke = { ...(s.stroke ?? {}), [side]: out.stroke };
+    frees.push(out);
+  }
   // 套用：先鎖、後切（同步時切除以步開始狀態判，故已切的器官鎖不住）
   for (const r of strikes) { for (const i of r.locks) s.lockUntil[i] = k + LOCK_STEPS; s.cdUntil[r.side] = k + COOLDOWN_STEPS; }
-  for (const r of strikes) if (r.severed !== null) {
-    s.alive[r.severed] = false; s.lockUntil[r.severed] = 0;
-    s.severedQ[s.organs[r.severed].side].push(s.organs[r.severed].kind); s.severedN[r.side]++;
-  }
+  for (const f of frees) { for (const i of f.locks) s.lockUntil[i] = k + LOCK_STEPS; if (f.ended) s.cdUntil[f.side] = k + COOLDOWN_STEPS; }   // 冷卻從刀結束那一步起算
+  const sever = (i: number, by: Side) => {
+    s.alive[i] = false; s.lockUntil[i] = 0;
+    s.severedQ[s.organs[i].side].push(s.organs[i].kind); s.severedN[by]++;
+  };
+  for (const r of strikes) if (r.severed !== null) sever(r.severed, r.side);
+  for (const f of frees) if (f.ended && f.ended.severed !== null) sever(f.ended.severed, f.side);
   for (const r of strikes) ev.push({ t: 'strike', r });
+  for (const f of frees) ev.push(...f.events);
   // 擊倒：任一方器官（含萌芽中）全部被切除的那一步立即結束；同一步雙方清空＝平手
   if (s.mode.knockout) {
     const b0 = countSide(s, 'blue') === 0, r0 = countSide(s, 'red') === 0;
     if (b0 || r0) {
       s.phase = 'ko'; s.drag = { blue: null, red: null }; s.aim = null; s.result = duel(s);
+      if (s.stroke) s.stroke = { blue: null, red: null };
       const winner: Side | 'draw' = b0 && r0 ? 'draw' : b0 ? 'red' : 'blue';
       s.end = { by: 'ko', winner }; s.step = k + 1;
       ev.push({ t: 'ko', winner, result: s.result });
@@ -318,6 +346,70 @@ function derive(body: Record<Side, V[]>): { band: [number, number]; anchors: Rec
 }
 export const bandOf = (mode: { body?: Record<Side, V[]> }): [number, number] => (mode.body ? derive(mode.body).band : [430, 570]);
 export const anchorsOf = (mode: { body?: Record<Side, V[]> }, side: Side): V[] => (mode.body ? derive(mode.body).anchors[side] : AI_ANCHORS[side]);
+// ---------------------------------------------------------------- duel3 即時劃刀（DUEL_V03_FEEL 一）
+// 輸入：依所屬模擬步切好的片段（src/rtcut/freehand.ts 把「時間戳＋座標」序列切成片段；跨步的線段在步邊界依時間內插切開）。
+// 每步在步開始狀態 s0 上判：起刀看 s0 的冷卻與獸身；鎖／切／撞鎖看 s0 的存活、萌芽、鎖定。
+export const FREE_MIN_SPEED = 0.6;           // px/ms：低於這個速度是鈍刀（不鎖不切，長度照算）【試玩數值】
+export type Piece = { k: 'down'; p: V } | { k: 'seg'; a: V; b: V; v: number } | { k: 'end'; why: 'up' | 'cancel' | 'multi' };
+export type FreeEndWhy = 'up' | 'cancel' | 'multi' | 'length' | 'sever' | 'blocked';
+export interface Stroke { start: V; len: number; seen: number[]; locks: number[]; startStep: number }
+export interface FreeOut {
+  side: Side; stroke: Stroke | null; locks: number[]; events: GameEvent[];
+  ended: { why: FreeEndWhy; severed: number | null; blocked: number | null } | null;
+}
+export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, pieces: Piece[], k: number): FreeOut {
+  let st: Stroke | null = stroke0 && { ...stroke0, seen: [...stroke0.seen], locks: [...stroke0.locks] };
+  const locks: number[] = [], events: GameEvent[] = [];
+  let ended: FreeOut['ended'] = null;
+  const rr = radOf(s0.mode);
+  const finish = (cur: Stroke, why: FreeEndWhy, end: V, dir: V, severed: number | null = null, blocked: number | null = null) => {
+    ended = { why, severed, blocked };
+    events.push({ t: 'freeEnd', side, why, locks: cur.locks, severed, blocked, end, dir, len: cur.len });
+    st = null;
+  };
+  for (const pc of pieces) {
+    if (pc.k === 'down') {
+      if (st) continue;   // 進行中的刀不會再按下（第二指另以 multi 結束）
+      const reason: Reject | null = s0.phase !== 'cut' || k >= endStep(s0) ? 'phase'
+        : ended || s0.cdUntil[side] > k ? 'cooldown'          // 同一步內剛結束的刀也算冷卻中
+        : !inside(pc.p, bodyOf(s0.mode, side)) ? 'start' : null;
+      if (reason) { events.push({ t: 'freeReject', side, reason }); continue; }
+      st = { start: pc.p, len: 0, seen: [], locks: [], startStep: k };
+      events.push({ t: 'freeStart', side, p: pc.p });
+      continue;
+    }
+    const cur: Stroke | null = st;
+    if (!cur) continue;
+    if (pc.k === 'end') { finish(cur, pc.why, cur.start, [0, 0]); continue; }
+    // 線段：先依剩餘長度截斷
+    const a = pc.a;
+    const L0 = Math.hypot(pc.b[0] - a[0], pc.b[1] - a[1]);
+    if (L0 === 0) continue;
+    const dir: V = [(pc.b[0] - a[0]) / L0, (pc.b[1] - a[1]) / L0];
+    const rem = MAX_LEN - cur.len, cut = L0 >= rem;
+    const L = cut ? rem : L0;
+    const b: V = cut ? [a[0] + dir[0] * L, a[1] + dir[1] * L] : pc.b;
+    if (pc.v >= FREE_MIN_SPEED) {
+      const hits: { i: number; t: number }[] = [];
+      s0.organs.forEach((o, i) => { if (!isReady(s0, i) || cur.seen.includes(i)) return; const t = entryDist(a, b, o.p, rr); if (t !== null) hits.push({ i, t }); });
+      hits.sort((x, y) => x.t - y.t || x.i - y.i);
+      let stop = false;
+      for (const h of hits) {
+        cur.seen.push(h.i);
+        if (s0.organs[h.i].side === side) { cur.locks.push(h.i); locks.push(h.i); events.push({ t: 'freeLock', side, i: h.i }); continue; }
+        const at: V = [a[0] + dir[0] * h.t, a[1] + dir[1] * h.t];
+        cur.len += h.t;
+        if (isLocked(s0, h.i)) finish(cur, 'blocked', at, dir, null, h.i); else finish(cur, 'sever', at, dir, h.i, null);
+        stop = true; break;
+      }
+      if (stop) continue;
+    }
+    cur.len += L;
+    if (cut) finish(cur, 'length', b, dir);
+  }
+  return { side, stroke: st, locks, events, ended };
+}
+
 export function candidates(s: GameState, side: Side): Line[] {
   const starts: V[] = [];
   s.organs.forEach((o, i) => { if (o.side === side && isReady(s, i)) starts.push(o.p); });
