@@ -13,7 +13,7 @@ import type { Campaign, PlaceReject } from './cutbattle/campaign.ts';
 import { BODY2, R3, RECTS } from './cutbattle/duel3_board.ts';
 import { drawBlade, drawOrganSprite, drawSlot, drawSuture, loadAssets, loadLog, playFx2, shake2 } from './art/sprites.ts';
 import type { Assets, Fx2 } from './art/sprites.ts';
-import { PROVISIONAL, drawOrganV3, drawScene, drawTrail, drawTutorialHand, playSplit } from './duel3_art.ts';
+import { CUT_DIM, PROVISIONAL, drawOrganV3, drawScene, drawTrail, drawTutorialHand, playSplit } from './duel3_art.ts';
 import type { OrganStateV3, SplitFx, TrailPt } from './duel3_art.ts';
 
 declare const __BUILD_SHA__: string;
@@ -21,7 +21,6 @@ const BUILD_SHA = typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : 'dev';
 const W = 700, H = 1000, STEP_MS = 1000 / FPS;
 const R = R3;                                   // 判定半徑＝顯示半徑（DF-04）
 const FREE_LAG_MS = 2 * STEP_MS;                // 即時劃刀：模擬晚 2 步跑，確保第 k 步的指標事件都到齊才結算（事件晚到才不會跨步，DF-02）
-const DIM = { alpha: 0.45, saturation: 0.4 };    // 切割期本體調暗【試玩數值】
 const SLOW_MS = 80, SLOW_RATE = 0.25;           // 切除瞬間畫面放慢（只影響畫面時鐘）
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const els = {
@@ -202,8 +201,7 @@ function stepOnce(): void {
 }
 function severFx(o: { kind: Kind; side: Side; p: V }, ang: number, now: number): void {
   if (!ASSETS) return;
-  G.splits.push({ type: 'split', t0: dispNow(), im: ASSETS.organs[o.kind], x: o.p[0], y: o.p[1], r: R, angle: ang, side: o.side, kind: o.kind });
-  G.fx.push({ type: 'hitFlash', t0: dispNow(), body: ASSETS.body, rect: RECTS[o.side], side: o.side });   // 被切的那一方本體閃白
+  G.splits.push({ type: 'split', t0: dispNow(), im: ASSETS.organs[o.kind], x: o.p[0], y: o.p[1], r: R, angle: ang, side: o.side, kind: o.kind, body: ASSETS.body, rect: RECTS[o.side] });   // 傳 body／rect：被切的那一方本體一起閃白
   if (G.fxOn) G.slowUntil = now + SLOW_MS;
 }
 function onCutEvent(e: GameEvent, s0: GameState): void {
@@ -480,7 +478,7 @@ function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganStateV3
   spriteCenters.set(o.id, { x: r.left + (m.a * o.p[0] + m.c * o.p[1] + m.e) / dpr, y: r.top + (m.b * o.p[0] + m.d * o.p[1] + m.f) / dpr });
 }
 let fps = { frames: 0, t0: 0, last: 0 };
-let isolateId: string | null = null, sceneOnly = false;
+let isolateId: string | null = null, sceneOnly = false, isoOpt: { clear?: boolean; st?: OrganStateV3 } = {};
 /** 按住提示：手指按住、還沒移動時，按下點 420 內的對方器官（DUEL_V03_FEEL 二）。 */
 function holdLit(): Set<number> {
   const out = new Set<number>(), fp = G.fp;
@@ -507,12 +505,12 @@ function draw(now: number): void {
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (ox + sh[0] * scale), dpr * (oy + sh[1] * scale));
   // 測試用：只畫一個器官（黑底），讓測試直接讀像素量 sprite 實際畫在哪（DA-04；審查 HIGH-1：用變換矩陣推算的中心沒有鑑別力）
   if (isolateId) {
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, els.canvas.width, els.canvas.height); ctx.restore();
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); if (isoOpt.clear) ctx.clearRect(0, 0, els.canvas.width, els.canvas.height); else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, els.canvas.width, els.canvas.height); } ctx.restore();   // clear＝透明底（DF-04／05 讀 alpha 量本體範圍）
     const i = G.game.organs.findIndex((o) => o.id === isolateId);
-    if (i >= 0) organ(G.game.organs[i], { mode: 'normal' }, 0);   // 和正式畫面同一個 organ()（覆審：不能另寫一份繪製）
+    if (i >= 0) organ(G.game.organs[i], isoOpt.st ?? { mode: 'normal' }, 0);   // 和正式畫面同一個 organ()（覆審：不能另寫一份繪製）
     return;
   }
-  drawScene(ctx, { w: W, h: H, body: ASSETS.body, rects: RECTS }, t, G.ui === 'cut' ? DIM : undefined);   // 切割期本體調暗，器官才跳出來
+  drawScene(ctx, { w: W, h: H, body: ASSETS.body, rects: RECTS }, t, G.ui === 'cut' ? CUT_DIM : undefined);   // 切割期本體調暗，器官才跳出來
   if (sceneOnly) return;   // 測試用：只畫場景（DF-05 比較切割期與戰鬥期的本體亮度；和正式畫面同一個 drawScene 呼叫）
   const s = G.game, pv = G.drag && G.preview?.ok ? G.preview : null, held = holdLit();
   spriteCenters.clear();
@@ -595,7 +593,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
 
 // ---------------------------------------------------------------- 測試掛勾（作者測試讀取；不影響遊戲）
 (window as unknown as { __cb: unknown }).__cb = {
-  get spriteCenters() { return Object.fromEntries(spriteCenters); }, isolate: (id: string | null) => { isolateId = id; }, get fps() { return fps.last; }, get assetsReady() { return !!ASSETS; }, get loadLog() { return loadLog; },
+  get spriteCenters() { return Object.fromEntries(spriteCenters); }, isolate: (id: string | null, opt: { clear?: boolean; st?: OrganStateV3 } = {}) => { isolateId = id; isoOpt = opt; }, get fps() { return fps.last; }, get assetsReady() { return !!ASSETS; }, get loadLog() { return loadLog; },
   get camp() { return G.camp; }, get game() { return G.game; }, get ui() { return G.ui; }, get preview() { return G.preview; }, get lastStrike() { return G.lastStrike; },
   get battle() { return G.battle; }, get vis() { return G.vis; }, get tip() { return els.tip.hidden ? null : els.tip.textContent; }, get cutByMe() { return G.cutByMe; },
   get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; }, get tipLog() { return [...tipLog]; },

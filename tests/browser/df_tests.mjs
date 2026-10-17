@@ -134,6 +134,39 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await ctx.close();
   }
 
+  // ===== DF-04 顯示半徑＝判定半徑 34（像素量測）；DF-05 器官沒有圓框 =====
+  // 測試模式只畫一個器官、透明底（和正式畫面同一個 organ()）。讀 alpha：本體＝alpha>127（光邊不透明度上限 0.47，量不到）。
+  // 顯示半徑＝本體外框長邊÷2（素材不是正方形，art-kit v3 以長邊＝2r 擺放），換回世界單位和 34 比，誤差 ≤2；中心誤差 ≤2 CSS px。
+  // 無圓框：以器官中心為圓心、半徑 1.05～1.25r 各取 72 點，alpha>127 的比例都 <60%（圓框會讓某一圈接近 100%）。locked 的護盾環規格允許，不量。
+  {
+    const { ctx, page } = await open();
+    await page.evaluate(() => window.__cb.setManual(true));
+    const rows = [];
+    for (const seed of [3, 5]) {
+      await page.evaluate((sd) => window.__cb.newRun({ seed: sd }), seed);
+      const ids = await page.evaluate(() => window.__cb.game.organs.map((o) => o.id));
+      for (const id of ids) for (const st of [{ mode: 'normal' }, { mode: 'normal', cuttable: true, lit: 1 }]) {
+        await page.evaluate(([i, s]) => window.__cb.isolate(i, { clear: true, st: s }), [id, st]);
+        await frames(page, 2);
+        rows.push(await page.evaluate((oid) => {
+          const cb = window.__cb, o = cb.game.organs.find((q) => q.id === oid), cv = document.getElementById('scene'), g = cv.getContext('2d'), rc = cv.getBoundingClientRect(), k = cv.width / rc.width;
+          const d = g.getImageData(0, 0, cv.width, cv.height).data, W = cv.width, H = cv.height, A = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : d[(Math.round(y) * W + Math.round(x)) * 4 + 3]);
+          let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 127) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+          const c = cb.toScreen(o.p[0], o.p[1]), c2 = cb.toScreen(o.p[0] + 100, o.p[1]), wpx = ((c2.x - c.x) / 100) * k;   // 1 世界單位＝wpx 裝置像素
+          const cx = (c.x - rc.left) * k, cy = (c.y - rc.top) * k, R = cb.R;
+          const ring = [1.05, 1.1, 1.15, 1.2, 1.25].map((f) => { let n = 0; for (let a = 0; a < 72; a++) { const th = (a * Math.PI) / 36; if (A(cx + Math.cos(th) * f * R * wpx, cy + Math.sin(th) * f * R * wpx) > 127) n++; } return n / 72; });
+          return { id: oid, kind: o.kind, rad: (Math.max(x1 - x0 + 1, y1 - y0 + 1) / 2) / wpx, dc: Math.hypot((x0 + x1 + 1) / 2 - cx, (y0 + y1 + 1) / 2 - cy) / k, ring: Math.max(...ring) };
+        }, id));
+      }
+    }
+    await page.evaluate(() => window.__cb.isolate(null));
+    const radErr = Math.max(...rows.map((r) => Math.abs(r.rad - 34))), dcMax = Math.max(...rows.map((r) => r.dc)), ringMax = Math.max(...rows.map((r) => r.ring));
+    const worst = rows.slice().sort((a, b) => Math.abs(b.rad - 34) - Math.abs(a.rad - 34))[0];
+    check(`${tag} DF-04 顯示半徑＝判定半徑 34：${rows.length} 次量測（2 種子全部器官 × 一般／可切加亮），本體長邊÷2 與 34 最大差 ${radErr.toFixed(2)}（≤2 世界單位）、中心最大差 ${dcMax.toFixed(2)} CSS px（≤2）`, rows.length >= 60 && radErr <= 2 && dcMax <= 2, JSON.stringify({ worst, range: [Math.min(...rows.map((r) => r.rad)).toFixed(2), Math.max(...rows.map((r) => r.rad)).toFixed(2)] }));
+    check(`${tag} DF-05 器官沒有圓框：半徑 1.05～1.25r 各圈不透明點比例最大 ${(ringMax * 100).toFixed(0)}%（<60%）`, ringMax < 0.6, JSON.stringify(rows.slice().sort((a, b) => b.ring - a.ring).slice(0, 3)));
+    await ctx.close();
+  }
   // ===== DF-05 切割期本體亮度低於戰鬥期（只畫場景，像素平均） =====
   {
     const { ctx, page } = await open();
