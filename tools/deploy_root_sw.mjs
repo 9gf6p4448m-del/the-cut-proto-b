@@ -8,7 +8,7 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
-import { assertRootUnchanged, treeSnapshot } from './deploy_lib.mjs';
+import { assertRootUnchanged, isLocalRemote, treeSnapshot } from './deploy_lib.mjs';
 
 const sh = (c, o = {}) => execSync(c, { stdio: ['ignore', 'pipe', 'inherit'], ...o }).toString().trim();
 const argv = process.argv.slice(2);
@@ -18,8 +18,7 @@ const origin = sh('git remote get-url origin');
 if (rehearsal && (!remoteOpt || remoteOpt === origin)) throw new Error('--rehearsal 必須搭配不是 origin 的 --remote');
 if (remoteOpt && !rehearsal) throw new Error('--remote 只能和 --rehearsal 一起用');
 // 本機路徑的 --remote 依「呼叫時的工作目錄」轉成絕對路徑（clone 在暫存目錄執行，相對路徑會被解析錯；DL-070，Codex R2 MEDIUM）；URL 與 user@host: 形式照原樣
-const isLocalPath = (r) => !/^[a-z][a-z0-9+.-]+:\/\//i.test(r) && !/^[\w.-]+@[\w.-]+:/.test(r);
-const url = rehearsal ? (isLocalPath(remoteOpt) && !isAbsolute(remoteOpt) ? resolve(remoteOpt) : remoteOpt) : origin;
+const url = rehearsal ? (isLocalRemote(remoteOpt) && !isAbsolute(remoteOpt) ? resolve(remoteOpt) : remoteOpt) : origin;
 const head = sh('git rev-parse --short=7 HEAD'), branch = sh('git rev-parse --abbrev-ref HEAD');
 if (!rehearsal) {
   if (sh('git status --porcelain -- public/sw.js tools')) throw new Error('public/sw.js 或 tools 有未提交的變更');

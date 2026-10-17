@@ -65,3 +65,14 @@ export function treeSnapshot(cwd, rev, sub) {
   }
   return out;
 }
+
+/** --remote 是否為本機路徑（DL-070；Codex R3 MEDIUM）。URL（scheme://）與 Git 的 SCP 語法（[user@]host:path、[user@][IPv6]:path）不是本機路徑；
+ *  Windows 磁碟路徑（C:\、C:/）與相對、絕對路徑是。 */
+export function isLocalRemote(r) {
+  if (/^[a-zA-Z]:[\\/]/.test(r)) return true;                 // Windows 磁碟路徑
+  if (/^[a-z][a-z0-9+.-]+:\/\//i.test(r)) return false;        // URL
+  if (/^(?:[^@\\/:]+@)?\[[^\]]+\]:/.test(r)) return false;      // SCP + IPv6：[::1]:repo、git@[::1]:repo
+  const colon = r.indexOf(':'), slash = r.search(/[\\/]/);
+  if (colon > 0 && (slash < 0 || colon < slash)) return false;  // SCP：host:path、user@host:path（冒號在第一個斜線之前）
+  return true;
+}
