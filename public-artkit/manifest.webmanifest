@@ -1,0 +1,15 @@
+{
+  "name": "執刀者 幽光美術模組",
+  "short_name": "幽光美術",
+  "id": "__SUB__",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070D19",
+  "theme_color": "#070D19",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
