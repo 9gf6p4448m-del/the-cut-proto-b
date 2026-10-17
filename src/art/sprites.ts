@@ -56,7 +56,9 @@ export async function loadAssets(base: string): Promise<Assets> {
   const [body, ...os] = await Promise.all([loadImage(`${base}/body.png`), ...kinds.map((k) => loadImage(`${base}/${k}.png`))]);
   return { body, organs: Object.fromEntries(kinds.map((k, i) => [k, os[i]])) as Record<Kind, HTMLImageElement> };
 }
-const keyOf = (im: Img) => (im instanceof HTMLImageElement ? im.src : `cv${(im as unknown as { __id?: number }).__id ?? 0}`);
+// 畫布沒有 src：沒帶 __id 的畫布各自配一個編號（之前一律是 cv0，不同畫布會共用快取而畫錯）
+const cvIds = new WeakMap<object, number>(); let cvNext = 1e6;
+const keyOf = (im: Img) => { if (im instanceof HTMLImageElement) return im.src; const id = (im as unknown as { __id?: number }).__id; if (id !== undefined) return `cv${id}`; let n = cvIds.get(im); if (n === undefined) { n = cvNext++; cvIds.set(im, n); } return `cv${n}`; };
 function pixels(im: Img): ImageData { const c = mk(im.width, im.height), x = c.getContext('2d')!; x.drawImage(im, 0, 0); return x.getImageData(0, 0, c.width, c.height); }
 /** 素材的 alpha 遮罩（給 bodyPolygon）。 */
 export function maskOf(im: Img): Mask { const d = pixels(im), a = new Uint8ClampedArray(d.width * d.height); for (let i = 0; i < a.length; i++) a[i] = d.data[i * 4 + 3]; return { width: d.width, height: d.height, alpha: a }; }
@@ -351,7 +353,7 @@ const sceneCache = new Cache<{ cv: HTMLCanvasElement; blue: P[]; red: P[] }>(6);
 /** 建議遊戲用這個：靜態部分快取（鍵＝尺寸＋素材＋rect＋dpr），動態只畫前線邊界上的流動光點。 */
 export function drawDuelScene(ctx: Ctx, s: Readonly<DuelSceneView>, t: number): void {
   const dpr = dprOf(ctx), br = s.brightness ?? 0.8, ag = s.alphaGain ?? 1.3, R = s.rects;
-  const dm = s.dim, da = dm ? clamp01(dm.alpha) : 1, ds = dm ? clamp01(dm.saturation) : 1;
+  const dm = s.dim, da = dm && Number.isFinite(dm.alpha) ? clamp01(dm.alpha) : 1, ds = dm && Number.isFinite(dm.saturation) ? clamp01(dm.saturation) : 1;
   const sc = sceneCache.get(`${s.w}x${s.h}|${keyOf(s.body)}|${JSON.stringify(R)}|${br}|${ag}|${dm ? `${da},${ds}` : '-'}@${dpr}`, () => {
     const cv = mk(s.w * dpr, s.h * dpr), c = cv.getContext('2d')!; c.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawBackdrop(c, s.w, s.h);
@@ -411,37 +413,45 @@ export function organPlacement(im: Img, x: number, y: number, r: number): Rect {
   const b = contentBox(im), s = (2 * r) / Math.max(b.w, b.h, 1);
   return { x: x - (b.x + b.w / 2) * s, y: y - (b.y + b.h / 2) * s, w: im.width * s, h: im.height * s };
 }
-/** 器官預烤層（rim＝只有光邊、body＝素材本體；邊長 2(r+pad)·dpr，器官中心在正中）：鍵＝素材＋種類＋側＋r＋dpr。匯出給測試量測顯示半徑。 */
-const organLayerCache = new Cache<{ rim: HTMLCanvasElement; body: HTMLCanvasElement; pad: number }>(48);
-export function organLayers(im: Img, kind: Kind, side: Side, r: number, dpr: number): { rim: HTMLCanvasElement; body: HTMLCanvasElement; pad: number } {
+/** 外光邊最高不透明度：壓在 0.5 以下，量「alpha>50%」的顯示範圍時只會量到素材本體（顯示半徑＝r），光邊只是柔光。 */
+export const RIM_MAX_ALPHA = 0.47;
+/** 器官預烤層（rim＝只有光邊（陣營色）、rimW＝只有光邊（白，加亮用）、body＝素材本體；邊長 2(r+pad)·dpr，器官中心在正中）：鍵＝素材＋種類＋側＋r＋dpr。 */
+type OrganLayers = { rim: HTMLCanvasElement; rimW: HTMLCanvasElement; body: HTMLCanvasElement; pad: number };
+const organLayerCache = new Cache<OrganLayers>(48);
+export function organLayers(im: Img, kind: Kind, side: Side, r: number, dpr: number): OrganLayers {
   return organLayerCache.get(`${keyOf(im)}|${kind}|${side}|${r}@${dpr}`, () => {
-    const pad = Math.ceil(r * 0.36), size = 2 * (r + pad), pl = organPlacement(im, r + pad, r + pad, r), sil = silhouette(im, sideL(side));
-    const rim = mk(size * dpr, size * dpr), rc = rim.getContext('2d')!; rc.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // 外光邊：剪影往 16 個方向位移疊印（外圈淡、內圈濃）＝沿素材輪廓膨脹的柔光，不是圓框
-    for (const [d, a] of [[r * 0.3, 0.1], [r * 0.18, 0.22], [r * 0.09, 0.55]] as [number, number][]) { rc.globalAlpha = a; for (let i = 0; i < 16; i++) { const an = (i / 16) * Math.PI * 2; rc.drawImage(sil, pl.x + Math.cos(an) * d, pl.y + Math.sin(an) * d, pl.w, pl.h); } }
-    rc.globalAlpha = 1; rc.globalCompositeOperation = 'destination-out'; rc.drawImage(sil, pl.x, pl.y, pl.w, pl.h); // 光邊只留在輪廓外
+    const pad = Math.ceil(r * 0.36), size = 2 * (r + pad), pl = organPlacement(im, r + pad, r + pad, r);
+    const rimOf = (rgb: string) => {
+      const sil = silhouette(im, rgb), tmp = mk(size * dpr, size * dpr), tc = tmp.getContext('2d')!; tc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 剪影往 16 個方向位移疊印（外圈淡、內圈濃）＝沿素材輪廓膨脹的柔光，不是圓框；挖掉輪廓內；整層再乘上 RIM_MAX_ALPHA
+      for (const [d, a] of [[r * 0.3, 0.1], [r * 0.18, 0.22], [r * 0.09, 0.55]] as [number, number][]) { tc.globalAlpha = a; for (let i = 0; i < 16; i++) { const an = (i / 16) * Math.PI * 2; tc.drawImage(sil, pl.x + Math.cos(an) * d, pl.y + Math.sin(an) * d, pl.w, pl.h); } }
+      tc.globalAlpha = 1; tc.globalCompositeOperation = 'destination-out'; tc.drawImage(sil, pl.x, pl.y, pl.w, pl.h);
+      const c = mk(size * dpr, size * dpr), x = c.getContext('2d')!; x.globalAlpha = RIM_MAX_ALPHA; x.drawImage(tmp, 0, 0); return c;
+    };
     const body = mk(size * dpr, size * dpr), bc = body.getContext('2d')!; bc.setTransform(dpr, 0, 0, dpr, 0, 0); bc.drawImage(organImg(im, kind, side), pl.x, pl.y, pl.w, pl.h);
-    return { rim, body, pad };
+    return { rim: rimOf(sideL(side)), rimW: rimOf(RGB.white), body, pad };
   });
 }
-/** 光邊＋本體合成一張（每個器官每格只貼一次；效能：12 個器官時貼圖像素量約為分開貼的 4 成）。rimA＝光邊不透明度（脈動量化成 8 階以利快取）。 */
-const organCombCache = new Cache<HTMLCanvasElement>(96);
-function organCombined(im: Img, kind: Kind, side: Side, r: number, dpr: number, rimA: number): HTMLCanvasElement {
-  return organCombCache.get(`${keyOf(im)}|${kind}|${side}|${r}|${rimA}@${dpr}`, () => { const L = organLayers(im, kind, side, r, dpr), c = mk(L.rim.width, L.rim.height), x = c.getContext('2d')!; x.globalAlpha = rimA; x.drawImage(L.rim, 0, 0); x.globalAlpha = 1; x.drawImage(L.body, 0, 0); return c; });
+/** 光邊＋本體合成一張（每個器官每格只貼一次；12 個器官時貼圖像素量約為分開貼的 4 成）。rimA＝光邊強度（脈動量化 8 階）、w＝光邊往白色混的比例（加亮，量化 4 階）。 */
+const organCombCache = new Cache<HTMLCanvasElement>(128);
+function organCombined(im: Img, kind: Kind, side: Side, r: number, dpr: number, rimA: number, w: number): HTMLCanvasElement {
+  return organCombCache.get(`${keyOf(im)}|${kind}|${side}|${r}|${rimA}|${w}@${dpr}`, () => { const L = organLayers(im, kind, side, r, dpr), c = mk(L.rim.width, L.rim.height), x = c.getContext('2d')!;
+    x.globalAlpha = rimA * (1 - w); x.drawImage(L.rim, 0, 0); x.globalAlpha = rimA * w; x.drawImage(L.rimW, 0, 0); x.globalAlpha = 1; x.drawImage(L.body, 0, 0); return c; });
 }
 export interface OrganStateV3 { mode: 'normal' | 'locked' | 'sprout'; cuttable?: boolean; lit?: number; target?: boolean; k?: number; label?: string }
+const finitePos = (v: number, d: number) => (Number.isFinite(v) && v > 0 ? v : d);
 /**
- * v0.3 器官：素材本身＋陣營色外光邊（無圓框）。顯示半徑＝o.r（主體外框長邊＝2r，外框中心＝(x,y)）。
- * cuttable＝對方可切（光邊緩慢脈動）；lit 0～1＝按住提示加亮；locked＝護盾環（k＝剩餘比例、label＝秒數）；sprout＝半透明；target＝直線預覽命中（紅色小圈，半徑 0.42r）。
+ * v0.3 器官：素材本身＋陣營色外光邊（無圓框）。顯示半徑＝o.r：素材主體外框長邊＝2r、外框中心＝(x,y)；光邊不透明度 ≤RIM_MAX_ALPHA，量 alpha>50% 只量得到本體。
+ * cuttable＝對方可切（光邊緩慢脈動）；lit 0～1＝按住提示加亮（光邊轉白、本體提亮）；locked＝護盾環（k＝剩餘比例、label＝秒數）；sprout＝半透明；target＝直線預覽命中（紅色小圈，半徑 0.42r）。
  */
 export function drawOrganV3(ctx: Ctx, im: Img, o: Readonly<OrganView>, st: Readonly<OrganStateV3>, t: number): void {
-  const { kind, side, x, y } = o, r = o.r > 0 ? o.r : ORGAN_R, lit = clamp01(Number.isFinite(st.lit) ? (st.lit as number) : 0), L = organLayers(im, kind, side, r, dprOf(ctx)), half = r + L.pad;
-  const dpr = dprOf(ctx), base = st.mode === 'sprout' ? 0.4 : 1;
-  // 可切：光邊不透明度 0.45～1 緩慢脈動（0.8Hz，量化 8 階）；不可切：固定 0.85
-  const rimA = st.cuttable ? 0.45 + 0.55 * Math.round((0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 0.8)) * 7) / 7 : 0.85;
+  const { kind, side, x, y } = o, r = finitePos(o.r, ORGAN_R), lit = clamp01(Number.isFinite(st.lit) ? (st.lit as number) : 0), dpr = dprOf(ctx), L = organLayers(im, kind, side, r, dpr), half = r + L.pad;
+  const base = st.mode === 'sprout' ? 0.4 : 1, litQ = Math.round(lit * 3) / 3;
+  // 可切：光邊強度 0.45～1 緩慢脈動（0.8Hz，量化 8 階）；按住加亮時固定最強；其他固定 0.85
+  const ph = Number.isFinite(t) ? 0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 0.8) : 1, rimA = litQ > 0 ? 1 : st.cuttable ? 0.45 + 0.55 * Math.round(ph * 7) / 7 : 0.85;
   ctx.save();
-  ctx.globalAlpha = base; ctx.drawImage(organCombined(im, kind, side, r, dpr, rimA), x - half, y - half, half * 2, half * 2);
-  if (lit > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = base * lit; ctx.drawImage(L.rim, x - half, y - half, half * 2, half * 2); ctx.globalAlpha = base * lit * 0.35; ctx.drawImage(L.body, x - half, y - half, half * 2, half * 2); ctx.globalCompositeOperation = 'source-over'; }
+  ctx.globalAlpha = base; ctx.drawImage(organCombined(im, kind, side, r, dpr, rimA, litQ * 0.8), x - half, y - half, half * 2, half * 2);
+  if (lit > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = base * lit * 0.4; ctx.drawImage(L.body, x - half, y - half, half * 2, half * 2); ctx.globalCompositeOperation = 'source-over'; } // 只提亮本體範圍內，不擴大顯示範圍
   ctx.globalAlpha = 1;
   if (st.mode === 'locked') shieldRing(ctx, x, y, r, clamp01(st.k ?? 1), t, side, st.label);
   if (st.target) { ctx.strokeStyle = '#ff4d5e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, Math.PI * 2); ctx.stroke(); }
@@ -465,12 +475,12 @@ function shieldRing(ctx: Ctx, x: number, y: number, r: number, k: number, t: num
 type SplitFx = Extract<Fx2, { type: 'split' }>;
 /** 兩半的位移（世界座標）：[刀左側那半, 刀右側那半]。垂直刀向的分量方向相反。 */
 export function splitHalves(f: Readonly<SplitFx>, t: number): [P, P] {
-  const e = easeOut((t - f.t0) / DUR2.split), r = f.r > 0 ? f.r : ORGAN_R, dx = Math.cos(f.angle), dy = Math.sin(f.angle), nx = -dy, ny = dx;
+  const e = easeOut((t - f.t0) / DUR2.split), r = finitePos(f.r, ORGAN_R), dx = Math.cos(f.angle), dy = Math.sin(f.angle), nx = -dy, ny = dx;
   const at = (sg: number): P => [nx * sg * e * r * 1.6 + dx * e * r * 0.9, ny * sg * e * r * 1.6 + dy * e * r * 0.9 + e * e * r * 0.5];
   return [at(-1), at(1)];
 }
 function drawSplit(ctx: Ctx, f: Readonly<SplitFx>, k: number): void {
-  const r = f.r > 0 ? f.r : ORGAN_R, a = 1 - k, dx = Math.cos(f.angle), dy = Math.sin(f.angle), nx = -dy, ny = dx, src = organImg(f.im, f.kind ?? 'claw', f.side), pl = organPlacement(f.im, 0, 0, r);
+  const r = finitePos(f.r, ORGAN_R), a = 1 - k, dx = Math.cos(f.angle), dy = Math.sin(f.angle), nx = -dy, ny = dx, src = organImg(f.im, f.kind ?? 'claw', f.side), pl = organPlacement(f.im, 0, 0, r);
   const hs = splitHalves(f, f.t0 + k * DUR2.split), L = r * 3;
   if (f.body && f.rect) { ctx.save(); ctx.globalAlpha = 0.55 * (1 - Math.min(1, k * 3)) ** 2; ctx.globalCompositeOperation = 'lighter'; drawFitted(ctx, silhouette(f.body, RGB.white), f.rect, f.side); ctx.restore(); }
   [-1, 1].forEach((sg, i) => {
@@ -528,7 +538,7 @@ export function pathPoint(path: readonly P[], u: number): P {
 }
 /** 教學示範一刀（純函式，只看 t）：0～15% 手出現並按下、15～70% 沿路徑劃過（帶刀痕）、70～100% 抬手淡出。播完回傳 false。 */
 export function playTutorialSwipe(ctx: Ctx, path: readonly P[], t0: number, t: number, dur = 3, side: Side = 'blue'): boolean {
-  const u = (t - t0) / dur; if (u < 0) return true; if (u > 1 || !(dur > 0)) return false;
+  if (!(dur > 0)) return false; const u = (t - t0) / dur; if (u < 0) return true; if (u > 1) return false;
   const sw = (v: number) => easeOut((v - 0.15) / 0.55), pos = pathPoint(path, sw(u));
   if (u > 0.15) { const pts: TrailPt[] = []; for (let tt = Math.max(t0 + 0.15 * dur, t - TRAIL_LIFE); tt <= t + 1e-9; tt += 1 / 60) { const p = pathPoint(path, sw((tt - t0) / dur)); pts.push({ x: p[0], y: p[1], t: tt }); } drawTrail(ctx, pts, t, false, TRAIL_LIFE, side); }
   ctx.save(); ctx.globalAlpha = u < 0.08 ? u / 0.08 : u > 0.75 ? Math.max(0, 1 - (u - 0.75) / 0.25) : 1; drawTutorialHand(ctx, pos[0], pos[1], t, u > 0.1 && u < 0.72); ctx.restore();

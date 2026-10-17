@@ -99,7 +99,7 @@ test('AV3-9 教學虛擬手：手沿路徑移動（15% 在起點、70% 以後在
   const mid = handAt(1 + 0.3 * 3)!; assert.ok(mid[1] < 700 && mid[1] > 150, '中途在路徑上');
   assert.ok(near(S.pathPoint(path, 0), path[0]) && near(S.pathPoint(path, 1), path[2]));
   const L1 = Math.hypot(100, 300), L2 = Math.hypot(120, 250); assert.ok(near(S.pathPoint(path, L1 / (L1 + L2)), path[1]), '依弧長');
-  assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 0.5, 3), true); assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 2.5, 3), true); assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 4.01, 3), false);
+  assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 0.5, 3), true); assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 2.5, 3), true); assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 4.01, 3), false); assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 1.5, -3), false, 'dur 負值＝不播'); assert.equal(S.playTutorialSwipe(fakeCtx(), path, 1, 1.5, 0), false);
   // 有畫刀痕（劃過期間）
   assert.ok(drawn(() => S.playTutorialSwipe(fakeCtx(), path, 1, 1 + 0.4 * 3, 3)).some((c) => c.k === 'moveTo'), '劃過時有刀痕');
 });
