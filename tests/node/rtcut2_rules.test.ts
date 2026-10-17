@@ -156,11 +156,11 @@ test('R2-01／02 擊倒與再生節拍同一步（H5）：第 300 步切掉最�
 });
 
 test('R2-03 萌芽長度（H6）：凍結 0.5 秒＝30 步；第 300 步長出 → 第 330 步起才存在', () => {
-  assert.equal(SPROUT_STEPS, 30);
   const r = run({ ...newGame(3, MODE_RT2), aiNextFire: 10 ** 9 }, REGEN_STEPS + 1, { 0: BLUE_ROW });
   const i = r.ev[0].i;
   assert.equal(r.s.readyAt[i], 330);
   assert.equal(isReady({ ...r.s, step: 329 }, i), false); assert.equal(isReady({ ...r.s, step: 330 }, i), true);
+  assert.equal(SPROUT_STEPS, 30);
 });
 
 test('R2-05 AI 不對空出刀（H1）：你只剩萌芽器官時，200 個亂數狀態下 AI 每次選刀都只能是保護刀或不出刀', () => {
@@ -179,6 +179,18 @@ test('R2-05 AI 不對空出刀（H1）：你只剩萌芽器官時，200 個亂�
   const allLocked: GameState = { ...sp, lockUntil: sp.lockUntil.map((v, i) => (ORGANS[i].side === 'red' ? 10 ** 6 : v)) };
   for (let r = 1; r <= 50; r++) assert.equal(aiChoose({ ...allLocked, rng: (r * 2654435761) >>> 0 }).line, null, `rng ${r}`);
   assert.notEqual(aiChoose({ ...allLocked, mode: MODE_RT1 }).line, null, '對照：原版模式會出無目標的刀');
+  // 最高分 ≤ AI_NEAR（覆審 H1b）：牠只有 1 個器官沒鎖（交疊區的紅爪3，鎖住得 1 分），其餘全鎖 → 有 0 分候選落在「最高分 −2」窗內；每次選刀都必須得分 >0
+  for (const keep of [Y3, idx('紅爪1'), idx('紅心1')]) {
+    const one: GameState = { ...sp, lockUntil: sp.lockUntil.map((v, i) => (ORGANS[i].side === 'red' && i !== keep ? 10 ** 6 : v)) };
+    const pr = { ...one, cdUntil: { blue: 0, red: 0 } };
+    let n = 0;
+    for (let r = 1; r <= 100; r++) {
+      const p = aiChoose({ ...one, rng: (r * 2654435761) >>> 0 });
+      if (!p.line) continue; n++;
+      assert.ok(aiScore(pr, 'red', resolveStrike(pr, 'red', p.line)) > 0, `留 ${ORGANS[keep].id} rng ${r}：揮出無目標的刀`);
+    }
+    assert.ok(n > 0, `留 ${ORGANS[keep].id}：活性（會出保護刀）`);
+  }
   // 整步模擬：預告在萌芽期間開始 → 預告刀線也只能是保護刀
   for (let r = 1; r <= 50; r++) {
     const o = step({ ...sp, rng: r * 40503 >>> 0, aim: null, aiNextFire: 100 + 36 }, {});
