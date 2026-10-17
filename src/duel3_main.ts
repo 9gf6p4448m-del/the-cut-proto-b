@@ -389,9 +389,11 @@ function organAt(p: V): { kind: Kind; side: Side } | null {
 }
 // 即時劃刀：事件時間戳換成本局的毫秒（規則時鐘 G.clock 在上一幀 G.lastT 的值＋事件距那一幀的時間）
 const matchMs = (ts: number): number => (G.lastT === null ? G.clock : G.clock + (ts - G.lastT));
-let lastEvT = 0;
+let lastEvT = 0, tsOffset = 0;
+/** 事件時間戳和 performance.now() 不在同一條時間軸時（部分瀏覽器／自動化工具），每一刀在按下時對齊一次基準；刀內的時間間隔仍用事件時間戳（保留手指真實速度）。 */
+function alignTs(ts: number): void { const d = performance.now() - ts; tsOffset = Math.abs(d) > 1000 ? d : 0; }
 /** 時間戳一律單調不減（審查 M-1：一幀卡超過 250ms 或切到背景回來時，換算可能倒退或重複）。 */
-function pushEv(k: PtrKind, p: V, ts: number): void { if (G.ui === 'cut') { lastEvT = Math.max(lastEvT, matchMs(ts), 0); const ev: PtrEv = { t: lastEvT, k, p }; G.slicer.push(ev); } }
+function pushEv(k: PtrKind, p: V, ts: number): void { if (G.ui === 'cut') { lastEvT = Math.max(lastEvT, matchMs(ts + tsOffset), 0); const ev: PtrEv = { t: lastEvT, k, p }; G.slicer.push(ev); } }
 const freeActive = () => G.input === 'free' && G.ui === 'cut' && !(G.tut && G.tut.phase === 'demo');
 els.canvas.addEventListener('pointerdown', (e) => {
   ac();
@@ -402,7 +404,7 @@ els.canvas.addEventListener('pointerdown', (e) => {
     if (G.fp) { if (e.pointerId !== G.fp.id) { pushEv('multi', G.fp.last, e.timeStamp); G.fp = null; } return; }   // 第二根手指：刀結束
     const g = G.game, valid = g.phase === 'cut' && g.cdUntil.blue <= g.step && inside(p, BODY2.blue);   // 這次按下能不能起刀（按住提示只在能起刀時顯示，審查 L-4）
     G.fp = { id: e.pointerId, start: p, last: p, lastTs: e.timeStamp, moved: 0, len: 0, valid, downAt: performance.now() };
-    pushEv('down', p, e.timeStamp); G.trail = [{ x: p[0], y: p[1], t: performance.now() / 1000 }];
+    alignTs(e.timeStamp); pushEv('down', p, e.timeStamp); G.trail = [{ x: p[0], y: p[1], t: performance.now() / 1000 }];
     try { els.canvas.setPointerCapture(e.pointerId); } catch { /* 略過 */ }
     return;
   }

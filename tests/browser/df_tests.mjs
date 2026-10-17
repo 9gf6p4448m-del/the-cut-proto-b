@@ -95,35 +95,43 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await ctx.close();
   }
 
-  // ===== DF-02（瀏覽器鏈路）：真實指標事件經「時間戳換算→切片→晚 2 步結算」：CPU 1 倍與 4 倍節流下，同一條快刀都切下目標、同一條慢描都是鈍刀（審查 M-3） =====
+  // ===== DF-02（瀏覽器鏈路）：真實指標事件經「時間戳換算→切片→晚 2 步結算」（審查 M-3）。
+  // Chromium：CDP 觸控帶硬體式時間戳（快刀每 8ms 一點、慢描每 120ms 一點），CPU 1 倍與 4 倍節流下結果相同（頁面處理變慢不改變手指速度）。
+  // WebKit：沒有觸控與節流 API，用滑鼠快拖／慢拖（每段停 120ms），只驗 1 倍。
   {
     const res = [];
-    for (const rate of [1, 4]) {
+    for (const rate of bname === 'chromium' ? [1, 4] : [1]) {
       const { ctx, page } = await open();
-      let cdp = null;
-      if (bname === 'chromium') { cdp = await page.context().newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate }); }
+      const cdp = bname === 'chromium' ? await page.context().newCDPSession(page) : null;
+      if (cdp) await cdp.send('Emulation.setCPUThrottlingRate', { rate });
       await page.evaluate(() => window.__cb.newRun({ seed: 5 }));
       await page.waitForTimeout(300);
-      const plan = await page.evaluate(PLAN);
-      const A = await scr(page, plan.S), B = await scr(page, plan.E);
-      await swipe(page, bname, A, B);
-      await page.waitForFunction(() => !!window.__cb.lastFree, null, { timeout: 8000 }).catch(() => {});
-      const fast = await page.evaluate(() => { const f = window.__cb.lastFree; return f && { why: f.why, sev: f.severed === null ? null : window.__cb.game.organs[f.severed].id }; });
-      // 冷卻後慢描：同一條路徑，8 段、每段停 120ms（約 0.1～0.3 世界單位／毫秒，低於 0.6）
+      const go = async (gapMs) => {
+        const plan = await page.evaluate(PLAN), A = await scr(page, plan.S), B = await scr(page, plan.E);
+        if (cdp) {
+          const base = Date.now() / 1000, pt = (k) => ({ x: A.x + ((B.x - A.x) * k) / 8, y: A.y + ((B.y - A.y) * k) / 8 });
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt(0)], timestamp: base });
+          for (let k = 1; k <= 8; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [pt(k)], timestamp: base + (k * gapMs) / 1000 });
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: base + (8 * gapMs + 1) / 1000 });
+        } else {
+          await page.mouse.move(A.x, A.y); await page.mouse.down();
+          for (let k = 1; k <= 8; k++) { await page.mouse.move(A.x + ((B.x - A.x) * k) / 8, A.y + ((B.y - A.y) * k) / 8); if (gapMs > 50) await page.waitForTimeout(gapMs); }
+          await page.mouse.up();
+        }
+        const n0 = await page.evaluate(() => window.__cb.freeLog.length);
+        await page.waitForFunction((n) => window.__cb.freeLog.length > n && window.__cb.freeLog[window.__cb.freeLog.length - 1].includes('freeEnd'), n0, { timeout: 8000 }).catch(() => {});
+        const f = await page.evaluate(() => { const x = window.__cb.lastFree; return x && { why: x.why, sev: x.severed === null ? null : window.__cb.game.organs[x.severed].id }; });
+        return { plan: plan.id, ...f };
+      };
+      const fast = await go(8);
       await page.waitForTimeout(1800);
-      const p2 = await page.evaluate(PLAN);
-      const A2 = await scr(page, p2.S), B2 = await scr(page, p2.E);
-      await page.mouse.move(A2.x, A2.y); await page.mouse.down();
-      for (let k = 1; k <= 8; k++) { await page.mouse.move(A2.x + ((B2.x - A2.x) * k) / 8, A2.y + ((B2.y - A2.y) * k) / 8); await page.waitForTimeout(120); }
-      await page.mouse.up();
-      await page.waitForTimeout(400);
-      const slow = await page.evaluate(() => { const f = window.__cb.lastFree; return f && { why: f.why, sev: f.severed }; });
-      res.push({ rate, plan: plan.id, fast, slow });
+      const slow = await go(120);
+      res.push({ rate, fast, slow });
       if (cdp) await cdp.detach();
       await ctx.close();
     }
-    const ok = res.every((r) => r.fast && r.fast.sev === r.plan && r.slow && r.slow.why === 'up' && r.slow.sev === null);
-    check(`${tag} DF-02 瀏覽器鏈路：真實指標事件在 CPU 1 倍／4 倍${bname === 'chromium' ? '' : '（WebKit 無節流 API，兩次都是 1 倍）'}下，快刀都切下目標、慢描都是鈍刀`, ok, JSON.stringify(res));
+    const ok = res.every((r) => r.fast.sev === r.fast.plan && r.slow.why === 'up' && r.slow.sev === null);
+    check(`${tag} DF-02 瀏覽器鏈路：真實指標事件${bname === 'chromium' ? '（CDP 觸控＋硬體式時間戳，CPU 1 倍／4 倍）' : '（滑鼠，WebKit 無觸控／節流 API）'}：快刀都切下目標、慢描都是鈍刀`, ok, JSON.stringify(res));
   }
   // ===== 審查 H-1：教學示範期間拖線不出刀（不漏成直線刀），示範結束後盤面、冷卻不變 =====
   {
