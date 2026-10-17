@@ -111,7 +111,6 @@ mkdirSync('dist-duel2/assets', { recursive: true });
 await esbuild.build({ ...common, entryPoints: ['src/duel2_main.ts'], outfile: 'dist-duel2/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
 for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-duel2/${f}`);
 cpSync('public-artkit/assets/final', 'dist-duel2/assets/final', { recursive: true });
-cpSync('public-artkit/assets/placeholder', 'dist-duel2/assets/placeholder', { recursive: true });
 copyFileSync('public-duel2/assets/beast_boundary.json', 'dist-duel2/assets/beast_boundary.json');
 writeFileSync('dist-duel2/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-duel2/cb.css', 'utf8'));
 for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {

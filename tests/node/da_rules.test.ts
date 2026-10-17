@@ -69,23 +69,23 @@ test('DA-02 200 種子：初始器官（3 場）與再生位置都整個圓在�
       s.organs.forEach((o, i) => {
         organs++;
         assert.ok(ring(o.p, BODY2[o.side]), `seed ${seed} stage ${stage} ${o.id} ${o.p} 圓超出龍身`);
-        if (seed <= 20) assert.ok(gridReach(o.p, other(o.side), s), `seed ${seed} ${o.id} 對方碰不到`);
+        assert.ok(gridReach(o.p, other(o.side), s), `seed ${seed} ${o.id} 對方碰不到`);   // 審查 LOW-7：200 種子全驗
         s.organs.forEach((q, j) => { if (j > i) assert.ok(Math.hypot(o.p[0] - q.p[0], o.p[1] - q.p[1]) >= 2 * R, `seed ${seed} 重疊`); });
       });
     }
     let s: GameState = { ...matchFor(c), aiNextFire: 10 ** 9 };
-    s = { ...s, alive: s.alive.map((a, i) => !(s.organs[i].side === 'red' && i % 3 === 0)), severedQ: { blue: [], red: ['claw', 'eye', 'bone'] } };
+    s = { ...s, alive: s.alive.map((a, i) => i % 3 !== 0), severedQ: { blue: ['heart', 'poison', 'claw'], red: ['claw', 'eye', 'bone'] } };   // 雙方都再生
     while (s.step < 3 * REGEN_STEPS + 1) {
       const out = step(s, {});
       for (const e of out.events) if (e.t === 'spawn') {
         spawns++; const o = out.state.organs[e.i];
         assert.ok(ring(o.p, BODY2[o.side]), `seed ${seed} 再生 ${o.p} 圓超出龍身`);
-        if (seed <= 40) assert.ok(gridReach(o.p, 'blue', out.state), `seed ${seed} 再生 ${o.p} 對方碰不到`);
+        assert.ok(gridReach(o.p, other(o.side), out.state), `seed ${seed} ${o.side} 再生 ${o.p} 對方碰不到`);
       }
       s = out.state;
     }
   }
-  assert.ok(organs >= 200 * 3 * 18 && spawns >= 400, `${organs} ${spawns}`);
+  assert.ok(organs >= 200 * 3 * 18 && spawns >= 800, `${organs} ${spawns}`);
 });
 test('DA-01 duel2 設定下只有獸身多邊形不同：局長、冷卻、鎖定、再生上限、AI d、器官組成都與 v0.1 相同', () => {
   const c1 = newCampaign(5), c2 = newCampaign(5, BODY2);
@@ -107,4 +107,18 @@ test('DA-01 duel2 設定下只有獸身多邊形不同：局長、冷卻、鎖�
   }
   assert.equal(placeCheck(pc, gap!), 'outside');
   assert.ok(ok && ring(ok, BODY2.blue));
+});
+test('DA-01 AI 錨點與交疊帶：沒給 body 時仍是原版常數（rt-cut／rt-cut2／duel 不變）；duel2 由龍身邊界推出、錨點都在自己龍身內（審查 HIGH-2）', async () => {
+  const { AI_ANCHORS, anchorsOf, bandOf } = await import('../../src/rtcut/rules.ts');
+  assert.deepEqual([anchorsOf({}, 'blue'), anchorsOf({}, 'red'), bandOf({})], [AI_ANCHORS.blue, AI_ANCHORS.red, [430, 570]]);
+  const m = { body: BODY2 };
+  for (const side of ['blue', 'red'] as Side[]) {
+    const a = anchorsOf(m, side);
+    assert.equal(a.length, 7);
+    for (const p of a) assert.ok(inside(p, BODY2[side]), `${side} ${p}`);
+    // 舊錨點在龍身內的只有少數：這就是要改的原因
+    assert.ok(AI_ANCHORS[side].filter((p) => inside(p, BODY2[side])).length <= 3);
+  }
+  const [b0, b1] = bandOf(m);
+  assert.ok(Math.abs(b0 - Math.min(...BODY2.blue.map((p) => p[1]))) < 1e-9 && Math.abs(b1 - Math.max(...BODY2.red.map((p) => p[1]))) < 1e-9);
 });

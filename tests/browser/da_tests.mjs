@@ -55,16 +55,27 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
       okAll && err.msg.includes('素材載入失敗') && err.retryVisible && err.top > 10 && err.attempts >= 3 && recovered && debugShown, `${okAll ? '6/6 載入' : '有素材沒載入'}｜${err.msg}`);
   }
 
-  // ===== DA-04 對齊：sprite 中心＝規則座標（≤2 CSS px）；刀線預覽命中＝結算命中（≥10 條實拖） =====
+  // ===== DA-04 對齊：讀畫面像素量器官 sprite 實際中心 vs 規則座標（≤2 CSS px）；觸控換算：刀線端點＝手指位置；刀線預覽命中＝結算命中（≥10 條實拖） =====
+  // 量測位置＝使用者看到的像素：測試模式下只畫一個器官（黑底），讀整張畫布，取「亮像素」（RGB 和 >300：雙層描邊環與器官圖本體，排除淡光暈）外框的中心；環是以器官中心對稱的圓，器官圖若偏離中心會撐大外框而被量到。
   {
-    const bad = []; let n = 0, maxErr = 0, checked = 0;
-    const alignCheck = async () => {
-      const s = await D(page);
+    const bad = []; let n = 0, maxErr = 0, checked = 0, maxTouch = 0;
+    const pixelCenter = (id) => page.evaluate(async (oid) => {
+      window.__cb.isolate(oid);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const cv = document.getElementById('scene'), g = cv.getContext('2d'), d = g.getImageData(0, 0, cv.width, cv.height).data;
+      let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+      for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) { const k = (y * cv.width + x) * 4; if (d[k] + d[k + 1] + d[k + 2] > 300) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+      window.__cb.isolate(null);
+      const r = cv.getBoundingClientRect(), sx = r.width / cv.width, sy = r.height / cv.height;
+      return x1 < 0 ? null : { x: r.left + ((x0 + x1 + 1) / 2) * sx, y: r.top + ((y0 + y1 + 1) / 2) * sy };
+    }, id);
+    const alignCheck = async (max = 99) => {
+      const s = await D(page); let k = 0;
       for (const [i, o] of s.game.organs.entries()) {
-        if (!s.game.alive[i]) continue;
-        const c = s.centers[o.id]; if (!c) { bad.push(`${o.id} 沒畫`); continue; }
+        if (!s.game.alive[i] || k++ >= max) continue;
+        const c = await pixelCenter(o.id); if (!c) { bad.push(`${o.id} 畫面上找不到`); continue; }
         const q = await scr(page, o.p), e = Math.hypot(c.x - q.x, c.y - q.y);
-        maxErr = Math.max(maxErr, e); checked++; if (e > 2) bad.push(`${o.id} 誤差 ${e.toFixed(2)}px`);
+        maxErr = Math.max(maxErr, e); checked++; if (e > 2) bad.push(`${o.id} 像素中心誤差 ${e.toFixed(2)}px`);
       }
     };
     await alignCheck();
@@ -75,20 +86,25 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
         if (s.game.cdUntil.blue > s.game.step) { await page.evaluate((m) => window.__cb.advance(m), s.game.cdUntil.blue - s.game.step); continue; }
         const cs = candidates(s.game, 'blue').filter((l) => resolveStrike(s.game, 'blue', l).ok);
         const l = k % 2 ? greedyLine(s.game) ?? cs[0] : cs[(n * 53) % cs.length];
-        await dragTo(page, l.a, l.b, false);
+        const A = await scr(page, l.a), B = await scr(page, l.b);
+        await page.mouse.move(A.x, A.y); await page.mouse.down();
+        for (let j = 1; j <= 6; j++) await page.mouse.move(A.x + ((B.x - A.x) * j) / 6, A.y + ((B.y - A.y) * j) / 6);
         await page.waitForTimeout(60);
         const pre = await D(page);
-        await alignCheck();
+        if (n < 3) await alignCheck(4);
         await page.mouse.up();
         await page.evaluate(() => window.__cb.advance(1));
         const post = await D(page); n++;
         const pv = pre.preview, rec = post.last;
         if (!pv || !rec) { bad.push(`#${n} 沒有預覽或結算`); continue; }
+        // 觸控換算：結算刀線的起點（世界座標）換回螢幕，要落在手指按下的位置
+        const a2 = await scr(page, rec.line.a), te = Math.hypot(a2.x - A.x, a2.y - A.y); maxTouch = Math.max(maxTouch, te);
+        if (te > 2) bad.push(`#${n} 刀線起點和手指差 ${te.toFixed(2)}px`);
         const key = (r) => JSON.stringify([r.severed, r.blocked, r.locks]);
         if (key(pv) !== key(rec)) bad.push(`#${n} 預覽 ${key(pv)}≠結算 ${key(rec)}`);
       }
     }
-    check(`${tag} DA-04 對齊：器官 sprite 中心與規則座標誤差 ≤2 CSS px；刀線預覽命中＝結算命中（實拖 ${n} 條）`, bad.length === 0 && n >= 10 && checked > 50, `最大誤差 ${maxErr.toFixed(3)}px（${checked} 次）｜${bad.slice(0, 3).join('；')}`);
+    check(`${tag} DA-04 對齊：器官 sprite 的像素中心與規則座標誤差 ≤2 CSS px、刀線起點＝手指位置；刀線預覽命中＝結算命中（實拖 ${n} 條）`, bad.length === 0 && n >= 10 && checked >= 30, `像素中心最大誤差 ${maxErr.toFixed(2)}px（${checked} 個）、觸控最大誤差 ${maxTouch.toFixed(2)}px｜${bad.slice(0, 3).join('；')}`);
   }
 
   // ===== DA-03 畫面：三個畫面都由 art-kit 繪製；393×852 截圖與目標圖並排存檔 =====

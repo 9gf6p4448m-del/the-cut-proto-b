@@ -62,7 +62,7 @@ try { G.sound = localStorage.getItem('duel-cb-sound') !== '0'; } catch { /* 無�
 let dpr = 1, cw = 0, ch = 0, scale = 1, ox = 0, oy = 0;
 function layout(): void {
   const r = els.canvas.getBoundingClientRect();
-  dpr = window.devicePixelRatio || 1; cw = r.width; ch = r.height;
+  dpr = Math.min(2, window.devicePixelRatio || 1); cw = r.width; ch = r.height;   // 解析度上限 2（DA-06 降級措施）
   els.canvas.width = Math.round(cw * dpr); els.canvas.height = Math.round(ch * dpr);
   scale = Math.min(cw / W, ch / H); ox = (cw - W * scale) / 2; oy = (ch - H * scale) / 2;
 }
@@ -152,7 +152,7 @@ function onCutEvent(e: GameEvent, s0: GameState): void {
     if (r.severed !== null) {
       const o = s0.organs[r.severed]; G.bursts.push({ o, t0: now, ang: Math.atan2(r.line.b[1] - r.line.a[1], r.line.b[0] - r.line.a[0]) }); sfx('sever');
       pop([o.p[0], o.p[1] - 30], `切下 ${KIND_ZH[o.kind]}`, o.side === 'red' ? '#AEEAFF' : '#ff8a8a', 18);
-      if (r.side === 'blue') G.cutByMe.push(o.kind); else { G.shakeUntil = now + 220; vibrate([30, 30, 30]); }
+      if (r.side === 'blue') G.cutByMe.push(o.kind); else { vibrate([30, 30, 30]); if (ASSETS) G.fx.push({ type: 'hitFlash', t0: now / 1000, body: ASSETS.body, rect: RECTS.blue, side: 'blue' }); }   // 切割期不晃畫面，改閃白（iPhone 沒有震動）
     }
     if (r.blocked !== null) { const o = s0.organs[r.blocked]; G.fx.push({ type: 'boneShield', t0: now / 1000, at: o.p as [number, number], facing: Math.atan2(r.line.a[1] - o.p[1], r.line.a[0] - o.p[0]) }); pop([o.p[0], o.p[1] - 30], '鎖住，擋下', '#cfe8ff', 16); sfx('block'); }
   } else if (e.t === 'aim') { if (!G.aimFirst) G.aimFirst = now; }
@@ -268,6 +268,8 @@ function showEnd(): void {
 }
 
 // ---------------------------------------------------------------- HUD
+let infoHtml = '';
+function setInfo(h: string): void { if (h !== infoHtml) { infoHtml = h; els.info.innerHTML = h; } }   // 內容變了才寫 DOM（DA-06 降級措施）
 function hud(): void {
   if (!G.camp) return;
   const c = G.camp, s = G.game;
@@ -292,9 +294,9 @@ function hud(): void {
   } else { els.clock.textContent = '—'; }
   els.sound.textContent = `音效：${G.sound ? '開' : '關'}`; els.sound.setAttribute('aria-pressed', String(G.sound));
   els.fast.disabled = G.ui !== 'battle';
-  if (G.ui === 'cut' && !G.drag) els.info.innerHTML = '從<b>藍色獸身</b>拖線切紅方器官；點器官看說明。';
-  else if (G.ui === 'place') els.info.innerHTML = `點獸身放下「${KIND_ZH[G.camp.picked ?? 'claw']}」。綠圈＝可放，紅圈＝不能放。`;
-  else if (G.ui === 'battle') els.info.innerHTML = '戰鬥中：器官自己行動（可按「快轉」）。';
+  if (G.ui === 'cut' && !G.drag) setInfo('從<b>藍色獸身</b>拖線切紅方器官；點器官看說明。');
+  else if (G.ui === 'place') setInfo(`點獸身放下「${KIND_ZH[G.camp.picked ?? 'claw']}」。綠圈＝可放，紅圈＝不能放。`);
+  else if (G.ui === 'battle') setInfo('戰鬥中：器官自己行動（可按「快轉」）。');
 }
 
 // ---------------------------------------------------------------- 輸入
@@ -333,9 +335,9 @@ els.canvas.addEventListener('pointerup', (e) => endDrag(e, false));
 els.canvas.addEventListener('pointercancel', (e) => endDrag(e, true));
 function previewText(): void {
   const r = G.preview; if (!r) return;
-  if (!r.ok) { els.info.innerHTML = `<span class="warnc">${r.reject === 'start' ? '起點要在你的獸身上' : r.reject === 'cooldown' ? '冷卻中' : r.reject === 'short' ? '刀太短' : '不能出刀'}</span>`; return; }
+  if (!r.ok) { setInfo(`<span class="warnc">${r.reject === 'start' ? '起點要在你的獸身上' : r.reject === 'cooldown' ? '冷卻中' : r.reject === 'short' ? '刀太短' : '不能出刀'}</span>`); return; }
   const s = G.game;
-  els.info.innerHTML = `${r.locks.length ? `鎖住 ${r.locks.map((i) => KIND_ZH[s.organs[i].kind]).join('、')}　` : ''}${r.severed !== null ? `<b>切下 ${KIND_ZH[s.organs[r.severed].kind]}</b>` : r.blocked !== null ? '<span class="warnc">被鎖住的器官擋下</span>' : '揮空'}`;
+  setInfo(`${r.locks.length ? `鎖住 ${r.locks.map((i) => KIND_ZH[s.organs[i].kind]).join('、')}　` : ''}${r.severed !== null ? `<b>切下 ${KIND_ZH[s.organs[r.severed].kind]}</b>` : r.blocked !== null ? '<span class="warnc">被鎖住的器官擋下</span>' : '揮空'}`);
 }
 els.sound.onclick = () => { G.sound = !G.sound; try { localStorage.setItem('duel-cb-sound', G.sound ? '1' : '0'); } catch { /* 略過 */ } hud(); };
 els.fast.onclick = () => { if (G.ui === 'battle') { const now = performance.now(); G.bBase = G.bClock; G.bT0 = now; G.speed = G.speed === 1 ? 3 : 1; els.fast.textContent = G.speed === 1 ? '快轉' : '正常速度'; } };
@@ -361,6 +363,7 @@ function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganState, 
   spriteCenters.set(o.id, { x: r.left + (m.a * o.p[0] + m.c * o.p[1] + m.e) / dpr, y: r.top + (m.b * o.p[0] + m.d * o.p[1] + m.f) / dpr });
 }
 let fps = { frames: 0, t0: 0, last: 0 };
+let isolateId: string | null = null;
 function draw(now: number): void {
   const t = now / 1000;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#070D19'; ctx.fillRect(0, 0, cw, ch);
@@ -372,6 +375,13 @@ function draw(now: number): void {
     if (now < G.shakeUntil) sh = [sh[0] + (Math.random() * 2 - 1) * 5, sh[1] + (Math.random() * 2 - 1) * 5];
   }
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (ox + sh[0] * scale), dpr * (oy + sh[1] * scale));
+  // 測試用：只畫一個器官（黑底），讓測試直接讀像素量 sprite 實際畫在哪（DA-04；審查 HIGH-1：用變換矩陣推算的中心沒有鑑別力）
+  if (isolateId) {
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, els.canvas.width, els.canvas.height); ctx.restore();
+    const i = G.game.organs.findIndex((o) => o.id === isolateId);
+    if (i >= 0) drawOrganSprite(ctx, ASSETS.organs[G.game.organs[i].kind], { kind: G.game.organs[i].kind, side: G.game.organs[i].side, x: G.game.organs[i].p[0], y: G.game.organs[i].p[1], r: R * 0.95 }, { mode: 'normal' }, 0);
+    return;
+  }
   drawDuelScene(ctx, { w: W, h: H, body: ASSETS.body, rects: RECTS }, t);
   const s = G.game, pv = G.drag && G.preview?.ok ? G.preview : null;
   spriteCenters.clear();
@@ -380,7 +390,7 @@ function draw(now: number): void {
     const sprout = G.ui === 'cut' && !isReady(s, i), locked = G.ui === 'cut' && isLocked(s, i), lit = Math.max(0, ((glowUntil.get(o.id) ?? 0) - now) / 260);
     const st: OrganState = sprout ? { mode: 'sprout', k: Math.min(1, 1 - (s.readyAt[i] - s.step) / 30) }
       : locked ? { mode: 'locked', k: (s.lockUntil[i] - s.step) / LOCK_STEPS, label: `${Math.ceil((s.lockUntil[i] - s.step) / FPS)}` } : { mode: 'normal' };
-    st.lit = lit; st.target = !!pv && (pv.severed === i || pv.blocked === i);
+    st.lit = pv && pv.locks.includes(i) ? Math.max(lit, 0.7) : lit; st.target = !!pv && (pv.severed === i || pv.blocked === i);   // 刀會鎖住的己方器官提亮
     organ(o, st, t);
   });
   G.bursts = G.bursts.filter((b) => now - b.t0 < 520);
@@ -442,7 +452,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
 
 // ---------------------------------------------------------------- 測試掛勾（作者測試讀取；不影響遊戲）
 (window as unknown as { __cb: unknown }).__cb = {
-  get spriteCenters() { return Object.fromEntries(spriteCenters); }, get fps() { return fps.last; }, get assetsReady() { return !!ASSETS; }, get loadLog() { return loadLog; },
+  get spriteCenters() { return Object.fromEntries(spriteCenters); }, isolate: (id: string | null) => { isolateId = id; }, get fps() { return fps.last; }, get assetsReady() { return !!ASSETS; }, get loadLog() { return loadLog; },
   get camp() { return G.camp; }, get game() { return G.game; }, get ui() { return G.ui; }, get preview() { return G.preview; }, get lastStrike() { return G.lastStrike; },
   get battle() { return G.battle; }, get vis() { return G.vis; }, get tip() { return els.tip.hidden ? null : els.tip.textContent; }, get cutByMe() { return G.cutByMe; },
   get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; }, get tipLog() { return [...tipLog]; },
@@ -469,5 +479,5 @@ function boot(base: string): void {
   });
 }
 els.retry.onclick = () => boot('./assets/final');
-layout(); boot(new URLSearchParams(location.search).get('assets') === 'placeholder' ? './assets/placeholder' : './assets/final');
+layout(); boot('./assets/final');   // 只用正式素材：暫代素材的身形和已確認邊界不同，會讓畫面與判定不一致（審查 M6）
 requestAnimationFrame(frame);

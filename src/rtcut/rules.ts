@@ -300,10 +300,28 @@ export const AI_ANCHORS: Record<Side, V[]> = {
   blue: [[80, 550], [260, 550], [440, 550], [620, 550], [120, 455], [330, 455], [540, 455]],
 };
 export const AI_ANGLES = 24, AI_LENGTHS = [160, 280, 420], AI_NEAR = 2;
+/** 交疊帶與 AI 錨點：原版（沒給 body）＝固定的 y 430～570 與 AI_ANCHORS；給了 body（duel2）就由兩個多邊形算出（審查 HIGH-2：
+ *  錨點若沿用舊四邊形座標，落在龍身外會被起刀規則拒絕，AI 候選刀變少、實力變弱）。同一份 body 只算一次。 */
+const derived = new WeakMap<Record<Side, V[]>, { band: [number, number]; anchors: Record<Side, V[]> }>();
+function derive(body: Record<Side, V[]>): { band: [number, number]; anchors: Record<Side, V[]> } {
+  let d = derived.get(body); if (d) return d;
+  const ys = (side: Side) => body[side].map((p) => p[1]);
+  const band: [number, number] = [Math.min(...ys('blue')), Math.max(...ys('red'))];   // 藍在下、紅在上：藍的最高點～紅的最低點
+  const anchors = {} as Record<Side, V[]>;
+  for (const side of SIDES) {
+    const pts: V[] = [];
+    for (let y = Math.ceil(band[0] / 10) * 10; y <= band[1]; y += 10) for (let x = 0; x <= 700; x += 10) if (inside([x, y], body[side])) pts.push([x, y]);
+    pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    anchors[side] = pts.length <= 7 ? pts : Array.from({ length: 7 }, (_, i) => pts[Math.round((i * (pts.length - 1)) / 6)]);
+  }
+  d = { band, anchors }; derived.set(body, d); return d;
+}
+export const bandOf = (mode: { body?: Record<Side, V[]> }): [number, number] => (mode.body ? derive(mode.body).band : [430, 570]);
+export const anchorsOf = (mode: { body?: Record<Side, V[]> }, side: Side): V[] => (mode.body ? derive(mode.body).anchors[side] : AI_ANCHORS[side]);
 export function candidates(s: GameState, side: Side): Line[] {
   const starts: V[] = [];
   s.organs.forEach((o, i) => { if (o.side === side && isReady(s, i)) starts.push(o.p); });
-  starts.push(...AI_ANCHORS[side]);
+  starts.push(...anchorsOf(s.mode, side));
   const out: Line[] = [];
   for (const a of starts) for (let k = 0; k < AI_ANGLES; k++) {
     const th = (k * 2 * Math.PI) / AI_ANGLES;
@@ -313,7 +331,8 @@ export function candidates(s: GameState, side: Side): Line[] {
 }
 export function aiScore(s: GameState, side: Side, r: StrikeResult): number {
   let v = r.severed !== null ? VALUE[s.organs[r.severed].kind] : 0;
-  for (const i of r.locks) if (s.lockUntil[i] <= s.step + AIM_STEPS) v += s.organs[i].p[1] >= 430 && s.organs[i].p[1] <= 570 ? 1 : 0.5;
+  const [b0, b1] = bandOf(s.mode);
+  for (const i of r.locks) if (s.lockUntil[i] <= s.step + AIM_STEPS) v += s.organs[i].p[1] >= b0 && s.organs[i].p[1] <= b1 ? 1 : 0.5;
   return v;
 }
 export function aiChoose(state: GameState, side: Side = 'red'): { line: Line | null; rng: number } {
