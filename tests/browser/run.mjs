@@ -7,6 +7,7 @@ import { serve } from './serve.mjs';
 import { runExpTests } from './exp_tests.mjs';
 import { runSkewerTests } from './skewer_tests.mjs';
 import { runTwinTests } from './twin_tests.mjs';
+import { runRootSwTests } from './root_sw_tests.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
 const results = [];
@@ -236,6 +237,9 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runTwinTests({ bname, btype, devices, url, check });
 }
+
+// ---- 根網址 service worker 相容性（DL-069，RS-1～RS-4；舊 SW 重現、新 SW 修好） ----
+await runRootSwTests({ check });
 
 // ---- T-15①～③ PWA（Chromium；localhost 視為安全來源） ----
 {
