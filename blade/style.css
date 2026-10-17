@@ -1,0 +1,78 @@
+[hidden] { display:none !important; }
+:root { --bg:#11151B; --blood:#8C2635; --bone:#E6D7BF; --teal:#6EA6A2; --amber:#E4A35C; --purple:#9b6be0; --orange:#e08a3a; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--bone); font-family: system-ui, -apple-system, "PingFang TC", sans-serif; overscroll-behavior:none; -webkit-user-select:none; user-select:none; }
+body { display:flex; flex-direction:column; height:100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+header { padding:6px 10px 0; font-size:13px; }
+.warn { font-size:11px; opacity:.8; }
+.warn3 { font-size:11px; color:var(--amber); }
+.hud { display:flex; gap:10px; margin:6px 0 2px; }
+.hp { flex:1; display:flex; align-items:center; gap:6px; }
+.hp .bar { flex:1; height:10px; background:#2a2f38; border-radius:5px; overflow:hidden; }
+.hp .bar i { display:block; height:100%; background:var(--teal); transition: width .4s; }
+.hp.enemy .bar i { background:var(--blood); }
+.rules, .enemy-card { font-size:11px; opacity:.85; margin-top:2px; line-height:1.35; }
+.preview { height:132px; overflow:auto; margin-top:6px; padding:6px 8px; background:#1b2029; border-radius:8px; font-size:13px; line-height:1.45; }
+.preview small { opacity:.7; }
+.sideL { color:var(--purple); font-weight:bold; } .sideR { color:var(--orange); font-weight:bold; } .pierce { color:#fff; font-weight:bold; } .bad { color:#ff7a7a; }
+main { flex:1; min-height:0; position:relative; }
+canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; display:block; }
+footer { padding:4px 10px 8px; }
+.pending { background:#1b2029; border-radius:10px; padding:8px; margin-bottom:6px; }
+.pred { font-size:13px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.pred button.on { outline:2px solid var(--bone); }
+.bait { display:block; font-size:13px; margin:6px 0; }
+.actions { display:flex; gap:8px; margin-top:6px; }
+button { min-height:44px; min-width:44px; padding:0 12px; border-radius:10px; border:1px solid #3a4150; background:#232935; color:var(--bone); font-size:14px; }
+button.primary { background:var(--blood); border-color:#c0394f; flex:1; font-weight:bold; }
+.actions button { flex:1; min-height:48px; }
+button:disabled { opacity:.4; }
+.tools { display:flex; gap:6px; flex-wrap:wrap; }
+.tools button { font-size:12px; min-height:44px; flex:1; padding:0 6px; }
+.hint { font-size:11px; opacity:.7; min-height:14px; }
+.review { position:fixed; left:8px; right:8px; bottom: calc(8px + env(safe-area-inset-bottom)); max-height:45dvh; overflow:auto; background:#1b2029ee; border:1px solid #3a4150; border-radius:12px; padding:8px 12px; font-size:13px; z-index:5; }
+.review h3 { margin:4px 0; font-size:14px; } .review ol { padding-left:18px; margin:4px 0; } .basis { font-size:12px; opacity:.8; }
+.end { position:fixed; inset:0; background:#11151Bdd; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:10; }
+.end button { width:70%; min-height:52px; flex:none; }
+.who { font-size:12px; color:var(--amber); margin-top:2px; }
+#legend table { width:100%; border-collapse:collapse; font-size:12px; } #legend td, #legend th { border-bottom:1px solid #3a4150; padding:4px 2px; text-align:left; vertical-align:top; }
+.tools { flex-wrap:nowrap; } .tools button { flex:1 1 0; padding:0 4px; }
+.pending-slot { height:172px; margin-bottom:6px; } .pending-slot .pending { margin-bottom:0; }
+/* ---- 刀譜研究片段追加樣式（接在 public/style.css 之後） ---- */
+body.blade { height:100dvh; overflow:hidden; background:radial-gradient(120% 80% at 50% 25%, #1a1024 0%, #07090D 60%); }
+.tag { background:var(--amber); color:#11151B; padding:1px 6px; border-radius:6px; font-size:11px; }
+.blade header { padding:6px 10px 0; }
+.blade .warn { font-size:11px; opacity:.8; }
+.hud { display:flex; gap:6px; margin-top:4px; align-items:stretch; }
+.stat { background:#12151d; border:1px solid #262c38; border-radius:8px; padding:2px 8px; display:flex; flex-direction:column; min-width:0; }
+.stat span { font-size:10px; opacity:.65; }
+.stat b { font-size:16px; font-variant-numeric:tabular-nums; }
+.stat.goal { flex:1; }
+.stat .bar { height:4px; background:#262c38; border-radius:2px; margin-top:2px; overflow:hidden; }
+.stat .bar i { display:block; height:100%; width:0; background:linear-gradient(90deg,#ff3d7f,#ffd166); transition:width .35s; }
+.preview { height:40px; margin-top:4px; padding:3px 8px; background:#12151d; border-radius:8px; font-size:12px; line-height:1.3; overflow:hidden; }
+.preview .seq { font-weight:bold; letter-spacing:1px; }
+.preview .pat { color:#ffd166; }
+.preview .sc { color:#fff; font-weight:bold; font-size:14px; }
+.preview .save { color:#7CFF6B; font-weight:bold; }
+.preview .warnc { color:#ff7a7a; }
+.blade main { flex:1; min-height:0; position:relative; }
+.blade canvas { width:100%; height:100%; display:block; touch-action:none; }
+.tools { display:flex; gap:6px; margin-top:4px; }
+.tools button { flex:1 1 0; font-size:13px; padding:0 4px; min-height:44px; }
+.tools button[aria-pressed="false"] { opacity:.7; }
+.modal { position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; z-index:20; padding:16px; }
+.modal[hidden] { display:none; }
+.modal .box { background:#151923; border:1px solid #3a4150; border-radius:14px; padding:14px; width:100%; max-width:420px; }
+.modal h2 { margin:0 0 10px; font-size:20px; }
+.opts { display:flex; flex-direction:column; gap:8px; }
+.opts button { min-height:56px; text-align:left; display:flex; flex-direction:column; justify-content:center; padding:6px 12px; }
+.opts button b { font-size:16px; color:#ffd166; }
+.opts button small { font-size:12px; opacity:.85; }
+.opts button.sel { outline:2px solid #ffd166; }
+.slots { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+.slots button { min-height:48px; font-size:13px; }
+.hint { font-size:12px; opacity:.8; margin:8px 0 0; }
+.end #endBody { font-size:14px; line-height:1.6; margin-bottom:12px; }
+.end #endBody .big { font-size:34px; font-weight:bold; color:#ffd166; }
+.end button { width:100%; min-height:52px; }
