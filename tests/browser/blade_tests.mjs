@@ -1,5 +1,5 @@
 // 刀譜（blade/）瀏覽器測試（作者測試；Chromium＋WebKit 模擬，**不是 iPhone 實機**）。由 run.mjs 或 blade_run.mjs 逐瀏覽器呼叫。
-// 凍結驗收：the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md BH-06～08；v0.2（068ca72 同檔檔尾）：4 隻怪、版本字樣 v0.2（BV-06）。
+// 凍結驗收：the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md BH-06～08；v0.2（068ca72）：4 隻怪；v0.3（0857472）：搶分演出 BW-03、版本字樣 v0.3（BW-05）。
 // 挑線：測試端用規則模組（bestLine／candidateLines）從畫面上的盤面狀態算出刀線，再用滑鼠真實拖曳；判定讀 window.__blade 與 DOM。
 import { newPage } from './exp_tests.mjs';
 import { bestLine, candidateLines, evaluate } from '../../src/blade/rules.ts';
@@ -33,7 +33,7 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
   await page.evaluate(() => window.__blade.setTimings({ animScale: 0.08 }));
   const sha = await page.getAttribute('meta[name="build-sha"]', 'content');
   const top = await page.textContent('#top');
-  check(`${tag} 版本 SHA 與「研究片段」字樣；BV-06 畫面看得到 v0.2`, top.includes(sha) && top.includes('研究片段') && top.includes('v0.2') && (await visibleText(page, '#ver')) === 'v0.2' && sha && !sha.includes('__'), sha);
+  check(`${tag} 版本 SHA 與「研究片段」字樣；BW-05 畫面看得到 v0.3`, top.includes(sha) && top.includes('研究片段') && top.includes('v0.3') && (await visibleText(page, '#ver')) === 'v0.3' && sha && !sha.includes('__'), sha);
 
   // ===== BH-06 預覽＝結算（≥10 條真實拖曳） =====
   {
@@ -110,13 +110,53 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
     const r = await B(page);
     const reset = r.phase === 'aim' && r.state.phase === 'aim' && r.state.monster === 0 && r.state.cutsLeft === 4 && r.state.cutsMax === 4 && r.state.twitchesLeft === 2
       && r.state.slots.every((x) => x === null) && r.state.totalScore === 0 && r.state.bestCut === 0 && r.state.history.length === 0
-      && r.state.threshold === 150 && r.state.baseThreshold === 150 && r.state.hits === 0 && r.state.counters.length === 1
+      && r.state.threshold === 150 && r.state.hits === 0 && r.state.stolen === 0 && r.state.monsterScore === 0 && r.state.counters.length === 1
       && r.state.monsterScore === 0 && r.state.seed !== oldSeed && r.state.organs.length === 14 && !(await page.isVisible('#endModal')) && !(await page.isVisible('#stitchModal'));
     if (!reset) bad.push(`再來一局沒有完全重置：${JSON.stringify({ phase: r.phase, m: r.state.monster, c: r.state.cutsLeft, t: r.state.totalScore, seed: r.state.seed, old: oldSeed })}`);
     // 再來一局後仍可出刀
     const b2 = bestLine(r.state, 'score'); await drag(page, b2.a, b2.b); await settled(page);
     if ((await B(page)).state.history.length !== 1) bad.push('重開後出刀失敗');
     check(`${tag} BH-07 整局：勝一局（4 隻）、敗一局（4 刀不達標）、再來一局重置全部狀態並換種子`, bad.length === 0, `${wonSummary}｜${bad.join('；')}`);
+  }
+
+  // ===== BW-03 搶分演出：被打中時 HUD 分數逐條往下掉、有震動；演出結束後顯示＝規則值 =====
+  {
+    const bad = []; let cases = 0, multi = 0;
+    for (let g = 0; g < 8 && cases < 4; g++) {
+      await page.evaluate((sd) => window.__blade.newGame({ seed: sd }), 500 + g); await settled(page);
+      for (let k = 0; k < 6 && cases < 4; k++) {
+        const s0 = await B(page); if (s0.phase === 'stitch') { await pickFirst(page); continue; } if (s0.phase !== 'aim') break;
+        // 挑一條「不會擊倒、至少有分、且至少一條反擊沒取消」的線
+        let pickL = null;
+        for (const [a, b] of candidateLines(s0.state.organs, s0.state.slots)) {
+          const e = evaluate(s0.state, a, b); if (!e.path.ok || e.score.score <= 0) continue;
+          if (s0.state.monsterScore + e.score.score >= s0.state.threshold) continue;
+          const miss = s0.state.counters.filter((c) => !e.path.severed.includes(c.clawId)).length;
+          if (miss && (!pickL || miss > pickL.miss || (miss === pickL.miss && e.score.score > pickL.sc))) pickL = { a, b, miss, sc: e.score.score };
+        }
+        if (!pickL) break;
+        // 演出速度放慢到 0.6 倍以便取樣；用 MutationObserver 記下 #goal 每次被改寫的值與 .hit 震動
+        await page.evaluate(() => { window.__blade.setTimings({ animScale: 0.6 }); const out = []; window.__goalSamples = out; const el = document.getElementById('goal');
+          window.__goalMo = new MutationObserver(() => out.push({ t: el.textContent, hit: el.parentElement.classList.contains('hit') })); window.__goalMo.observe(el, { childList: true, characterData: true, subtree: true }); });
+        await drag(page, pickL.a, pickL.b); await settled(page);
+        const r = await page.evaluate(() => { window.__goalMo.disconnect(); window.__blade.setTimings({ animScale: 0.08 }); return { samples: window.__goalSamples, rec: window.__blade.last, st: window.__blade.state, goal: document.getElementById('goal').textContent }; });
+        const rec = r.rec; if (!rec || rec.cleared || !rec.steals.length) continue;
+        cases++; if (rec.steals.length >= 2) multi++;
+        const nums = r.samples.map((x) => Number(x.t.split('/')[0]));
+        // 期望看到的序列：…出刀前 → 本刀加進去（scoreBeforeSteal）→ 每條搶分後依序遞減 → 最終＝規則值
+        const expect = [rec.scoreBeforeSteal]; rec.steals.forEach((v) => expect.push(expect[expect.length - 1] - v));
+        let idx = 0; for (const v of nums) if (idx < expect.length && v === expect[idx]) idx++;
+        if (idx < expect.length) bad.push(`#${cases} 顯示序列 ${nums.join('→')} 沒有依序出現 ${expect.join('→')}`);
+        if (!r.samples.some((x) => x.hit)) bad.push(`#${cases} 沒有震動演出（.hit）`);
+        if (r.goal !== `${rec.monsterScoreAfter}/${r.st.threshold}` || r.st.monsterScore !== rec.monsterScoreAfter) bad.push(`#${cases} 結束顯示 ${r.goal} ≠ 規則 ${rec.monsterScoreAfter}/${r.st.threshold}`);
+        // 規則值獨立重算：以出刀前的累積＋本刀分數，依序各搶 20%（逆鱗 10%）並捨去
+        let v = s0.state.monsterScore + rec.score.score; const sc = s0.state.slots.includes('scale');
+        const indep = rec.steals.map(() => { const take = Math.floor(v * (sc ? 0.1 : 0.2)); v -= take; return take; });
+        if (JSON.stringify(indep) !== JSON.stringify(rec.steals) || v !== rec.monsterScoreAfter) bad.push(`#${cases} 搶分 ${rec.steals} ≠ 獨立重算 ${indep}`);
+        if (r.st.phase === 'stitch') await pickFirst(page);
+      }
+    }
+    check(`${tag} BW-03 搶分演出：HUD 分數依序下降、有震動、結束顯示＝規則值（獨立重算）`, bad.length === 0 && cases >= 3 && multi >= 1, `${cases} 例（多條 ${multi}）${bad.slice(0, 3).join('；')}`);
   }
 
   // ===== BH-08 手機版面（兩種尺寸；含縫合與結果畫面） =====

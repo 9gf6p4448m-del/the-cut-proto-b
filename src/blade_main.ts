@@ -25,7 +25,8 @@ export const FEEL = {
   PARTICLES: 26,
   TALLY_STEP: 280,   // 刀譜逐項跳出的間隔
   FINAL_HOLD: 900,   // 「×」結算大數字停留
-  COUNTER: 650,      // 反擊演出
+  COUNTER: 650,      // 反擊演出（只打掉縫合、沒有搶分時）
+  STEAL_STEP: 340,   // v0.3：每條反擊搶分一次的間隔（爪飛過去抓、數字往下掉）；整段約 0.6 秒起
   SHAKE: 9,
 };
 const COLOR: Record<Kind, string> = { claw: '#ff6b5a', heart: '#ff3d7f', eye: '#ffd166', poison: '#7CFF6B', bone: '#e8e1d0' };
@@ -45,6 +46,8 @@ const G = {
   last: null as CutRecord | null, anim: null as Anim | null, sound: true, pick: null as StitchId | null,
   particles: [] as Particle[], pops: [] as Pop[], shakeUntil: 0, shake: 0, flashUntil: 0, bigText: null as null | { text: string; sub: string; t0: number; life: number },
   log: [] as { seed: number; cuts: CutRecord[]; result: string }[],
+  disp: null as number | null,   // 演出中 HUD 顯示的本隻累積分數（null＝直接顯示規則狀態）
+  grabs: [] as { from: V; t0: number; amount: number }[],   // v0.3：爪飛向分數抓走一塊
 };
 try { G.sound = localStorage.getItem('blade-sound') !== '0'; } catch { /* 無痕或封鎖儲存 */ }
 
@@ -127,7 +130,7 @@ function newGame(force?: { seed?: number }): void {
   G.token++;
   G.run = newRun(force?.seed ?? ((Math.random() * 1e9) >>> 0) + 1);
   G.phase = 'aim'; G.drag = null; G.preview = null; G.last = null; G.anim = null; G.pick = null;
-  G.particles = []; G.pops = []; G.bigText = { text: '第 1 隻', sub: `門檻 ${G.run.threshold}`, t0: performance.now(), life: T(1100) };
+  G.particles = []; G.pops = []; G.disp = null; G.grabs = []; G.bigText = { text: '第 1 隻', sub: `門檻 ${G.run.threshold}`, t0: performance.now(), life: T(1100) };
   G.log.push({ seed: G.run.seed, cuts: [], result: '' });
   els.stitchModal.hidden = true; els.endModal.hidden = true;
   hud();
@@ -135,8 +138,9 @@ function newGame(force?: { seed?: number }): void {
 function hud(): void {
   const s = G.run;
   els.mon.textContent = `${s.monster + 1}/${TUNE.THRESHOLDS.length}`;
-  els.goal.textContent = `${s.monsterScore}/${s.threshold}`;
-  els.goalBar.style.width = `${Math.min(100, (100 * s.monsterScore) / s.threshold)}%`;
+  const shown = G.disp ?? s.monsterScore;
+  els.goal.textContent = `${shown}/${s.threshold}`;
+  els.goalBar.style.width = `${Math.min(100, (100 * shown) / s.threshold)}%`;
   els.cuts.textContent = `${s.cutsLeft}/${s.cutsMax}`;
   els.total.textContent = String(s.totalScore);
   els.twitch.textContent = `抽搐（剩 ${s.twitchesLeft}）`;
@@ -174,7 +178,8 @@ function startAnim(rec: CutRecord, before: Organ[], prev: RunState, after: RunSt
   for (const p of rec.score.patterns) { tally.push({ at, text: p.label + (p.add ? `  +${p.add}` : '') + (p.mul ? `  ×${p.mul}` : ''), color: p.mul ? '#ff7adf' : '#ffd166' }); at += T(FEEL.TALLY_STEP); }
   const finalAt = at + T(60);
   const counterAt = finalAt + T(FEEL.FINAL_HOLD * 0.6);
-  const doneAt = counterAt + (rec.counterResults.some((r) => r !== 'cancelled') ? T(FEEL.COUNTER) : T(150));
+  const doneAt = counterAt + (rec.steals.length ? T(FEEL.STEAL_STEP * rec.steals.length + 300) : T(150));
+  G.disp = prev.monsterScore;   // 演出中先顯示出刀前的分數，結算大數字時跳到本刀加進去的值，搶分時再逐條往下掉
   G.anim = { token: G.token, rec, before, after, prevSlots: prev.slots, t0: now, hitAt, boneOnly, stopF, sweepEnd, tally, finalAt, counterAt, doneAt, fired: new Set() };
   sfx('slash'); vibrate(12);
   hud();
@@ -202,27 +207,31 @@ function stepAnim(now: number): void {
     pop([350, 300 + i * 40], x.text, x.color, now, i === 0 ? 26 : 30, Math.max(400, a.finalAt - x.at + T(FEEL.FINAL_HOLD * 0.5)), true); sfx('tick', i);
   });
   if (!a.fired.has('final') && t >= a.finalAt) {
-    a.fired.add('final'); sfx('final'); vibrate([30, 40, 60]);
+    a.fired.add('final'); sfx('final'); vibrate([30, 40, 60]); G.disp = a.rec.scoreBeforeSteal;
     G.bigText = { text: String(a.rec.score.score), sub: `${a.rec.score.chips} × ${a.rec.score.mult}`, t0: now, life: T(FEEL.FINAL_HOLD) + 200 };
     G.shake = FEEL.SHAKE * 1.6; G.shakeUntil = now + 260; G.flashUntil = now + 110;
     hud();
   }
-  if (!a.fired.has('counter') && t >= a.counterAt) {
-    a.fired.add('counter');
-    let lostK = 0, hit = 0;
-    a.rec.counterResults.forEach((r, i) => {
-      if (r === 'cancelled') return;
-      const slotP = SLOT_P[a.rec.counters[i].slot];
-      burst(slotP, '#ff3b3b', 30, now);
-      const text = r === 'slotLost' ? `${STITCHES[a.rec.lostStitches[lostK++]].name} 被打掉` : r === 'thresholdUp' ? `空槽被打中：門檻 +${Math.round(TUNE.HIT_EMPTY * 100)}%` : `逆鱗：門檻 +${Math.round(TUNE.HIT_SCALE * 100)}%`;
-      pop([slotP[0], slotP[1] - 50 - hit * 26], text, '#ff7a7a', now, 18, 1500); hit++;
-    });
-    if (hit) { sfx('hurt'); vibrate([60, 40, 60]); G.shake = FEEL.SHAKE * (1.1 + 0.3 * hit); G.shakeUntil = now + 300; }
-  }
+  // v0.3 搶分：沒取消的反擊依序各搶一次——爪從自己的位置飛向分數、抓走一塊，數字往下掉，受擊音效＋震動；有縫合的槽同時被打掉
+  const hitIdx = a.rec.counterResults.map((r, i) => (r === 'cancelled' ? -1 : i)).filter((i) => i >= 0);
+  hitIdx.forEach((ci, k) => {
+    const id = `steal${k}`, at = a.counterAt + T(FEEL.STEAL_STEP * k);
+    if (a.fired.has(id) || t < at) return; a.fired.add(id);
+    const r = a.rec.counterResults[ci], ctr = a.rec.counters[ci], claw = a.before.find((o) => o.id === ctr.clawId), amount = a.rec.steals[k];
+    G.disp = (G.disp ?? a.rec.scoreBeforeSteal) - amount;
+    if (claw) G.grabs.push({ from: claw.p, t0: now, amount });
+    pop([350, 70], `−${amount}`, '#ff4d4d', now, 34, T(900) + 300);
+    els.goal.parentElement?.classList.remove('hit'); void els.goal.parentElement?.offsetWidth; els.goal.parentElement?.classList.add('hit');
+    const slotP = SLOT_P[ctr.slot]; burst(slotP, '#ff3b3b', 24, now);
+    const lostId = a.rec.stealLost[k], lostName = lostId ? STITCHES[lostId].name : null;
+    pop([slotP[0], slotP[1] - 50], r === 'scaleStolen' ? `逆鱗：只搶 ${Math.round(TUNE.STEAL_SCALE * 100)}%` : lostName ? `搶 ${Math.round(TUNE.STEAL * 100)}%＋${lostName} 被打掉` : `被搶 ${Math.round(TUNE.STEAL * 100)}%`, '#ff7a7a', now, 17, 1400);
+    sfx('hurt'); vibrate([50, 30, 50]); G.shake = FEEL.SHAKE * 1.5; G.shakeUntil = now + 320;
+    hud();
+  });
   if (t >= a.doneAt) finishAnim(a, now);
 }
 function finishAnim(a: Anim, now: number): void {
-  G.anim = null;
+  G.anim = null; G.disp = null; els.goal.parentElement?.classList.remove('hit');
   const s = G.run;
   if (s.phase === 'stitch') {
     burst([MONSTER_C[0], MONSTER_C[1]], '#ff3d7f', 80, now, 1.6); sfx('clear');
@@ -364,7 +373,7 @@ function draw(now: number): void {
     if (targeted && nT > 1) { ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`×${nT}`, p[0] + 36, p[1] - 34); }
   });
   ctx.fillStyle = '#8b93a3'; ctx.font = '14px system-ui';
-  ctx.fillText(`抽搐 ${s.twitchesLeft}｜刀長上限 ${maxLen(s.slots)}｜被打中 ${s.hits}${s.threshold > s.baseThreshold ? `｜門檻已 +${Math.round((100 * (s.threshold - s.baseThreshold)) / s.baseThreshold)}%` : ''}`, 350, BODY_Y + 290);
+  ctx.fillText(`抽搐 ${s.twitchesLeft}｜刀長上限 ${maxLen(s.slots)}｜被打中 ${s.hits}${s.stolen ? `｜被搶 ${s.stolen}` : ''}`, 350, BODY_Y + 290);
   ctx.restore();
   // 拖曳預覽線
   if (G.drag && G.preview) {
@@ -396,6 +405,18 @@ function draw(now: number): void {
     ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(P[0], P[1]); ctx.stroke();
     ctx.restore();
     if (slow) { ctx.save(); ctx.fillStyle = '#ffffff14'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  }
+  // v0.3 搶分的爪：從自己的位置飛向上方分數，抓到後帶著「−N」往回縮
+  G.grabs = G.grabs.filter((g) => now - g.t0 < T(FEEL.STEAL_STEP) + 200);
+  for (const g of G.grabs) {
+    const k = Math.min(1, (now - g.t0) / (T(FEEL.STEAL_STEP) + 200)), out = k < 0.5 ? k / 0.5 : 1 - (k - 0.5) / 0.5;
+    const p: V = [g.from[0] + (350 - g.from[0]) * out, g.from[1] + (-20 - g.from[1]) * out];
+    ctx.save(); ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 6; ctx.globalAlpha = 0.85; ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 20;
+    ctx.beginPath(); ctx.moveTo(g.from[0], g.from[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    ctx.translate(p[0], p[1]); ctx.fillStyle = '#ff6b5a';
+    for (let f = -1; f <= 1; f++) { ctx.beginPath(); ctx.moveTo(f * 12, 0); ctx.lineTo(f * 18, -26); ctx.lineTo(f * 12 + 6, 0); ctx.fill(); }
+    if (k >= 0.5) { ctx.fillStyle = '#ffd166'; ctx.font = '900 24px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`−${g.amount}`, 0, 30); }
+    ctx.restore();
   }
   // 粒子
   G.particles = G.particles.filter((q) => now - q.t0 < q.life);
@@ -430,7 +451,7 @@ function frame(now: number): void { stepAnim(now); draw(now); requestAnimationFr
 // ---------------------------------------------------------------- 測試掛勾（作者測試讀取；不影響遊戲）
 (window as unknown as { __blade: unknown }).__blade = {
   get state() { return G.run; }, get phase() { return G.phase; }, get preview() { return G.preview; }, get last() { return G.last; },
-  get animActive() { return !!G.anim; }, get log() { return G.log; }, get audioEvents() { return audio.events; }, get previewText() { return els.preview.textContent; },
+  get animActive() { return !!G.anim; }, get dispScore() { return G.disp; }, get log() { return G.log; }, get audioEvents() { return audio.events; }, get previewText() { return els.preview.textContent; },
   toScreen, newGame: (o?: { seed?: number }) => newGame(o), setTimings: (o: { animScale?: number }) => { if (o.animScale !== undefined) G.animScale = o.animScale; },
 };
 // ---------------------------------------------------------------- PWA（子路徑獨立 scope）

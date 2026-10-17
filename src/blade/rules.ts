@@ -1,5 +1,6 @@
 // 刀譜（Blade Hand）可玩草圖規則（子路徑 blade/）。可丟棄原型，非正式規則。
-// 設計與凍結驗收：the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md（BH-01～09）；v0.2 變更：the-cut 068ca72 同檔檔尾（BV-01～06，DL-078）。
+// 設計與凍結驗收：the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md（BH-01～09）；v0.2 變更：068ca72 同檔檔尾（BV-01～06，DL-078）；
+// v0.3 變更：0857472 同檔檔尾（BW-01～05，DL-079）：反擊改為搶分、拿掉門檻上升。
 // 本檔全部是純函式＋可序列化狀態：幾何、刀路、刀譜計分、生成、反擊、縫合、整局流程。UI 只呼叫這裡。
 
 export type V = [number, number];
@@ -13,9 +14,9 @@ export const TUNE = {
   MIN_LEN: 120, MAX_LEN: 420, LONG_ARM_LEN: 560,
   ORGANS: 14, BONE_HP: 2,
   CUTS: 4, TWITCHES: 2,
-  THRESHOLDS: [150, 400, 900, 1800],            // v0.2：4 隻怪
+  THRESHOLDS: [150, 400, 800, 1600],            // v0.3：150／400／800／1600（v0.2 為 900／1800）
   COUNTERS: [1, 2, 3, 3],                       // v0.2：每隻怪每刀的預告數
-  HIT_EMPTY: 0.15, HIT_SCALE: 0.05,             // v0.2：空槽被打中門檻 +15%；逆鱗改 +5%（皆以本隻原門檻計、可累加）
+  STEAL: 0.2, STEAL_SCALE: 0.1,                 // v0.3：每條沒取消的反擊搶走本隻累積分數 20%（逆鱗 10%），依序各搶一次、無條件捨去
   SYM_MIN: 4, FOUR_COLOR: 2.5,                  // v0.2：對稱長度 ≥4；四色 ×2.5
   SHARP_CLAW: 6, VENOM: 2, LONG_ARM_CHIPS: 10,  // v0.2：鋒爪 +6、毒脈每顆毒 +2、長臂每刀籌碼 +10
   SLOTS: 4,
@@ -34,7 +35,7 @@ export const STITCHES: Record<StitchId, { name: string; desc: string }> = {
   venom: { name: '毒脈', desc: '每顆毒，倍率 +2' },
   longArm: { name: '長臂', desc: '刀長上限 560，每刀籌碼 +10' },
   echo: { name: '回刃', desc: '最後一個被斬的器官，籌碼再算一次' },
-  scale: { name: '逆鱗', desc: '被反擊打中時，門檻改 +5%，縫合不掉' },
+  scale: { name: '逆鱗', desc: '被反擊打中時只搶 10%，縫合不掉' },
 };
 export const STITCH_IDS = Object.keys(STITCHES) as StitchId[];
 /** 縫合選項來源：這隻怪被斬下的器官種類 → 可出現的縫合。 */
@@ -213,16 +214,19 @@ export function scatter(organs: Organ[], seed: number, tag: string): Organ[] {
 
 // ---------------------------------------------------------------- 整局狀態
 export interface Counter { clawId: number; slot: number }
-export type CounterResult = 'cancelled' | 'slotLost' | 'thresholdUp' | 'scaleUp';
+export type CounterResult = 'cancelled' | 'stolen' | 'scaleStolen';   // stolen：搶 20%（該槽有縫合就一併打掉）；scaleStolen：逆鱗只搶 10%
 export interface CutRecord {
   monster: number; cutNo: number; a: V; b: V; severed: { id: number; kind: Kind }[]; seq: Kind[]; score: Score;
   counters: Counter[]; counterResults: CounterResult[];  // 與 counters 同序；擊倒那一刀反擊不發動（counterResults 為空）
-  lostStitches: StitchId[]; thresholdAfter: number; total: number; cleared: boolean;
+  lostStitches: StitchId[];                              // 依序被打掉的縫合
+  scoreBeforeSteal: number; steals: number[];            // 本刀加進累積後的分數、每條反擊依序搶走的分數（與 counterResults 中非取消者同序）
+  stealLost: (StitchId | null)[];                        // 與 steals 同序：該條同時打掉的縫合（沒有＝null）
+  monsterScoreAfter: number; total: number; cleared: boolean;
 }
 export interface RunState {
   seed: number; monster: number; organs: Organ[];
   cutsLeft: number; cutsMax: number; twitchesLeft: number; twitchNo: number; cutNo: number;
-  monsterScore: number; threshold: number; baseThreshold: number; thresholdAdd: number; hits: number;   // threshold＝ceil(base＋累積加成)
+  monsterScore: number; threshold: number; hits: number; stolen: number;   // stolen：本隻被搶走的分數合計
   slots: (StitchId | null)[]; counters: Counter[];
   severedKinds: Kind[];       // 這隻怪被斬下的器官種類（縫合選項來源）
   phase: 'aim' | 'stitch' | 'won' | 'lost';
@@ -230,14 +234,14 @@ export interface RunState {
 }
 export function newRun(seed: number): RunState {
   const s: RunState = {
-    seed, monster: 0, organs: [], cutsLeft: 0, cutsMax: 0, twitchesLeft: 0, twitchNo: 0, cutNo: 0, monsterScore: 0, threshold: 0, baseThreshold: 0, thresholdAdd: 0, hits: 0,
+    seed, monster: 0, organs: [], cutsLeft: 0, cutsMax: 0, twitchesLeft: 0, twitchNo: 0, cutNo: 0, monsterScore: 0, threshold: 0, hits: 0, stolen: 0,
     slots: Array(TUNE.SLOTS).fill(null), counters: [], severedKinds: [], phase: 'aim', offer: [], totalScore: 0, bestCut: 0, history: [],
   };
   return startMonster(s, 0);
 }
 export function startMonster(s: RunState, idx: number): RunState {
   const n: RunState = { ...s, monster: idx, organs: genMonster(s.seed, idx), cutsLeft: TUNE.CUTS, cutsMax: TUNE.CUTS, twitchesLeft: TUNE.TWITCHES, twitchNo: 0, cutNo: 0,
-    monsterScore: 0, threshold: TUNE.THRESHOLDS[idx], baseThreshold: TUNE.THRESHOLDS[idx], thresholdAdd: 0, hits: 0, severedKinds: [], phase: 'aim', offer: [], counters: [] };
+    monsterScore: 0, threshold: TUNE.THRESHOLDS[idx], hits: 0, stolen: 0, severedKinds: [], phase: 'aim', offer: [], counters: [] };
   return withCounters(n);
 }
 const segDist = (p: V, a: V, b: V) => {
@@ -267,23 +271,27 @@ export function evaluate(s: RunState, a: V, b: V): { path: Path; score: Score } 
   const lastSev = path.severed.length ? path.seqIds.indexOf(path.severed[path.severed.length - 1]) : -1;
   return { path, score: scoreSeq(path.seqIds.map((id) => byId.get(id)!.kind), s.slots, lastSev) };
 }
-/** 反擊結算（純函式，v0.2）：每條各自判定。斬到該爪→取消；沒斬到→逆鱗在身：門檻 +5%（縫合不掉）；否則打掉該槽縫合；槽已空→門檻 +15%。
- *  同一刀多條指向同一槽時依序處理（第一條打掉縫合後，第二條遇到空槽）。門檻增加以本隻原門檻計、可累加。 */
-export function resolveCounters(slots: (StitchId | null)[], counters: Counter[], severed: number[], base: number):
-  { results: CounterResult[]; slots: (StitchId | null)[]; thresholdAdd: number; lost: StitchId[]; hits: number } {
-  let ns = slots.slice(), add = 0, hits = 0;
-  const lost: StitchId[] = [], results: CounterResult[] = [];
+/** 反擊結算（純函式，v0.3）：每條各自判定，依序處理。斬到該爪→取消；沒斬到→搶走「當下」累積分數的 20%（無條件捨去），該槽有縫合就一併打掉；
+ *  逆鱗在身→只搶 10%、縫合不掉。多條依序各搶一次（1000→800→640）。門檻不變。score＝本刀分數已加進累積後的值。 */
+export function resolveCounters(slots: (StitchId | null)[], counters: Counter[], severed: number[], score: number):
+  { results: CounterResult[]; slots: (StitchId | null)[]; lost: StitchId[]; hits: number; steals: number[]; stealLost: (StitchId | null)[]; score: number } {
+  let ns = slots.slice(), cur = score, hits = 0;
+  const lost: StitchId[] = [], results: CounterResult[] = [], steals: number[] = [], stealLost: (StitchId | null)[] = [];
   for (const c of counters) {
     if (severed.includes(c.clawId)) { results.push('cancelled'); continue; }
     hits++;
-    if (has(ns, 'scale')) { add += base * TUNE.HIT_SCALE; results.push('scaleUp'); continue; }
-    const cur = ns[c.slot];
-    if (cur) { ns = ns.slice(); ns[c.slot] = null; lost.push(cur); results.push('slotLost'); }
-    else { add += base * TUNE.HIT_EMPTY; results.push('thresholdUp'); }
+    const scale = has(ns, 'scale');
+    const take = Math.floor(cur * (scale ? TUNE.STEAL_SCALE : TUNE.STEAL));
+    cur -= take; steals.push(take);
+    if (scale) { results.push('scaleStolen'); stealLost.push(null); continue; }
+    const st = ns[c.slot];
+    if (st) { ns = ns.slice(); ns[c.slot] = null; lost.push(st); }
+    results.push('stolen'); stealLost.push(st);
   }
-  return { results, slots: ns, thresholdAdd: add, lost, hits };
+  return { results, slots: ns, lost, hits, steals, stealLost, score: cur };
 }
-/** 出一刀。刀長不足回傳原狀態（不耗刀）。達到門檻＝這隻怪倒下（反擊不發動）→ 縫合或勝利；刀用完沒達標＝敗。 */
+/** 出一刀。刀長不足回傳原狀態（不耗刀）。先把本刀分數加進累積：達到門檻＝這隻怪倒下（反擊不發動）→ 縫合或勝利；
+ *  沒達標→結算反擊搶分（本刀分數同樣會被搶）；刀用完沒達標＝敗。 */
 export function applyCut(s: RunState, a: V, b: V): { state: RunState; record: CutRecord | null } {
   if (s.phase !== 'aim') return { state: s, record: null };
   const { path, score } = evaluate(s, a, b);
@@ -292,19 +300,19 @@ export function applyCut(s: RunState, a: V, b: V): { state: RunState; record: Cu
   const sevSet = new Set(path.severed);
   let organs = s.organs.filter((o) => !sevSet.has(o.id));
   organs = organs.map((o) => (path.boneHits.some((h) => h.id === o.id && !h.broke) ? { ...o, hp: o.hp - 1 } : o));
-  const monsterScore = s.monsterScore + score.score;
-  const cleared = monsterScore >= s.threshold;
-  let slots = s.slots, threshold = s.threshold, thresholdAdd = s.thresholdAdd, hits = s.hits, results: CounterResult[] = [], lost: StitchId[] = [];
+  const scoreBeforeSteal = s.monsterScore + score.score;
+  const cleared = scoreBeforeSteal >= s.threshold;
+  let slots = s.slots, monsterScore = scoreBeforeSteal, hits = s.hits, results: CounterResult[] = [], lost: StitchId[] = [], steals: number[] = [], stealLost: (StitchId | null)[] = [];
   if (!cleared) {
-    const r = resolveCounters(s.slots, s.counters, path.severed, s.baseThreshold);
-    thresholdAdd += r.thresholdAdd;                                  // 以本隻原門檻計、跨刀累加（不複利）；最後才無條件進位一次
-    slots = r.slots; threshold = Math.ceil(s.baseThreshold + thresholdAdd - 1e-9); hits += r.hits; results = r.results; lost = r.lost;
+    const r = resolveCounters(s.slots, s.counters, path.severed, scoreBeforeSteal);
+    slots = r.slots; monsterScore = r.score; hits += r.hits; results = r.results; lost = r.lost; steals = r.steals; stealLost = r.stealLost;
   }
+  const stolenNow = scoreBeforeSteal - monsterScore;
   const severedKinds = [...s.severedKinds, ...path.severed.map((id) => byId.get(id)!.kind)];
   const record: CutRecord = { monster: s.monster, cutNo: s.cutNo, a: path.a, b: path.b, severed: path.severed.map((id) => ({ id, kind: byId.get(id)!.kind })), seq: score.seq, score,
-    counters: s.counters, counterResults: results, lostStitches: lost, thresholdAfter: threshold, total: s.totalScore + score.score, cleared };
-  let n: RunState = { ...s, organs, slots, threshold, thresholdAdd, hits, monsterScore, severedKinds, cutsLeft: s.cutsLeft - 1, cutNo: s.cutNo + 1,
-    totalScore: s.totalScore + score.score, bestCut: Math.max(s.bestCut, score.score), history: [...s.history, record] };
+    counters: s.counters, counterResults: results, lostStitches: lost, scoreBeforeSteal, steals, stealLost, monsterScoreAfter: monsterScore, total: s.totalScore + score.score - stolenNow, cleared };
+  let n: RunState = { ...s, organs, slots, hits, stolen: s.stolen + stolenNow, monsterScore, severedKinds, cutsLeft: s.cutsLeft - 1, cutNo: s.cutNo + 1,
+    totalScore: s.totalScore + score.score - stolenNow, bestCut: Math.max(s.bestCut, score.score), history: [...s.history, record] };
   if (cleared) {
     if (s.monster === TUNE.THRESHOLDS.length - 1) n = { ...n, phase: 'won', counters: [] };
     else n = { ...n, phase: 'stitch', counters: [], offer: stitchOffer(n) };

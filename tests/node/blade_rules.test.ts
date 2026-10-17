@@ -1,5 +1,6 @@
 // 刀譜規則（the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md BH-01～05；v0.2 變更 068ca72 同檔檔尾 BV-01～04）。作者測試。
-// 標【v0.2】的斷言是依新規則更新或新增的（逐條列在 the-cut docs/core-redesign-r5/BLADE_AUTHOR_EVIDENCE.md 的 v0.2 段）。
+// 標【v0.2】／【v0.3】的斷言是依新規則更新或新增的（逐條列在 the-cut docs/core-redesign-r5/BLADE_AUTHOR_EVIDENCE.md 的 v0.2／v0.3 段）。
+// v0.3 變更：0857472 同檔檔尾 BW-01～05（反擊搶分取代門檻上升）。
 // 預期數字依設計檔規則手算後寫死（算式寫在註解），不由被測函式推出。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -102,23 +103,32 @@ test('BH-02 長度：<120 不出刀不耗刀；>420 截斷', () => {
 });
 
 // ---------------------------------------------------------------- BH-03／BV-01 反擊（v0.2 多重反擊）
-test('BH-03／BV-01 每條獨立：斬到該爪→取消；沒斬到→打掉槽內縫合；空槽→本隻門檻 +15%（可累加）；逆鱗→+5% 縫合不掉', () => {
+test('BH-03／BV-01／BW-01 每條獨立：斬到該爪→取消；沒斬到→依序各搶當下累積分數的 20%（捨去），該槽有縫合一併打掉；門檻不參與', () => {
+  // 【v0.3】取代 v0.2 的「空槽門檻 +15%／打掉縫合」：一律搶分，有縫合同時打掉
   const ctr = [{ clawId: 7, slot: 1 }, { clawId: 8, slot: 2 }, { clawId: 9, slot: 1 }];
-  // 只斬到 8：7 打掉槽 1 的回刃；9 也指向槽 1，此時槽 1 已空 → +15%＝60
-  const r = resolveCounters([null, 'echo', 'venom', null], ctr, [3, 8], 400);
-  assert.deepEqual([r.results, r.slots, r.lost, r.thresholdAdd, r.hits], [['slotLost', 'cancelled', 'thresholdUp'], [null, null, 'venom', null], ['echo'], 60, 2]);
-  // 全部取消
-  assert.deepEqual(resolveCounters([null, 'echo', null, null], ctr, [7, 8, 9], 400).results, ['cancelled', 'cancelled', 'cancelled']);
-  // 全空槽、全沒斬到：+15% ×3 累加＝+45%＝180
-  const e = resolveCounters([null, null, null, null], ctr, [], 400);
-  assert.deepEqual([e.results, e.thresholdAdd], [['thresholdUp', 'thresholdUp', 'thresholdUp'], 180]);
-  // 逆鱗：每條 +5%（20），縫合都不掉
-  const sc = resolveCounters(['scale', 'echo', 'venom', null], ctr, [8], 400);
-  assert.deepEqual([sc.results, sc.slots, sc.thresholdAdd], [['scaleUp', 'cancelled', 'scaleUp'], ['scale', 'echo', 'venom', null], 40]);
+  // 只斬到 8：7 搶 20%（1000→800）並打掉槽 1 的回刃；9 也指向槽 1（已空）再搶 20%（800→640）
+  const r = resolveCounters([null, 'echo', 'venom', null], ctr, [3, 8], 1000);
+  assert.deepEqual([r.results, r.slots, r.lost, r.steals, r.stealLost, r.score, r.hits], [['stolen', 'cancelled', 'stolen'], [null, null, 'venom', null], ['echo'], [200, 160], ['echo', null], 640, 2]);
+  // 全部取消：不搶
+  const c = resolveCounters([null, 'echo', null, null], ctr, [7, 8, 9], 1000);
+  assert.deepEqual([c.results, c.steals, c.score], [['cancelled', 'cancelled', 'cancelled'], [], 1000]);
+  // 三條全中：1000→800→640→512
+  assert.deepEqual(resolveCounters([null, null, null, null], ctr, [], 1000).steals, [200, 160, 128]);
+  // 捨去：99 → 搶 floor(19.8)=19 → 80 → 搶 16 → 64
+  const f = resolveCounters([null, null, null, null], ctr.slice(0, 2), [], 99);
+  assert.deepEqual([f.steals, f.score], [[19, 16], 64]);
+  // 0 分時被搶 0
+  assert.deepEqual(resolveCounters([null, null, null, null], ctr.slice(0, 1), [], 0).steals, [0]);
+});
+test('BW-02 逆鱗：被打中只搶 10%（捨去），縫合都不掉', () => {
+  const ctr = [{ clawId: 7, slot: 1 }, { clawId: 8, slot: 2 }, { clawId: 9, slot: 1 }];
+  const sc = resolveCounters(['scale', 'echo', 'venom', null], ctr, [8], 1000);
+  assert.deepEqual([sc.results, sc.slots, sc.steals, sc.score], [['scaleStolen', 'cancelled', 'scaleStolen'], ['scale', 'echo', 'venom', null], [100, 90], 810]);
+  assert.deepEqual(resolveCounters(['scale', null, null, null], ctr.slice(0, 1), [], 55).steals, [5]);   // floor(5.5)
 });
 test('BV-01 每隻怪的預告數量依序 1／2／3／3（爪不重複）', () => {
   assert.deepEqual(TUNE.COUNTERS, [1, 2, 3, 3]);
-  assert.deepEqual(TUNE.THRESHOLDS, [150, 400, 900, 1800]);
+  assert.deepEqual(TUNE.THRESHOLDS, [150, 400, 800, 1600]);            // 【v0.3】900／1800 → 800／1600
   for (const seed of [1, 2, 3, 50, 99]) for (let m = 0; m < 4; m++) {
     const s = startMonster(newRun(seed), m);
     const claws = s.organs.filter((o) => o.kind === 'claw').length;
@@ -128,24 +138,27 @@ test('BV-01 每隻怪的預告數量依序 1／2／3／3（爪不重複）', () 
     for (const c of s.counters) assert.equal(s.organs.find((o) => o.id === c.clawId)!.kind, 'claw');
   }
 });
-test('BV-01 整合：沒斬到的反擊讓本隻門檻上升（以原門檻計、可累加）；擊倒那一刀反擊不發動；下一隻門檻重置', () => {
+test('BW-01 整合：先把本刀分數加進累積，再搶分（本刀分數同樣被搶）；門檻不變；擊倒那一刀反擊不發動；下一隻重置', () => {
+  // 【v0.3】取代 v0.2 的「門檻 400→520」與「跨刀 150→195」兩個整合案例
   const org = [O(0, 'claw', 100, 300), O(1, 'eye', 200, 300), O(2, 'claw', 400, 150), O(3, 'claw', 500, 150)];
-  let s = staged(org, { counters: [{ clawId: 2, slot: 0 }, { clawId: 3, slot: 1 }], threshold: 400, baseThreshold: 400 });
-  s = applyCut(s, [40, 300], [165, 300]).state;                      // 只斬 0 號爪（10 分）；兩條都沒取消、槽都空 → +60 +60
-  assert.deepEqual([s.threshold, s.hits], [520, 2]);
-  const r = applyCut({ ...s, monsterScore: 515, counters: [{ clawId: 2, slot: 0 }] }, [150, 300], [320, 300]);   // 斬眼 8 分 → 523 ≥ 520 擊倒
-  assert.deepEqual([r.record!.cleared, r.record!.counterResults, r.state.phase], [true, [], 'stitch']);
+  let s = staged(org, { counters: [{ clawId: 2, slot: 0 }, { clawId: 3, slot: 1 }], threshold: 400, monsterScore: 90, slots: [null, 'oneEye', null, null] });   // 用不影響這刀分數的縫合（回刃會改籌碼）
+  const r1 = applyCut(s, [40, 300], [165, 300]);                     // 只斬 0 號爪（10 分）：90＋10＝100 → 兩條沒取消 → 100→80→64；槽 1 獨眼打掉
+  s = r1.state;
+  assert.deepEqual([r1.record!.scoreBeforeSteal, r1.record!.steals, r1.record!.stealLost, s.monsterScore, s.threshold, s.hits, s.stolen, s.slots[1]], [100, [20, 16], [null, 'oneEye'], 64, 400, 2, 36, null]);
+  assert.equal(s.totalScore, newRun(1).totalScore + 10 - 36);        // 總分也扣掉被搶的
+  const r = applyCut({ ...s, monsterScore: 395, counters: [{ clawId: 2, slot: 0 }] }, [150, 300], [320, 300]);   // 斬眼 8 分 → 403 ≥ 400 擊倒
+  assert.deepEqual([r.record!.cleared, r.record!.counterResults, r.record!.steals, r.state.monsterScore, r.state.phase], [true, [], [], 403, 'stitch']);
   const n = chooseStitch(r.state, r.state.offer[0]);
-  assert.deepEqual([n.monster, n.threshold, n.baseThreshold, n.hits, n.cutsMax], [1, 400, 400, 0, 4]);
+  assert.deepEqual([n.monster, n.threshold, n.monsterScore, n.hits, n.stolen, n.cutsMax], [1, 400, 0, 0, 0, 4]);
 });
-test('BV-01 跨刀累加以原門檻計（不複利），最後才進位：150 → 兩刀各中一條空槽 → 150×(1+0.15×2)＝195', () => {
-  // 審查 HIGH-2：若以「當下門檻」計會是 150→172.5→198.4；若每刀各自進位會是 173→196
+test('BW-01 跨刀：每刀都以「當下累積」為準搶分，門檻始終不變', () => {
+  // 【v0.3】取代 v0.2 的「跨刀門檻累加 150→195」
   const org = [O(0, 'claw', 100, 300), O(1, 'eye', 100, 500), O(2, 'claw', 400, 150)];
-  let s = staged(org, { counters: [{ clawId: 2, slot: 0 }], threshold: 150, baseThreshold: 150 });
-  s = applyCut(s, [40, 300], [165, 300]).state;                      // 斬 0 號爪，反擊沒取消
-  assert.equal(s.threshold, 173);                                    // ceil(172.5)
-  s = applyCut({ ...s, counters: [{ clawId: 2, slot: 3 }] }, [40, 500], [165, 500]).state;   // 斬眼，又中一條
-  assert.deepEqual([s.threshold, s.hits], [195, 2]);
+  let s = staged(org, { counters: [{ clawId: 2, slot: 0 }], threshold: 150 });
+  s = applyCut(s, [40, 300], [165, 300]).state;                      // 0＋10＝10 → 搶 2 → 8
+  assert.deepEqual([s.monsterScore, s.threshold], [8, 150]);
+  s = applyCut({ ...s, counters: [{ clawId: 2, slot: 3 }] }, [40, 500], [165, 500]).state;   // 8＋8＝16 → 搶 3 → 13
+  assert.deepEqual([s.monsterScore, s.threshold, s.hits, s.stolen], [13, 150, 2, 5]);
 });
 
 // ---------------------------------------------------------------- BH-04 縫合（8 種各一）
@@ -170,15 +183,15 @@ test('BH-04／BV-04 長臂：刀長上限 560，每刀籌碼 +10', () => {
   assert.equal(applyCut(staged(org, { slots: [null, 'longArm', null, null] }), [600, 980], [600, 840]).record!.score.score, 0);   // 揮空不加
 });
 test('BH-04 回刃：最後一個被斬的器官籌碼再算一次', () => { assert.deepEqual([S(['claw', 'eye']), S(['claw', 'eye'], ['echo'])], [18, 26]); });
-test('BH-04 逆鱗：被反擊打中時門檻 +5%，縫合不被打掉', () => {
-  // 【v0.2】逆鱗由「失去 1 次抽搐」改為「門檻 +5%」
+test('BH-04／BW-02 逆鱗：被反擊打中時只搶 10%，縫合不被打掉', () => {
+  // 【v0.3】v0.2 為「門檻 +5%」
   const org = [O(0, 'claw', 100, 300), O(2, 'claw', 400, 150)];
-  const base = { counters: [{ clawId: 2, slot: 1 }], threshold: 400, baseThreshold: 400 };
+  const base = { counters: [{ clawId: 2, slot: 1 }], threshold: 400, monsterScore: 190 };
   const a: V = [40, 300], b: V = [200, 300];
-  const no = applyCut(staged(org, { ...base, slots: [null, 'echo', null, null] }), a, b).state;
-  const yes = applyCut(staged(org, { ...base, slots: ['scale', 'echo', null, null] }), a, b).state;
-  assert.deepEqual([no.slots[1], no.threshold, no.twitchesLeft], [null, 400, 2]);
-  assert.deepEqual([yes.slots[1], yes.threshold, yes.twitchesLeft], ['echo', 420, 2]);
+  const no = applyCut(staged(org, { ...base, slots: [null, 'oneEye', null, null] }), a, b).state;     // 190＋10＝200 → 搶 40 → 160，獨眼掉
+  const yes = applyCut(staged(org, { ...base, slots: ['scale', 'oneEye', null, null] }), a, b).state;  // 200 → 搶 20 → 180，獨眼保留
+  assert.deepEqual([no.slots[1], no.monsterScore, no.threshold], [null, 160, 400]);
+  assert.deepEqual([yes.slots[1], yes.monsterScore, yes.threshold], ['oneEye', 180, 400]);
 });
 
 // ---------------------------------------------------------------- BH-05 生成
