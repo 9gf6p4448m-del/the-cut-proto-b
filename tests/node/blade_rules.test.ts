@@ -33,6 +33,8 @@ test('BH-01 對稱：長度 ≥3 且頭尾對稱 ×2；長度 2 或不對稱不�
   assert.equal(S(['claw', 'eye', 'eye', 'claw']), 36 * 2 * 1);        // 回文 ×2；中間 ee 只是一對（不是雙對）＝72
   assert.equal(S(['claw', 'claw']), 20);
   assert.equal(S(['claw', 'eye', 'eye']), 26);
+  // 對稱＝整條序列回文（實作解讀）：只有首尾同類而中間不對稱，不成立
+  assert.equal(S(['claw', 'eye', 'heart', 'claw']), 33 * 2);           // 籌碼 33、心 +1 → 66；不是回文所以沒有 ×2
 });
 test('BH-01 五色：5 種不同（含骨）×3；4 種不成立', () => {
   assert.equal(S(['claw', 'heart', 'eye', 'poison', 'bone']), 43 * (1 + 1) * 3);   // 籌碼 10+5+8+20+0=43，心 +1，×3＝258
@@ -55,6 +57,13 @@ test('BH-01 組合成立：先加法再乘法', () => {
 test('BH-02 依距離排序；同距離取 id 小者', () => {
   const org = [O(5, 'claw', 200, 300), O(2, 'eye', 100, 300), O(3, 'claw', 150, 400)];
   assert.deepEqual(cutPath(org, [40, 300], [360, 300], []).severed, [2, 5]);
+  // id 大的離起點近：只按 id 排序的實作會給 [1, 4, 9]（審查 HIGH-2 補強）
+  const rev = [O(1, 'claw', 300, 300), O(4, 'heart', 200, 300), O(9, 'eye', 100, 300)];
+  assert.deepEqual(cutPath(rev, [40, 300], [360, 300], []).severed, [9, 4, 1]);
+  assert.equal(scoreSeq(cutPath(rev, [40, 300], [360, 300], []).severed.map((id) => rev.find((o) => o.id === id)!.kind), []).seq.join(), 'eye,heart,claw');
+  const back = [O(0, 'eye', 300, 300), O(1, 'bone', 200, 300), O(2, 'claw', 100, 300)];   // 骨在 id 中間、距離也在中間；從右往左切先碰 0 號
+  assert.deepEqual(cutPath(back, [360, 300], [40, 300], []).severed, [0]);
+  assert.deepEqual(cutPath(back, [40, 300], [360, 300], []).severed, [2]);
   const tie = [O(3, 'claw', 150, 310), O(1, 'eye', 150, 290)];       // 對刀線上下對稱：進入距離相同
   assert.deepEqual(cutPath(tie, [40, 300], [360, 300], []).severed, [1, 3]);
 });

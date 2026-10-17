@@ -24,5 +24,8 @@ test('BH-09 建置：dist-blade/ 存在，SHA 注入、研究片段字樣、mani
     assert.ok(!rd(`${d}/sw.js`).includes('thecut-blade-'), `${d}/sw.js`);
     assert.ok(!rd(`${d}/app.js`).includes('blade-sound'), `${d}/app.js`);
   }
+  // 頁面必須真的註冊自己的 service worker（審查 HIGH-1：只有 sw.js 檔不夠）
+  const app = rd('dist-blade/app.js');
+  assert.ok(app.includes('serviceWorker.register') && app.includes('./sw.js'), 'app.js 沒有註冊 ./sw.js');
   for (const f of ['icon-180.png', 'icon-192.png', 'icon-512.png', 'style.css', 'app.js']) assert.ok(existsSync(join(ROOT, 'dist-blade', f)), f);
 });

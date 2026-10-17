@@ -119,7 +119,7 @@ function previewHtml(p: NonNullable<typeof G.preview> | null, path?: Path): stri
   const seq = p.seq.length ? p.seq.map((k) => KIND_NAME[k]).join(' ') : '（揮空）';
   const stop = path && path.boneHits.length && !path.boneHits[0].broke ? ' <span class="warnc">骨擋刀</span>' : '';
   return `<span class="seq">${seq}</span>${stop}　<span class="pat">${p.patterns.join('｜') || '無刀譜'}</span><br>`
-    + `<span class="sc">${p.chips} × ${p.mult} = ${p.score}</span>　${G.run.counter ? (p.saves ? '<span class="save">斬斷預告爪：取消反擊</span>' : '<span class="warnc">反擊會打中</span>') : ''}`;
+    + `<span class="sc">${p.chips} × ${p.mult} = ${p.score}</span>　${G.run.monsterScore + p.score >= G.run.threshold ? '<span class="save">這刀擊倒</span>' : G.run.counter ? (p.saves ? '<span class="save">斬斷預告爪：取消反擊</span>' : '<span class="warnc">反擊會打中</span>') : ''}`;
 }
 
 // ---------------------------------------------------------------- 流程
@@ -212,7 +212,7 @@ function stepAnim(now: number): void {
     const r = a.rec.counterResult, slotP = a.rec.counter ? SLOT_P[a.rec.counter.slot] : null;
     if (slotP && (r === 'slotLost' || r === 'cutLost' || r === 'twitchLost')) {
       sfx('hurt'); vibrate([60, 40, 60]); G.shake = FEEL.SHAKE * 1.3; G.shakeUntil = now + 300; burst(slotP, '#ff3b3b', 30, now);
-      pop([slotP[0], slotP[1] - 50], r === 'slotLost' ? `${STITCHES[a.rec.lostStitch!].name} 被打掉` : r === 'cutLost' ? '空槽被打中：下一隻少 1 刀' : '逆鱗：失去 1 次抽搐', '#ff7a7a', now, 20, 1400);
+      pop([slotP[0], slotP[1] - 50], r === 'slotLost' ? `${STITCHES[a.rec.lostStitch!].name} 被打掉` : r === 'cutLost' ? (a.rec.monster < TUNE.THRESHOLDS.length - 1 ? '空槽被打中：下一隻少 1 刀' : '空槽被打中') : '逆鱗：失去 1 次抽搐', '#ff7a7a', now, 20, 1400);
     }
   }
   if (t >= a.doneAt) finishAnim(a, now);
@@ -288,7 +288,7 @@ const endDrag = (e: PointerEvent, cancel: boolean) => {
 els.canvas.addEventListener('pointerup', (e) => endDrag(e, false));
 els.canvas.addEventListener('pointercancel', (e) => endDrag(e, true));
 els.twitch.onclick = () => {
-  if (G.phase !== 'aim') return;
+  if (G.phase !== 'aim' || G.drag) return;   // 拖曳中不能抽搐（否則盤面變了、預覽沒重算）
   const n = twitch(G.run); if (n === G.run) return;
   G.run = n; sfx('bone'); G.shake = FEEL.SHAKE; G.shakeUntil = performance.now() + 300; hud();
 };
@@ -428,6 +428,14 @@ function frame(now: number): void { stepAnim(now); draw(now); requestAnimationFr
   get animActive() { return !!G.anim; }, get log() { return G.log; }, get audioEvents() { return audio.events; }, get previewText() { return els.preview.textContent; },
   toScreen, newGame: (o?: { seed?: number }) => newGame(o), setTimings: (o: { animScale?: number }) => { if (o.animScale !== undefined) G.animScale = o.animScale; },
 };
+// ---------------------------------------------------------------- PWA（子路徑獨立 scope）
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  void navigator.serviceWorker.register('./sw.js', { scope: './' });
+  const ownSw = new URL('./sw.js', location.href).href;
+  const hadController = navigator.serviceWorker.controller?.scriptURL === ownSw;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+}
 window.addEventListener('resize', layout);
 layout(); newGame();
 requestAnimationFrame(frame);
