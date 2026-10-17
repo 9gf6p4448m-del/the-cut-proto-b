@@ -4,36 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070D19">
-<meta name="build-sha" content="8bd2e00">
-<title>執刀者 幽光美術模組 展示</title>
+<meta name="build-sha" content="b28172f">
+<title>執刀者 幽光美術模組 展示 v2</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-180.png">
 <style>
   html, body { margin: 0; background: #070D19; color: #AEEAFF; font-family: "PingFang TC", "Noto Sans TC", system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
   body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow-x: hidden; }
-  header { padding: 10px 12px 6px; font-size: 12px; opacity: .9; display: flex; justify-content: space-between; gap: 8px; }
+  header { padding: 10px 12px 6px; font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
   header b { color: #F0F7FF; font-size: 14px; }
   .tag { background: #FFD27A; color: #070D19; padding: 1px 6px; border-radius: 6px; font-size: 11px; }
-  h2 { font-size: 13px; font-weight: 600; color: #F0F7FF; margin: 14px 12px 6px; letter-spacing: .08em; }
-  canvas { display: block; width: 100%; }
-  #scene { height: min(150vw, 600px); }
-  #organs { height: 340px; }
-  #fx { height: 560px; }
-  #front { height: 230px; }
+  h2 { font-size: 13px; font-weight: 600; color: #F0F7FF; margin: 14px 12px 6px; letter-spacing: .06em; }
+  .pair { display: flex; gap: 4px; padding: 0 4px; }
+  .pair figure { margin: 0; flex: 1 1 0; min-width: 0; }
+  .pair figcaption { font-size: 10px; opacity: .75; text-align: center; padding: 2px 0; }
+  .pair img, .pair canvas { display: block; width: 100%; aspect-ratio: 852 / 1846; height: auto; }
+  canvas.wide { display: block; width: 100%; }
+  #organs { height: 300px; } #pipe { height: 300px; }
   p.note { font-size: 11px; opacity: .7; margin: 6px 12px 18px; line-height: 1.5; }
+  #err { color: #ff8a8a; font-size: 12px; padding: 0 12px; }
+  body.only header, body.only h2, body.only figcaption, body.only .pair figure.tgt, body.only p.note { display: none; }
+  body.only .pair { padding: 0; } body.only .pair canvas { width: 100vw; height: 100vh; aspect-ratio: auto; }
 </style>
 </head>
 <body>
-<header><span><span class="tag">研究片段</span> <b>幽光美術模組</b> · 版本 <span id="sha"></span></span><span>FPS <span id="fps">—</span></span></header>
-<h2>① 對戰場景（兩獸＋前線區＋器官＋特效輪播）</h2>
-<canvas id="scene"></canvas>
-<h2>② 5 種器官 × 狀態</h2>
-<canvas id="organs"></canvas>
-<h2>③ 7 種戰鬥特效</h2>
-<canvas id="fx"></canvas>
-<h2>④ 前線區</h2>
-<canvas id="front"></canvas>
-<p class="note">純繪圖模組：src/art/ghostlight.ts（drawScene／drawBeast／drawFrontline／drawOrgan／playFx）。不含遊戲規則。方向：DL-071 幽光。</p>
-<script src="./app.js?v=8bd2e00"></script>
+<header><span><span class="tag">研究片段</span> <b>幽光美術模組 v2</b> · 版本 <span id="sha"></span></span><span>FPS <span id="fps">—</span></span></header>
+<div id="err"></div>
+<section><h2>① 切割期（左：目標圖　右：實作）</h2><div class="pair"><figure class="tgt"><img src="./assets/targets/TARGET_cut.jpg" alt="目標 切割期"><figcaption>TARGET_cut</figcaption></figure><figure><canvas id="cut"></canvas><figcaption>實作</figcaption></figure></div></section>
+<section><h2>② 戰鬥期（左：目標圖　右：實作）</h2><div class="pair"><figure class="tgt"><img src="./assets/targets/TARGET_battle.jpg" alt="目標 戰鬥期"><figcaption>TARGET_battle</figcaption></figure><figure><canvas id="battle"></canvas><figcaption>實作</figcaption></figure></div></section>
+<section><h2>③ 縫合擺放（左：目標圖　右：實作）</h2><div class="pair"><figure class="tgt"><img src="./assets/targets/TARGET_stitch.jpg" alt="目標 縫合"><figcaption>TARGET_stitch</figcaption></figure><figure><canvas id="stitch"></canvas><figcaption>實作</figcaption></figure></div></section>
+<section><h2>④ 5 種器官 × 狀態（器官 sprite＝自發光＋雙層描邊，與骨架分開）</h2><canvas id="organs" class="wide"></canvas></section>
+<section><h2>⑤ 素材管線：中性銀白素材 → 染色 → 自動身體多邊形</h2><canvas id="pipe" class="wide"></canvas></section>
+<p class="note">素材：製作人以 ChatGPT 生成的正式素材（assets/final/，縮小自 the-cut cut-battle/assets/）；?assets=placeholder 可切回從目標圖裁出的暫代素材。程式：src/art/sprites.ts、src/art/polygon.ts。單一畫面全螢幕：?only=cut｜battle｜stitch。</p>
+<script src="./app.js?v=b28172f"></script>
 </body>
 </html>
