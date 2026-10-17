@@ -1,9 +1,10 @@
-// 刀譜規則（the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md BH-01～05）。作者測試。
+// 刀譜規則（the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md BH-01～05；v0.2 變更 068ca72 同檔檔尾 BV-01～04）。作者測試。
+// 標【v0.2】的斷言是依新規則更新或新增的（逐條列在 the-cut docs/core-redesign-r5/BLADE_AUTHOR_EVIDENCE.md 的 v0.2 段）。
 // 預期數字依設計檔規則手算後寫死（算式寫在註解），不由被測函式推出。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyCut, bestLine, chooseStitch, cutPath, genMonster, inMonster, newRun, resolveCounter, scoreSeq, twitch, TUNE,
+  applyCut, bestLine, chooseStitch, cutPath, evaluate, genMonster, inMonster, newRun, resolveCounters, scoreSeq, startMonster, twitch, TUNE,
 } from '../../src/blade/rules.ts';
 import type { Kind, Organ, RunState, StitchId, V } from '../../src/blade/rules.ts';
 
@@ -11,14 +12,14 @@ const S = (seq: Kind[], st: (StitchId | null)[] = []) => scoreSeq(seq, st).score
 const O = (id: number, kind: Kind, x: number, y: number, hp = kind === 'bone' ? 2 : 1): Organ => ({ id, kind, p: [x, y], hp });
 /** 測試用盤面：把一局的怪物器官換成手擺的配置（反擊與門檻沿用 newRun 的結構）。 */
 function staged(organs: Organ[], over: Partial<RunState> = {}): RunState {
-  return { ...newRun(1), organs, counter: null, ...over };
+  return { ...newRun(1), organs, counters: [], ...over };
 }
 
 // ---------------------------------------------------------------- BH-01 計分
 test('BH-01 連斬：連續 ≥3 個同類倍率 +n；2 個不成立', () => {
   assert.equal(S(['claw', 'claw', 'claw', 'eye']), 38 * (1 + 3));           // 152
   assert.equal(S(['claw', 'claw', 'claw', 'claw', 'eye']), 48 * (1 + 4));    // 240（同類 4 連不算雙對）
-  assert.equal(S(['claw', 'claw', 'claw']), 30 * (1 + 3) * 2);               // 3 個同類也是回文：連斬 +3、對稱 ×2＝240
+  assert.equal(S(['claw', 'claw', 'claw']), 30 * (1 + 3));                   // 【v0.2】長度 3 不再算對稱：120（v0.1 是 240）
   assert.equal(S(['claw', 'claw', 'eye']), 28 * 1);                   // 28
   assert.equal(S(['eye', 'claw', 'eye', 'claw']), 36 * 1);            // 不連續不算
 });
@@ -28,17 +29,23 @@ test('BH-01 雙對：連續兩組不同類對子 +3；交錯不成立', () => {
   assert.equal(S(['eye', 'claw', 'eye', 'claw']), 36);
   assert.equal(S(['eye', 'eye', 'heart', 'claw', 'claw']), 41 * (1 + 1)); // 對子之間隔了一個：不算雙對，只有心 +1＝82
 });
-test('BH-01 對稱：長度 ≥3 且頭尾對稱 ×2；長度 2 或不對稱不成立', () => {
-  assert.equal(S(['claw', 'eye', 'claw']), 28 * 2);                   // 56
-  assert.equal(S(['claw', 'eye', 'eye', 'claw']), 36 * 2 * 1);        // 回文 ×2；中間 ee 只是一對（不是雙對）＝72
+test('BH-01／BV-03 對稱：長度 ≥4 且整條回文 ×2；長度 3、長度 2 或不對稱不成立', () => {
+  assert.equal(S(['claw', 'eye', 'claw']), 28);                       // 【v0.2】長度 3 不成立（v0.1 是 56）
+  assert.equal(S(['claw', 'eye', 'eye', 'claw']), 36 * 2);            // 長度 4 回文 ×2＝72
   assert.equal(S(['claw', 'claw']), 20);
   assert.equal(S(['claw', 'eye', 'eye']), 26);
   // 對稱＝整條序列回文（實作解讀）：只有首尾同類而中間不對稱，不成立
   assert.equal(S(['claw', 'eye', 'heart', 'claw']), 33 * 2);           // 籌碼 33、心 +1 → 66；不是回文所以沒有 ×2
 });
-test('BH-01 五色：5 種不同（含骨）×3；4 種不成立', () => {
-  assert.equal(S(['claw', 'heart', 'eye', 'poison', 'bone']), 43 * (1 + 1) * 3);   // 籌碼 10+5+8+20+0=43，心 +1，×3＝258
-  assert.equal(S(['claw', 'heart', 'eye', 'poison']), 43 * (1 + 1));              // 86
+test('BH-01／BV-03 四色：4 種以上不同 ×2.5；3 種不成立', () => {
+  // 【v0.2】五色 ×3 改為四色 ×2.5
+  assert.equal(S(['claw', 'heart', 'eye', 'poison']), 43 * (1 + 1) * 2.5);        // 籌碼 43，心 +1 → 2，×2.5＝215（v0.1：4 種不成立＝86）
+  assert.equal(S(['claw', 'heart', 'eye', 'poison', 'bone']), 43 * 2 * 2.5);       // 5 種也只乘一次 2.5＝215（v0.1 ×3＝258）
+  assert.equal(S(['claw', 'heart', 'eye']), 23 * 2);                              // 3 種不成立＝46
+  assert.equal(S(['claw', 'eye', 'poison', 'eye', 'heart']), Math.floor(51 * 2 * 2.5)); // 籌碼 10+8+20+8+5=51 → 255
+  assert.equal(S(['claw', 'eye', 'poison', 'heart', 'heart']), Math.floor(48 * 3 * 2.5)); // 心 2 → 3；×2.5＝360
+  assert.equal(S(['eye', 'poison', 'heart', 'claw', 'claw', 'heart', 'eye']), Math.floor(66 * 3 * 2.5)); // 7 長不對稱：495
+  assert.equal(S(['eye', 'heart', 'poison', 'heart', 'eye']), 46 * 3 * 2);       // 3 種：無四色；長度 5 回文 ×2；籌碼 46、心 2 → 3：276
 });
 test('BH-01 心：每顆倍率 +1', () => {
   assert.equal(S(['heart']), 5 * 2);
@@ -48,9 +55,13 @@ test('BH-01 組合成立：先加法再乘法', () => {
   // 心 爪 爪 爪 心：籌碼 40；加法：心 2＋連斬 3＝5 → 6；乘法：對稱 ×2 → 12；480。若先乘後加會是 (1×2)+5=7 → 280
   const r = scoreSeq(['heart', 'claw', 'claw', 'claw', 'heart'], []);
   assert.deepEqual([r.chips, r.addTotal, r.mulTotal, r.mult, r.score], [40, 5, 2, 12, 480]);
-  // 五色＋對稱同時：爪 心 眼 毒 骨 毒 眼 心 爪 → 籌碼 10+5+8+20+0+20+8+5+10=86；加：心 2 → 3；乘：對稱 2×五色 3＝6 → 18；1548
+  // 【v0.2】四色＋對稱同時：爪 心 眼 毒 骨 毒 眼 心 爪 → 籌碼 86；加：心 2 → 3；乘：對稱 2×四色 2.5＝5 → 15；1290（v0.1 五色 ×3：1548）
   const r2 = scoreSeq(['claw', 'heart', 'eye', 'poison', 'bone', 'poison', 'eye', 'heart', 'claw'], []);
-  assert.deepEqual([r2.chips, r2.mult, r2.score], [86, 18, 1548]);
+  assert.deepEqual([r2.chips, r2.mult, r2.score], [86, 15, 1290]);
+  // 四色 ×2.5 遇到奇數乘積時無條件捨去：毒 眼 爪 心 → 籌碼 43 × (1+1) × 2.5＝215；眼 爪 毒 骨 → 籌碼 38 × 1 × 2.5＝95；爪 眼 心 骨 → 23 × 2 × 2.5＝115；眼 爪 骨（3 種）＝18
+  assert.equal(S(['eye', 'claw', 'poison', 'bone']), 95);
+  assert.equal(S(['claw', 'heart', 'eye', 'eye', 'bone']), 155);     // 籌碼 31、心 +1 → 2、4 種 ×2.5
+
 });
 
 // ---------------------------------------------------------------- BH-02 刀路
@@ -67,10 +78,11 @@ test('BH-02 依距離排序；同距離取 id 小者', () => {
   const tie = [O(3, 'claw', 150, 310), O(1, 'eye', 150, 290)];       // 對刀線上下對稱：進入距離相同
   assert.deepEqual(cutPath(tie, [40, 300], [360, 300], []).severed, [1, 3]);
 });
-test('BH-02 骨擋刀：碰到就停；耐久 2，第一刀 −1 不斷、第二刀斷（進序列）且刀仍停', () => {
+test('BH-02／BV-03 骨擋刀：碰到就停；耐久 2，第一刀 −1 不斷（v0.2：仍進序列最後一位）、第二刀斷（進序列）且刀仍停', () => {
   const org = [O(0, 'claw', 100, 300), O(1, 'bone', 180, 300), O(2, 'eye', 260, 300)];
   const p1 = cutPath(org, [40, 300], [360, 300], []);
   assert.deepEqual([p1.severed, p1.stoppedAt, p1.boneHits], [[0], 1, [{ id: 1, broke: false }]]);
+  assert.deepEqual(p1.seqIds, [0, 1]);                                // 【v0.2】骨沒斷也進序列最後一位（v0.1 序列只有 [0]）
   const s1 = applyCut(staged(org), [40, 300], [360, 300]).state;
   assert.equal(s1.organs.find((o) => o.id === 1)!.hp, 1);
   const r2 = applyCut(s1, [40, 300], [360, 300]);
@@ -87,55 +99,75 @@ test('BH-02 長度：<120 不出刀不耗刀；>420 截斷', () => {
   assert.deepEqual([p.severed, Math.round(p.b[0])], [[0], 460]);    // 40＋420；500 的眼沒碰到
 });
 
-// ---------------------------------------------------------------- BH-03 反擊
-test('BH-03 斬到預告爪→取消；沒斬到→打掉槽內器官；空槽→下一隻少 1 刀；逆鱗→失去 1 次抽搐', () => {
-  const ctr = { clawId: 7, slot: 1 };
-  assert.equal(resolveCounter([null, 'echo', null, null], ctr, [3, 7], 2).result, 'cancelled');
-  const hit = resolveCounter([null, 'echo', null, null], ctr, [3], 2);
-  assert.deepEqual([hit.result, hit.slots, hit.lost], ['slotLost', [null, null, null, null], 'echo']);
-  const empty = resolveCounter([null, null, null, null], ctr, [], 2);
-  assert.deepEqual([empty.result, empty.cutPenalty], ['cutLost', 1]);
-  const sc = resolveCounter(['scale', 'echo', null, null], ctr, [], 2);
-  assert.deepEqual([sc.result, sc.twitchesLeft, sc.slots], ['twitchLost', 1, ['scale', 'echo', null, null]]);
-  const sc0 = resolveCounter(['scale', 'echo', null, null], ctr, [], 0);   // 抽搐用完時逆鱗不生效，照常打掉
-  assert.equal(sc0.result, 'slotLost');
+// ---------------------------------------------------------------- BH-03／BV-01 反擊（v0.2 多重反擊）
+test('BH-03／BV-01 每條獨立：斬到該爪→取消；沒斬到→打掉槽內縫合；空槽→本隻門檻 +15%（可累加）；逆鱗→+5% 縫合不掉', () => {
+  const ctr = [{ clawId: 7, slot: 1 }, { clawId: 8, slot: 2 }, { clawId: 9, slot: 1 }];
+  // 只斬到 8：7 打掉槽 1 的回刃；9 也指向槽 1，此時槽 1 已空 → +15%＝60
+  const r = resolveCounters([null, 'echo', 'venom', null], ctr, [3, 8], 400);
+  assert.deepEqual([r.results, r.slots, r.lost, r.thresholdAdd, r.hits], [['slotLost', 'cancelled', 'thresholdUp'], [null, null, 'venom', null], ['echo'], 60, 2]);
+  // 全部取消
+  assert.deepEqual(resolveCounters([null, 'echo', null, null], ctr, [7, 8, 9], 400).results, ['cancelled', 'cancelled', 'cancelled']);
+  // 全空槽、全沒斬到：+15% ×3 累加＝+45%＝180
+  const e = resolveCounters([null, null, null, null], ctr, [], 400);
+  assert.deepEqual([e.results, e.thresholdAdd], [['thresholdUp', 'thresholdUp', 'thresholdUp'], 180]);
+  // 逆鱗：每條 +5%（20），縫合都不掉
+  const sc = resolveCounters(['scale', 'echo', 'venom', null], ctr, [8], 400);
+  assert.deepEqual([sc.results, sc.slots, sc.thresholdAdd], [['scaleUp', 'cancelled', 'scaleUp'], ['scale', 'echo', 'venom', null], 40]);
 });
-test('BH-03 整合：空槽被打中 → 下一隻怪只有 3 刀；斬到預告爪 → 沒懲罰', () => {
-  const org = [O(0, 'claw', 100, 300), O(1, 'eye', 200, 300), O(2, 'claw', 400, 150)];
-  let s = staged(org, { counter: { clawId: 2, slot: 0 }, threshold: 30 });
-  s = applyCut(s, [40, 300], [165, 300]).state;                // 只斬到 0 號爪（10 分）；預告的 2 號爪沒斬到
-  assert.equal(s.pendingCutPenalty, 1);
-  s = applyCut({ ...s, counter: { clawId: 1, slot: 0 }, organs: [O(1, 'eye', 200, 300), O(3, 'poison', 260, 300)] }, [150, 300], [320, 300]).state; // 斬到眼(=預告爪 id)＋毒：28 分，累計 38≥30
-  assert.equal(s.phase, 'stitch');
-  s = chooseStitch(s, s.offer[0]);
-  assert.deepEqual([s.monster, s.cutsMax, s.cutsLeft], [1, 3, 3]);
+test('BV-01 每隻怪的預告數量依序 1／2／3／3（爪不重複）', () => {
+  assert.deepEqual(TUNE.COUNTERS, [1, 2, 3, 3]);
+  assert.deepEqual(TUNE.THRESHOLDS, [150, 400, 900, 1800]);
+  for (const seed of [1, 2, 3, 50, 99]) for (let m = 0; m < 4; m++) {
+    const s = startMonster(newRun(seed), m);
+    const claws = s.organs.filter((o) => o.kind === 'claw').length;
+    assert.ok(claws >= 3, `seed ${seed} m${m} 爪 ${claws}`);
+    assert.equal(s.counters.length, [1, 2, 3, 3][m], `seed ${seed} m${m}`);
+    assert.equal(new Set(s.counters.map((c) => c.clawId)).size, s.counters.length);
+    for (const c of s.counters) assert.equal(s.organs.find((o) => o.id === c.clawId)!.kind, 'claw');
+  }
+});
+test('BV-01 整合：沒斬到的反擊讓本隻門檻上升（以原門檻計、可累加）；擊倒那一刀反擊不發動；下一隻門檻重置', () => {
+  const org = [O(0, 'claw', 100, 300), O(1, 'eye', 200, 300), O(2, 'claw', 400, 150), O(3, 'claw', 500, 150)];
+  let s = staged(org, { counters: [{ clawId: 2, slot: 0 }, { clawId: 3, slot: 1 }], threshold: 400, baseThreshold: 400 });
+  s = applyCut(s, [40, 300], [165, 300]).state;                      // 只斬 0 號爪（10 分）；兩條都沒取消、槽都空 → +60 +60
+  assert.deepEqual([s.threshold, s.hits], [520, 2]);
+  const r = applyCut({ ...s, monsterScore: 515, counters: [{ clawId: 2, slot: 0 }] }, [150, 300], [320, 300]);   // 斬眼 8 分 → 523 ≥ 520 擊倒
+  assert.deepEqual([r.record!.cleared, r.record!.counterResults, r.state.phase], [true, [], 'stitch']);
+  const n = chooseStitch(r.state, r.state.offer[0]);
+  assert.deepEqual([n.monster, n.threshold, n.baseThreshold, n.hits, n.cutsMax], [1, 400, 400, 0, 4]);
 });
 
 // ---------------------------------------------------------------- BH-04 縫合（8 種各一）
-test('BH-04 鋒爪：每個爪 +10 籌碼', () => { assert.deepEqual([S(['claw', 'eye']), S(['claw', 'eye'], ['sharpClaw'])], [18, 28]); });
+test('BH-04／BV-04 鋒爪：每個爪 +6 籌碼', () => { assert.deepEqual([S(['claw', 'eye']), S(['claw', 'eye'], ['sharpClaw'])], [18, 24]); });   // 【v0.2】+10 → +6（v0.1：28）
 test('BH-04 雙心：心倍率 +2', () => { assert.deepEqual([S(['heart', 'eye']), S(['heart', 'eye'], ['twinHeart'])], [13 * 2, 13 * 3]); });
-test('BH-04 獨眼：對稱 ×3', () => { assert.deepEqual([S(['claw', 'eye', 'claw']), S(['claw', 'eye', 'claw'], ['oneEye'])], [56, 84]); });
+test('BH-04 獨眼：對稱 ×3', () => { assert.deepEqual([S(['claw', 'eye', 'eye', 'claw']), S(['claw', 'eye', 'eye', 'claw'], ['oneEye'])], [72, 108]); });   // 【v0.2】改用長度 4 的回文（長度 3 已不算對稱）
 test('BH-04 骨刃：碰骨不停、直接斬斷，骨 15 籌碼', () => {
   const org = [O(0, 'claw', 100, 300), O(1, 'bone', 180, 300), O(2, 'eye', 260, 300)];
   const a: V = [40, 300], b: V = [360, 300];
   const without = applyCut(staged(org), a, b).record!, withB = applyCut(staged(org, { slots: ['boneBlade', null, null, null] }), a, b).record!;
-  assert.deepEqual([without.score.score, withB.severed.map((x) => x.id), withB.score.score], [10, [0, 1, 2], 10 + 15 + 8]);
+  assert.deepEqual([without.seq, without.score.score, withB.severed.map((x) => x.id), withB.score.score], [['claw', 'bone'], 10, [0, 1, 2], 10 + 15 + 8]);   // 【v0.2】沒骨刃時序列是 爪 骨（骨 0 籌碼）
 });
-test('BH-04 毒脈：連斬中的每個毒倍率 +2', () => { assert.deepEqual([S(['poison', 'poison', 'poison', 'eye']), S(['poison', 'poison', 'poison', 'eye'], ['venom'])], [68 * 4, 68 * 10]); });
-test('BH-04 長臂：刀長上限 560', () => {
+test('BH-04／BV-04 毒脈：每顆毒倍率 +2，不需連斬', () => {
+  // 【v0.2】不需連斬：毒 眼 毒 → 籌碼 48；沒毒脈 ×1；有毒脈 1+4＝5（v0.1 不在連斬中＝沒效果）
+  assert.deepEqual([S(['poison', 'eye', 'poison']), S(['poison', 'eye', 'poison'], ['venom'])], [48, 48 * 5]);
+  assert.deepEqual([S(['poison', 'poison', 'poison', 'eye']), S(['poison', 'poison', 'poison', 'eye'], ['venom'])], [68 * 4, 68 * 10]);   // 連斬中照樣每顆 +2
+});
+test('BH-04／BV-04 長臂：刀長上限 560，每刀籌碼 +10', () => {
   const org = [O(0, 'claw', 100, 300), O(1, 'eye', 540, 300)];
   const a: V = [40, 300], b: V = [690, 300];
-  assert.deepEqual([applyCut(staged(org), a, b).record!.score.score, applyCut(staged(org, { slots: [null, 'longArm', null, null] }), a, b).record!.score.score], [10, 18]);
+  assert.deepEqual([applyCut(staged(org), a, b).record!.score.score, applyCut(staged(org, { slots: [null, 'longArm', null, null] }), a, b).record!.score.score], [10, 18 + 10]);   // 【v0.2】另加每刀籌碼 +10（v0.1：18）
+  assert.equal(applyCut(staged(org, { slots: [null, 'longArm', null, null] }), [600, 980], [600, 840]).record!.score.score, 0);   // 揮空不加
 });
 test('BH-04 回刃：最後一個被斬的器官籌碼再算一次', () => { assert.deepEqual([S(['claw', 'eye']), S(['claw', 'eye'], ['echo'])], [18, 26]); });
-test('BH-04 逆鱗：被反擊打中時失去 1 次抽搐，縫合不被打掉', () => {
+test('BH-04 逆鱗：被反擊打中時門檻 +5%，縫合不被打掉', () => {
+  // 【v0.2】逆鱗由「失去 1 次抽搐」改為「門檻 +5%」
   const org = [O(0, 'claw', 100, 300), O(2, 'claw', 400, 150)];
-  const base = { counter: { clawId: 2, slot: 1 }, threshold: 999 };
+  const base = { counters: [{ clawId: 2, slot: 1 }], threshold: 400, baseThreshold: 400 };
   const a: V = [40, 300], b: V = [200, 300];
   const no = applyCut(staged(org, { ...base, slots: [null, 'echo', null, null] }), a, b).state;
   const yes = applyCut(staged(org, { ...base, slots: ['scale', 'echo', null, null] }), a, b).state;
-  assert.deepEqual([no.slots[1], no.twitchesLeft], [null, 2]);
-  assert.deepEqual([yes.slots[1], yes.twitchesLeft], ['echo', 1]);
+  assert.deepEqual([no.slots[1], no.threshold, no.twitchesLeft], [null, 400, 2]);
+  assert.deepEqual([yes.slots[1], yes.threshold, yes.twitchesLeft], ['echo', 420, 2]);
 });
 
 // ---------------------------------------------------------------- BH-05 生成
@@ -161,6 +193,19 @@ test('BH-05 200 個種子：14 個器官都在輪廓內、不重疊；每個配�
     minBest = Math.min(minBest, b.count);
   }
   assert.ok(minBest >= 4);
+});
+
+// ---------------------------------------------------------------- BV-02 預告選法
+test('BV-02 200 種子×4 隻：「當下最高分線同時斬斷全部預告爪」比例 ≤20%（報告實際值）', () => {
+  let all = 0, n = 0;
+  for (let seed = 1; seed <= 200; seed++) for (let m = 0; m < 4; m++) {
+    const s = startMonster(newRun(seed), m);
+    const b = bestLine(s, 'score')!;
+    const sev = evaluate(s, b.a, b.b).path.severed;
+    n++; if (s.counters.length && s.counters.every((c) => sev.includes(c.clawId))) all++;
+  }
+  console.log(`BV-02 實際值：${all}/${n}＝${((100 * all) / n).toFixed(1)}%`);
+  assert.ok(all / n <= 0.2, `${all}/${n}`);
 });
 
 // ---------------------------------------------------------------- 流程補充

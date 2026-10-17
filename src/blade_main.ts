@@ -35,13 +35,13 @@ interface Pop { p: V; text: string; color: string; t0: number; size: number; lif
 interface Anim {
   token: number; rec: CutRecord; before: Organ[]; after: RunState; t0: number;
   hitAt: { id: number; f: number; t: number; kind: Kind; p: V; chip: number }[]; boneOnly: { id: number; p: V } | null;
-  stopF: number; sweepEnd: number; tally: { at: number; text: string; color: string }[]; finalAt: number; counterAt: number; doneAt: number; fired: Set<string>;
+  prevSlots: (StitchId | null)[]; stopF: number; sweepEnd: number; tally: { at: number; text: string; color: string }[]; finalAt: number; counterAt: number; doneAt: number; fired: Set<string>;
 }
 const G = {
   run: null as unknown as RunState, token: 0, animScale: 1,
   phase: 'aim' as 'aim' | 'anim' | 'stitch' | 'end',
   drag: null as { id: number; a: V; b: V } | null,
-  preview: null as null | { a: V; b: V; ok: boolean; seqIds: number[]; seq: Kind[]; patterns: string[]; chips: number; mult: number; score: number; saves: boolean },
+  preview: null as null | { a: V; b: V; ok: boolean; seqIds: number[]; seq: Kind[]; patterns: string[]; chips: number; mult: number; score: number; saves: number; counters: number },
   last: null as CutRecord | null, anim: null as Anim | null, sound: true, pick: null as StitchId | null,
   particles: [] as Particle[], pops: [] as Pop[], shakeUntil: 0, shake: 0, flashUntil: 0, bigText: null as null | { text: string; sub: string; t0: number; life: number },
   log: [] as { seed: number; cuts: CutRecord[]; result: string }[],
@@ -108,9 +108,9 @@ function makePreview(a: V, b: V): NonNullable<typeof G.preview> {
   const e = evaluate(G.run, a, b);
   const sc: Score = e.score;
   return {
-    a: e.path.a, b: e.path.b, ok: e.path.ok, seqIds: e.path.severed.slice(), seq: sc.seq.slice(),
+    a: e.path.a, b: e.path.b, ok: e.path.ok, seqIds: e.path.seqIds.slice(), seq: sc.seq.slice(),
     patterns: sc.patterns.map((p) => p.label + (p.add ? ` +${p.add}` : '') + (p.mul ? ` ×${p.mul}` : '')),
-    chips: sc.chips, mult: sc.mult, score: sc.score, saves: !!G.run.counter && e.path.severed.includes(G.run.counter.clawId),
+    chips: sc.chips, mult: sc.mult, score: sc.score, saves: G.run.counters.filter((c) => e.path.severed.includes(c.clawId)).length, counters: G.run.counters.length,
   };
 }
 function previewHtml(p: NonNullable<typeof G.preview> | null, path?: Path): string {
@@ -119,7 +119,7 @@ function previewHtml(p: NonNullable<typeof G.preview> | null, path?: Path): stri
   const seq = p.seq.length ? p.seq.map((k) => KIND_NAME[k]).join(' ') : '（揮空）';
   const stop = path && path.boneHits.length && !path.boneHits[0].broke ? ' <span class="warnc">骨擋刀</span>' : '';
   return `<span class="seq">${seq}</span>${stop}　<span class="pat">${p.patterns.join('｜') || '無刀譜'}</span><br>`
-    + `<span class="sc">${p.chips} × ${p.mult} = ${p.score}</span>　${G.run.monsterScore + p.score >= G.run.threshold ? '<span class="save">這刀擊倒</span>' : G.run.counter ? (p.saves ? '<span class="save">斬斷預告爪：取消反擊</span>' : '<span class="warnc">反擊會打中</span>') : ''}`;
+    + `<span class="sc">${p.chips} × ${p.mult} = ${p.score}</span>　${G.run.monsterScore + p.score >= G.run.threshold ? '<span class="save">這刀擊倒</span>' : p.counters ? (p.saves === p.counters ? `<span class="save">取消全部 ${p.counters} 條反擊</span>` : `<span class="warnc">${p.counters - p.saves} 條反擊會打中</span>${p.saves ? `<span class="save">（取消 ${p.saves}）</span>` : ''}`) : ''}`;
 }
 
 // ---------------------------------------------------------------- 流程
@@ -174,8 +174,8 @@ function startAnim(rec: CutRecord, before: Organ[], prev: RunState, after: RunSt
   for (const p of rec.score.patterns) { tally.push({ at, text: p.label + (p.add ? `  +${p.add}` : '') + (p.mul ? `  ×${p.mul}` : ''), color: p.mul ? '#ff7adf' : '#ffd166' }); at += T(FEEL.TALLY_STEP); }
   const finalAt = at + T(60);
   const counterAt = finalAt + T(FEEL.FINAL_HOLD * 0.6);
-  const doneAt = counterAt + (rec.counterResult === 'none' || rec.counterResult === 'killed' ? T(150) : T(FEEL.COUNTER));
-  G.anim = { token: G.token, rec, before, after, t0: now, hitAt, boneOnly, stopF, sweepEnd, tally, finalAt, counterAt, doneAt, fired: new Set() };
+  const doneAt = counterAt + (rec.counterResults.some((r) => r !== 'cancelled') ? T(FEEL.COUNTER) : T(150));
+  G.anim = { token: G.token, rec, before, after, prevSlots: prev.slots, t0: now, hitAt, boneOnly, stopF, sweepEnd, tally, finalAt, counterAt, doneAt, fired: new Set() };
   sfx('slash'); vibrate(12);
   hud();
 }
@@ -194,7 +194,7 @@ function stepAnim(now: number): void {
     const id = `hit${i}`; if (a.fired.has(id) || t < h.t) return; a.fired.add(id);
     burst(h.p, COLOR[h.kind], FEEL.PARTICLES, now); pop([h.p[0], h.p[1] - 30], `+${h.chip}`, COLOR[h.kind], now, 24);
     sfx('burst', i); vibrate([10, 20, 10]); G.shake = FEEL.SHAKE; G.shakeUntil = now + 160;
-    if (a.rec.counter && h.id === a.rec.counter.clawId && a.rec.counterResult !== 'killed') { pop([h.p[0], h.p[1] - 62], '反擊取消', '#7CFF6B', now, 20, 1200); sfx('save'); }
+    if (!a.rec.cleared && a.rec.counters.some((c) => c.clawId === h.id)) { pop([h.p[0], h.p[1] - 62], '反擊取消', '#7CFF6B', now, 20, 1200); sfx('save'); }
   });
   if (a.boneOnly && !a.fired.has('bone') && t >= a.sweepEnd - T(80)) { a.fired.add('bone'); burst(a.boneOnly.p, '#fff3c4', 12, now, 0.5); pop([a.boneOnly.p[0], a.boneOnly.p[1] - 30], '骨 −1 擋刀', '#e8e1d0', now, 18); sfx('bone'); }
   a.tally.forEach((x, i) => {
@@ -209,11 +209,15 @@ function stepAnim(now: number): void {
   }
   if (!a.fired.has('counter') && t >= a.counterAt) {
     a.fired.add('counter');
-    const r = a.rec.counterResult, slotP = a.rec.counter ? SLOT_P[a.rec.counter.slot] : null;
-    if (slotP && (r === 'slotLost' || r === 'cutLost' || r === 'twitchLost')) {
-      sfx('hurt'); vibrate([60, 40, 60]); G.shake = FEEL.SHAKE * 1.3; G.shakeUntil = now + 300; burst(slotP, '#ff3b3b', 30, now);
-      pop([slotP[0], slotP[1] - 50], r === 'slotLost' ? `${STITCHES[a.rec.lostStitch!].name} 被打掉` : r === 'cutLost' ? (a.rec.monster < TUNE.THRESHOLDS.length - 1 ? '空槽被打中：下一隻少 1 刀' : '空槽被打中') : '逆鱗：失去 1 次抽搐', '#ff7a7a', now, 20, 1400);
-    }
+    let lostK = 0, hit = 0;
+    a.rec.counterResults.forEach((r, i) => {
+      if (r === 'cancelled') return;
+      const slotP = SLOT_P[a.rec.counters[i].slot];
+      burst(slotP, '#ff3b3b', 30, now);
+      const text = r === 'slotLost' ? `${STITCHES[a.rec.lostStitches[lostK++]].name} 被打掉` : r === 'thresholdUp' ? `空槽被打中：門檻 +${Math.round(TUNE.HIT_EMPTY * 100)}%` : `逆鱗：門檻 +${Math.round(TUNE.HIT_SCALE * 100)}%`;
+      pop([slotP[0], slotP[1] - 50 - hit * 26], text, '#ff7a7a', now, 18, 1500); hit++;
+    });
+    if (hit) { sfx('hurt'); vibrate([60, 40, 60]); G.shake = FEEL.SHAKE * (1.1 + 0.3 * hit); G.shakeUntil = now + 300; }
   }
   if (t >= a.doneAt) finishAnim(a, now);
 }
@@ -259,9 +263,9 @@ function commitStitch(id: StitchId, slot?: number): void {
 function showEnd(): void {
   const s = G.run, won = s.phase === 'won';
   G.log[G.log.length - 1].result = won ? 'won' : 'lost';
-  els.endTitle.textContent = won ? '三隻全倒！' : `倒在第 ${s.monster + 1} 隻`;
+  els.endTitle.textContent = won ? `${TUNE.THRESHOLDS.length} 隻全倒！` : `倒在第 ${s.monster + 1} 隻`;
   const st = s.slots.filter(Boolean).map((x) => STITCHES[x as StitchId].name).join('、') || '（無）';
-  els.endBody.innerHTML = `<div>總分</div><div class="big" id="endTotal">${s.totalScore}</div><div>最高單刀 <b id="endBest">${s.bestCut}</b></div><div>縫合組合：<span id="endStitch">${st}</span></div><div class="hint">種子 ${s.seed}</div>`;
+  els.endBody.innerHTML = `<div>總分</div><div class="big" id="endTotal">${s.totalScore}</div><div>打到第 <b id="endReach">${won ? TUNE.THRESHOLDS.length : s.monster + 1}</b>／${TUNE.THRESHOLDS.length} 隻</div><div>最高單刀 <b id="endBest">${s.bestCut}</b></div><div>縫合組合：<span id="endStitch">${st}</span></div><div class="hint">種子 ${s.seed}</div>`;
   els.endModal.hidden = false;
 }
 
@@ -332,10 +336,10 @@ function draw(now: number): void {
   // 器官（演出中用出刀前的盤面，尚未被斬到的照畫）
   const organs = a ? a.before.filter((o) => !a.hitAt.some((h, i) => h.id === o.id && a.fired.has(`hit${i}`))) : s.organs;
   const hlIds = G.drag && G.preview?.ok ? G.preview.seqIds : [];
-  const ctr = a ? a.rec.counter : s.counter;
+  const ctrs = a ? (a.rec.cleared ? [] : a.rec.counters) : s.counters;
   for (const o of organs) drawOrgan(o, now, hlIds.includes(o.id) ? hlIds.indexOf(o.id) : null);
   // 反擊預告
-  if (ctr && (!a || t < a.counterAt)) {
+  if (!a || t < a.counterAt) for (const ctr of ctrs) {
     const claw = (a ? a.before : s.organs).find((o) => o.id === ctr.clawId);
     const alive = organs.some((o) => o.id === ctr.clawId);
     if (claw && alive) {
@@ -353,13 +357,14 @@ function draw(now: number): void {
   ctx.beginPath(); if (typeof ctx.roundRect === 'function') ctx.roundRect(40, BODY_Y + 60, 620, 250, 40); else ctx.rect(40, BODY_Y + 60, 620, 250); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#8b93a3'; ctx.font = '15px system-ui'; ctx.textAlign = 'center'; ctx.fillText('你的身體：縫合槽', 350, BODY_Y + 95);
   SLOT_P.forEach((p, i) => {
-    const st = s.slots[i], targeted = ctr && ctr.slot === i && (!a || t < a.counterAt);
+    const nT = ctrs.filter((c) => c.slot === i && organs.some((o) => o.id === c.clawId)).length, st = a && t < a.counterAt ? a.prevSlots[i] : s.slots[i], targeted = nT > 0 && (!a || t < a.counterAt);
     ctx.strokeStyle = targeted ? '#ff3b3b' : '#3a4150'; ctx.lineWidth = targeted ? 4 : 2; ctx.fillStyle = st ? '#2a1e33' : '#151923';
     ctx.beginPath(); ctx.arc(p[0], p[1], 46, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = st ? '#ffd166' : '#555d6b'; ctx.font = 'bold 18px system-ui'; ctx.fillText(st ? STITCHES[st].name : '空', p[0], p[1] + 6);
+    if (targeted && nT > 1) { ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`×${nT}`, p[0] + 36, p[1] - 34); }
   });
   ctx.fillStyle = '#8b93a3'; ctx.font = '14px system-ui';
-  ctx.fillText(`抽搐 ${s.twitchesLeft}｜刀長上限 ${maxLen(s.slots)}${s.pendingCutPenalty ? `｜下一隻少 ${s.pendingCutPenalty} 刀` : ''}`, 350, BODY_Y + 290);
+  ctx.fillText(`抽搐 ${s.twitchesLeft}｜刀長上限 ${maxLen(s.slots)}｜被打中 ${s.hits}${s.threshold > s.baseThreshold ? `｜門檻已 +${Math.round((100 * (s.threshold - s.baseThreshold)) / s.baseThreshold)}%` : ''}`, 350, BODY_Y + 290);
   ctx.restore();
   // 拖曳預覽線
   if (G.drag && G.preview) {

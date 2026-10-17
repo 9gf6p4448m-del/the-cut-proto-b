@@ -1,5 +1,5 @@
 // 刀譜（blade/）瀏覽器測試（作者測試；Chromium＋WebKit 模擬，**不是 iPhone 實機**）。由 run.mjs 或 blade_run.mjs 逐瀏覽器呼叫。
-// 凍結驗收：the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md BH-06～08。
+// 凍結驗收：the-cut 0233f19 docs/core-redesign-r5/BLADE_HAND_SKETCH.md BH-06～08；v0.2（068ca72 同檔檔尾）：4 隻怪、版本字樣 v0.2（BV-06）。
 // 挑線：測試端用規則模組（bestLine／candidateLines）從畫面上的盤面狀態算出刀線，再用滑鼠真實拖曳；判定讀 window.__blade 與 DOM。
 import { newPage } from './exp_tests.mjs';
 import { bestLine, candidateLines, evaluate } from '../../src/blade/rules.ts';
@@ -15,6 +15,8 @@ async function drag(page, a, b, { release = true } = {}) {
   if (release) await page.mouse.up();
   return before;
 }
+/** 元素在視窗內且沒被蓋住時回傳其文字，否則 null。 */
+const visibleText = (page, sel) => page.evaluate((s) => { const el = document.querySelector(s); if (!el) return null; const r = el.getBoundingClientRect(); if (r.width === 0 || r.bottom > innerHeight || r.right > innerWidth || r.top < 0) return null; const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return h === el || el.contains(h) ? el.textContent : null; }, sel);
 /** 縫合畫面：照貪婪 bot 的規則挑第一個選項；槽滿就換第 0 槽。 */
 async function pickFirst(page) {
   await page.click('#opt0');
@@ -31,7 +33,7 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
   await page.evaluate(() => window.__blade.setTimings({ animScale: 0.08 }));
   const sha = await page.getAttribute('meta[name="build-sha"]', 'content');
   const top = await page.textContent('#top');
-  check(`${tag} 版本 SHA 與「研究片段」字樣`, top.includes(sha) && top.includes('研究片段') && sha && !sha.includes('__'), sha);
+  check(`${tag} 版本 SHA 與「研究片段」字樣；BV-06 畫面看得到 v0.2`, top.includes(sha) && top.includes('研究片段') && top.includes('v0.2') && (await visibleText(page, '#ver')) === 'v0.2' && sha && !sha.includes('__'), sha);
 
   // ===== BH-06 預覽＝結算（≥10 條真實拖曳） =====
   {
@@ -48,7 +50,9 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
         const after = await B(page), rec = after.last, pv = pre.preview;
         n++;
         if (!pv || !rec) { bad.push(`#${n} 沒有預覽或結算`); continue; }
-        const pvIds = pv.seqIds, recIds = rec.severed.map((x) => x.id);
+        const pvIds = pv.seqIds, recIds = evaluate(s0.state, rec.a, rec.b).path.seqIds;   // v0.2：序列含未斷的骨，以出刀前盤面獨立重算
+        if (JSON.stringify(pv.seq) !== JSON.stringify(rec.seq)) bad.push(`#${n} 器官種類序列 預覽${pv.seq}≠結算${rec.seq}`);
+        if (JSON.stringify(rec.severed.map((x) => x.id)) !== JSON.stringify(pvIds.filter((id) => rec.severed.some((x) => x.id === id)))) bad.push(`#${n} 斬斷器官與預覽序列不一致`);
         const recPat = rec.score.patterns.map((p) => p.label + (p.add ? ` +${p.add}` : '') + (p.mul ? ` ×${p.mul}` : ''));
         if (JSON.stringify(pvIds) !== JSON.stringify(recIds)) bad.push(`#${n} 器官序列 預覽${pvIds}≠結算${recIds}`);
         if (JSON.stringify(pv.patterns) !== JSON.stringify(recPat)) bad.push(`#${n} 刀譜 預覽${pv.patterns}≠結算${recPat}`);
@@ -67,12 +71,13 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
     check(`${tag} BH-06 預覽＝結算：真實拖曳 ${n} 條，器官序列／刀譜／分數與畫面算式逐項相同`, bad.length === 0 && n >= 10 && multi >= 3, `${n} 條（≥3 器官 ${multi} 條；出現刀譜 ${[...patSeen].join(',')}）${bad.slice(0, 3).join('；')}`);
   }
 
-  // ===== BH-07 整局：勝一局（3 隻）＋敗一局（4 刀不達標）＋再來一局重置 =====
+  // ===== BH-07 整局：勝一局（v0.2：4 隻）＋敗一局（4 刀不達標）＋再來一局重置 =====
+  // 勝局種子 142：tests/blade_stats.ts 的貪婪 bot 200 局中能全勝的兩個種子之一（142、167）；下面的拖曳策略與該 bot 相同。
   {
     const bad = [];
-    await page.evaluate(() => window.__blade.newGame({ seed: 1 })); await settled(page);
+    await page.evaluate(() => window.__blade.newGame({ seed: 142 })); await settled(page);
     let cuts = 0, twitches = 0;
-    for (let guard = 0; guard < 40; guard++) {
+    for (let guard = 0; guard < 60; guard++) {
       const s = await B(page);
       if (s.phase === 'end') break;
       if (s.phase === 'stitch') { await pickFirst(page); continue; }
@@ -85,26 +90,27 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
     const w = await B(page);
     const endVisible = await page.isVisible('#endModal');
     const endTitle = await page.textContent('#endTitle'), endTotal = await page.textContent('#endTotal');
-    if (!(w.phase === 'end' && w.state.phase === 'won' && endVisible && endTitle.includes('三隻全倒') && endTotal === String(w.state.totalScore))) bad.push(`勝局：phase=${w.phase}/${w.state.phase} 標題=${endTitle}`);
+    if (!(w.phase === 'end' && w.state.phase === 'won' && endVisible && endTitle.includes('4 隻全倒') && (await page.textContent('#endReach')) === '4' && endTotal === String(w.state.totalScore))) bad.push(`勝局：phase=${w.phase}/${w.state.phase} 標題=${endTitle}`);
     const wonSummary = `勝：${cuts} 刀 抽搐 ${twitches} 總分 ${w.state.totalScore} 最高 ${w.state.bestCut} 縫合 ${w.state.slots.filter(Boolean).join('/')}`;
     // 敗局：同一頁新局，在身體區揮空 4 刀
     await page.evaluate(() => window.__blade.newGame({ seed: 77 })); await settled(page);
     for (let i = 0; i < 4; i++) { await drag(page, [600, 980], [600, 840]); await settled(page); }
     const l = await B(page);
     const lostTitle = await page.textContent('#endTitle');
-    if (!(l.phase === 'end' && l.state.phase === 'lost' && l.state.history.length === 4 && lostTitle.includes('倒在第 1 隻'))) bad.push(`敗局：phase=${l.phase}/${l.state.phase} 刀=${l.state.history.length} 標題=${lostTitle}`);
+    if (!(l.phase === 'end' && l.state.phase === 'lost' && l.state.history.length === 4 && lostTitle.includes('倒在第 1 隻') && (await page.textContent('#endReach')) === '1')) bad.push(`敗局：phase=${l.phase}/${l.state.phase} 刀=${l.state.history.length} 標題=${lostTitle}`);
     // 再來一局：重置全部狀態、換種子
     const oldSeed = l.state.seed;
     await page.click('#again'); await settled(page);
     const r = await B(page);
     const reset = r.phase === 'aim' && r.state.phase === 'aim' && r.state.monster === 0 && r.state.cutsLeft === 4 && r.state.cutsMax === 4 && r.state.twitchesLeft === 2
-      && r.state.slots.every((x) => x === null) && r.state.totalScore === 0 && r.state.bestCut === 0 && r.state.history.length === 0 && r.state.pendingCutPenalty === 0
+      && r.state.slots.every((x) => x === null) && r.state.totalScore === 0 && r.state.bestCut === 0 && r.state.history.length === 0
+      && r.state.threshold === 150 && r.state.baseThreshold === 150 && r.state.hits === 0 && r.state.counters.length === 1
       && r.state.monsterScore === 0 && r.state.seed !== oldSeed && r.state.organs.length === 14 && !(await page.isVisible('#endModal')) && !(await page.isVisible('#stitchModal'));
     if (!reset) bad.push(`再來一局沒有完全重置：${JSON.stringify({ phase: r.phase, m: r.state.monster, c: r.state.cutsLeft, t: r.state.totalScore, seed: r.state.seed, old: oldSeed })}`);
     // 再來一局後仍可出刀
     const b2 = bestLine(r.state, 'score'); await drag(page, b2.a, b2.b); await settled(page);
     if ((await B(page)).state.history.length !== 1) bad.push('重開後出刀失敗');
-    check(`${tag} BH-07 整局：勝一局（3 隻）、敗一局（4 刀不達標）、再來一局重置全部狀態並換種子`, bad.length === 0, `${wonSummary}｜${bad.join('；')}`);
+    check(`${tag} BH-07 整局：勝一局（4 隻）、敗一局（4 刀不達標）、再來一局重置全部狀態並換種子`, bad.length === 0, `${wonSummary}｜${bad.join('；')}`);
   }
 
   // ===== BH-08 手機版面（兩種尺寸；含縫合與結果畫面） =====

@@ -20,10 +20,10 @@ for (const [name, bt] of [['webkit', webkit], ['chromium', chromium]]) {
   await page.mouse.move(A.x, A.y); await page.mouse.down(); await page.mouse.move(B.x, B.y, { steps: 8 }); await page.mouse.up();
   await page.waitForFunction(() => !window.__blade.animActive && !!window.__blade.last, null, { timeout: 30000 });
   const last = await page.evaluate(() => window.__blade.last);
-  const ok = URL.startsWith('https://') && sha === SHA && text.includes(SHA) && text.includes('研究片段') && typeof sw === 'string' && sw.endsWith('/blade/')
+  const ok = URL.startsWith('https://') && sha === SHA && text.includes(SHA) && text.includes('研究片段') && text.includes('v0.2') && typeof sw === 'string' && sw.endsWith('/blade/')
     && last && last.score.score > 0 && page.__errs.length === 0 && bad.length === 0;
   if (!ok) fail++;
-  console.log(`${ok ? 'PASS' : 'FAIL'} [${name}] https=${URL.startsWith('https://')} sha=${sha} swScope=${sw} cut=${last ? last.severed.length + '器官/' + last.score.score + '分' : 'none'} errs=${page.__errs.length} bad=${bad.join(',')}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'} [${name}] v0.2=${text.includes('v0.2')} https=${URL.startsWith('https://')} sha=${sha} swScope=${sw} cut=${last ? last.severed.length + '器官/' + last.score.score + '分' : 'none'} errs=${page.__errs.length} bad=${bad.join(',')}`);
   await b.close();
 }
 process.exit(fail ? 1 : 0);
