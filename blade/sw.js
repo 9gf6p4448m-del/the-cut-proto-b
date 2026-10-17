@@ -1,7 +1,7 @@
 // 刀譜研究片段（子路徑 blade/）service worker：快取前綴與其他子路徑都不同；只清自己前綴的舊快取。
 const PREFIX = 'thecut-blade-';
-const CACHE = PREFIX + 'c7d3600';
-const ASSETS = ['./', './index.html', './app.js?v=c7d3600', './style.css?v=c7d3600', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const CACHE = PREFIX + '1b9ed54';
+const ASSETS = ['./', './index.html', './app.js?v=1b9ed54', './style.css?v=1b9ed54', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
