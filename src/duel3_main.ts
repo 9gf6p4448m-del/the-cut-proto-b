@@ -184,7 +184,7 @@ function tutOnFree(e: GameEvent): void {
 function startCut(): void {
   G.game = matchFor(G.camp); G.ui = 'cut'; G.cutByMe = []; G.drag = null; G.release = null; G.preview = null; G.battle = null; G.vis = [];
   G.acc = 0; G.lastT = null; G.pops = []; G.particles = []; G.shots = []; G.slashes = []; G.fx = []; G.bursts = [];
-  G.clock = 0; lastEvT = 0; G.slicer = new Slicer(); G.fp = null; G.trail = []; G.splits = []; G.lastFree = null; G.freeLog = []; G.stepSig = []; G.slowLog = [];
+  G.clock = 0; lastEvT = 0; downT = 0; downTs = 0; G.slicer = new Slicer(); G.fp = null; G.trail = []; G.splits = []; G.lastFree = null; G.freeLog = []; G.stepSig = []; G.slowLog = [];
   G.banner = { text: `對手 ${G.camp.stage + 1}／${CB.STAGES}`, sub: `切割 ${CB.CUT_SECONDS} 秒`, t0: performance.now(), life: 1500 };
   for (const m of [els.contrib, els.pick, els.end]) m.hidden = true;
   hud();
@@ -389,11 +389,14 @@ function organAt(p: V): { kind: Kind; side: Side } | null {
 }
 // 即時劃刀：事件時間戳換成本局的毫秒（規則時鐘 G.clock 在上一幀 G.lastT 的值＋事件距那一幀的時間）
 const matchMs = (ts: number): number => (G.lastT === null ? G.clock : G.clock + (ts - G.lastT));
-let lastEvT = 0, tsOffset = 0;
-/** 事件時間戳和 performance.now() 不在同一條時間軸時（部分瀏覽器／自動化工具），每一刀在按下時對齊一次基準；刀內的時間間隔仍用事件時間戳（保留手指真實速度）。 */
-function alignTs(ts: number): void { const d = performance.now() - ts; tsOffset = Math.abs(d) > 1000 ? d : 0; }
-/** 時間戳一律單調不減（審查 M-1：一幀卡超過 250ms 或切到背景回來時，換算可能倒退或重複）。 */
-function pushEv(k: PtrKind, p: V, ts: number): void { if (G.ui === 'cut') { lastEvT = Math.max(lastEvT, matchMs(ts + tsOffset), 0); const ev: PtrEv = { t: lastEvT, k, p }; G.slicer.push(ev); } }
+// 一刀的時間：按下時換算一次本局毫秒（downT），刀內每個事件＝downT＋（事件時間戳−按下時間戳）。
+// 刀內只用事件時間戳的差，手指速度不受幀卡頓、時鐘上限、背景切換、時間軸基準影響（審查 M-1、覆審 N-1／N-2）。
+let lastEvT = 0, downT = 0, downTs = 0;
+function alignTs(ts: number): void {
+  const d = performance.now() - ts, base = Math.abs(d) > 1000 ? ts + d : ts;   // 事件時間戳與 performance.now 不同軸（差 >1 秒）時改用現在
+  downT = Math.max(matchMs(base), 0); downTs = ts; lastEvT = downT;   // 每刀各自單調（切片器每刀獨立；跨刀不夾，否則整刀會被推到未來才結算）
+}
+function pushEv(k: PtrKind, p: V, ts: number): void { if (G.ui === 'cut') { lastEvT = Math.max(lastEvT, downT + (ts - downTs)); const ev: PtrEv = { t: lastEvT, k, p }; G.slicer.push(ev); } }
 const freeActive = () => G.input === 'free' && G.ui === 'cut' && !(G.tut && G.tut.phase === 'demo');
 els.canvas.addEventListener('pointerdown', (e) => {
   ac();
@@ -614,6 +617,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
   get slowLog() { return [...G.slowLog]; }, get splits() { return G.splits.length; }, get trail() { return G.trail.length; }, get tut() { return G.tut && { phase: G.tut.phase, hint: G.tut.hint, text: els.tut.hidden ? null : els.tutText.textContent }; },
   get held() { return [...holdLit()]; }, get provisionalArt() { return PROVISIONAL; }, R,
   feed: (evs: PtrEv[]) => { for (const e of evs) G.slicer.push(e); }, setFx: (v: boolean) => { G.fxOn = v; }, setSceneOnly: (v: boolean) => { sceneOnly = v; }, get dispT() { return G.dispT; },
+  bumpEvT: (ms: number) => { lastEvT = Math.max(lastEvT, G.clock + ms); },   // 測試用：模擬前一刀的時間戳被卡頓推高（覆審 N-1）
   setInput: (m: 'free' | 'line') => { G.input = m; G.slicer = new Slicer(); hud(); }, skipTut: () => { markTut(); tutEnd(); },
 };
 // ---------------------------------------------------------------- PWA（子路徑獨立 scope）

@@ -133,6 +133,19 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     const ok = res.every((r) => r.fast.sev === r.fast.plan && r.slow.why === 'up' && r.slow.sev === null);
     check(`${tag} DF-02 瀏覽器鏈路：真實指標事件${bname === 'chromium' ? '（CDP 觸控＋硬體式時間戳，CPU 1 倍／4 倍）' : '（滑鼠，WebKit 無觸控／節流 API）'}：快刀都切下目標、慢描都是鈍刀`, ok, JSON.stringify(res));
   }
+  // ===== 覆審 N-1：前一刀的時間戳被卡頓推高（lastEvT 領先 3 秒）後，新的一刀仍照手指真實速度判定（快刀照切，不會整刀被夾成鈍刀） =====
+  {
+    const { ctx, page } = await open();
+    await page.evaluate(() => window.__cb.newRun({ seed: 5 }));
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.__cb.bumpEvT(3000));
+    const plan = await page.evaluate(PLAN), A = await scr(page, plan.S), B = await scr(page, plan.E);
+    await swipe(page, bname, A, B);
+    await page.waitForFunction(() => !!window.__cb.lastFree, null, { timeout: 8000 }).catch(() => {});
+    const r = await page.evaluate(() => { const x = window.__cb.lastFree; return x && { why: x.why, sev: x.severed === null ? null : window.__cb.game.organs[x.severed].id }; });
+    check(`${tag} 覆審 N-1 時間戳基準被推高後，快刀照切（刀內只用事件時間戳的差）`, r && r.sev === plan.id, JSON.stringify({ plan: plan.id, ...r }));
+    await ctx.close();
+  }
   // ===== 審查 H-1：教學示範期間拖線不出刀（不漏成直線刀），示範結束後盤面、冷卻不變 =====
   {
     const { ctx, page } = await open(393, 852, []);
