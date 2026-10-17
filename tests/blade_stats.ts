@@ -20,12 +20,16 @@ function pick(s: RunState, bot: Bot): { a: V; b: V; score: number } | null {
   }
   return best;
 }
-export function playRun(seed: number, bot: Bot): { reached: number; hitsPer: number[]; met: boolean[]; state: RunState } {
+export function playRun(seed: number, bot: Bot): { reached: number; hitsPer: number[]; met: boolean[]; state: RunState; onBest: number[]; cutsPer: number[] } {
   let s = newRun(seed);
-  const n = TUNE.THRESHOLDS.length, hitsPer = Array(n).fill(0), met = Array(n).fill(false);
+  const n = TUNE.THRESHOLDS.length, hitsPer = Array(n).fill(0), met = Array(n).fill(false), onBest = Array(n).fill(0), cutsPer = Array(n).fill(0);
   met[0] = true;
   for (let guard = 0; guard < 400 && (s.phase === 'aim' || s.phase === 'stitch'); guard++) {
     if (s.phase === 'stitch') { s = chooseStitch(s, s.offer[0], s.slots.includes(null) ? undefined : 0); met[s.monster] = true; continue; }
+    { // 實戰逐刀量測（出刀前、抽搐前）：當下最高分線是否同時斬斷全部預告爪
+      const g = bestLine(s, 'score');
+      if (g && s.counters.length) { cutsPer[s.monster]++; const sev = evaluate(s, g.a, g.b).path.severed; if (s.counters.every((c) => sev.includes(c.clawId))) onBest[s.monster]++; }
+    }
     let b = pick(s, bot);
     while (b && s.twitchesLeft > 0 && b.score < (s.threshold - s.monsterScore) / s.cutsLeft / 2) { s = twitch(s); b = pick(s, bot); }
     if (!b) break;
@@ -34,7 +38,7 @@ export function playRun(seed: number, bot: Bot): { reached: number; hitsPer: num
     hitsPer[m] += r.record.counterResults.filter((x) => x !== 'cancelled').length;
     s = r.state;
   }
-  return { reached: s.phase === 'won' ? n : s.monster, hitsPer, met, state: s };
+  return { reached: s.phase === 'won' ? n : s.monster, hitsPer, met, state: s, onBest, cutsPer };
 }
 /** BV-02：每個種子的每隻怪（以前面的縫合為空的開局狀態），第一刀前的預告是否全部落在當下最高分線上。 */
 export function counterOnBestRate(seeds: number): { rate: number; perMonster: number[]; n: number } {
@@ -54,13 +58,16 @@ if (process.argv[1]?.endsWith('blade_stats.ts')) {
   const c = counterOnBestRate(N);
   console.log(`BV-02 預告爪全部落在當下最高分線上：${(100 * c.rate).toFixed(1)}%（${c.n} 個開局；各隻 ${c.perMonster.map((x) => (100 * x).toFixed(1) + '%').join('／')}）`);
   for (const bot of ['greedy', 'aware'] as Bot[]) {
-    const n = TUNE.THRESHOLDS.length, pass = Array(n).fill(0), met = Array(n).fill(0), hits = Array(n).fill(0);
+    const n = TUNE.THRESHOLDS.length, pass = Array(n).fill(0), met = Array(n).fill(0), hits = Array(n).fill(0), ob = Array(n).fill(0), cp = Array(n).fill(0);
     for (let seed = 1; seed <= N; seed++) {
       const r = playRun(seed, bot);
+      for (let i = 0; i < n; i++) { ob[i] += r.onBest[i]; cp[i] += r.cutsPer[i]; }
       for (let i = 0; i < n; i++) if (r.met[i]) { met[i]++; hits[i] += r.hitsPer[i]; if (r.reached > i) pass[i]++; }
     }
     console.log(`[${bot}] ${N} 局，門檻 ${TUNE.THRESHOLDS.join('/')}：`);
     for (let i = 0; i < n; i++) console.log(`  第 ${i + 1} 隻：遇到 ${met[i]}，達標 ${pass[i]}（條件達標率 ${met[i] ? ((100 * pass[i]) / met[i]).toFixed(1) : '—'}%；全體 ${((100 * pass[i]) / N).toFixed(1)}%），平均被打中 ${met[i] ? (hits[i] / met[i]).toFixed(2) : '—'} 次`);
     console.log(`  整局勝率 ${((100 * pass[n - 1]) / N).toFixed(1)}%`);
+    const tob = ob.reduce((a, b) => a + b, 0), tcp = cp.reduce((a, b) => a + b, 0);
+    console.log(`  實戰逐刀（抽搐前）最高分線同時取消全部反擊：${tob}/${tcp}＝${((100 * tob) / tcp).toFixed(1)}%（各隻 ${ob.map((x, i) => `${x}/${cp[i]}`).join('／')}）`);
   }
 }

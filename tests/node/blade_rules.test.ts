@@ -60,6 +60,8 @@ test('BH-01 組合成立：先加法再乘法', () => {
   assert.deepEqual([r2.chips, r2.mult, r2.score], [86, 15, 1290]);
   // 四色 ×2.5 遇到奇數乘積時無條件捨去：毒 眼 爪 心 → 籌碼 43 × (1+1) × 2.5＝215；眼 爪 毒 骨 → 籌碼 38 × 1 × 2.5＝95；爪 眼 心 骨 → 23 × 2 × 2.5＝115；眼 爪 骨（3 種）＝18
   assert.equal(S(['eye', 'claw', 'poison', 'bone']), 95);
+  // 乘積不是整數時無條件捨去：心 爪 爪 爪 眼 毒 → 籌碼 63；加：心 1＋連斬 3 → 5；×四色 2.5 → 12.5；63×12.5＝787.5 → 787
+  assert.equal(S(['heart', 'claw', 'claw', 'claw', 'eye', 'poison']), 787);
   assert.equal(S(['claw', 'heart', 'eye', 'eye', 'bone']), 155);     // 籌碼 31、心 +1 → 2、4 種 ×2.5
 
 });
@@ -136,6 +138,15 @@ test('BV-01 整合：沒斬到的反擊讓本隻門檻上升（以原門檻計�
   const n = chooseStitch(r.state, r.state.offer[0]);
   assert.deepEqual([n.monster, n.threshold, n.baseThreshold, n.hits, n.cutsMax], [1, 400, 400, 0, 4]);
 });
+test('BV-01 跨刀累加以原門檻計（不複利），最後才進位：150 → 兩刀各中一條空槽 → 150×(1+0.15×2)＝195', () => {
+  // 審查 HIGH-2：若以「當下門檻」計會是 150→172.5→198.4；若每刀各自進位會是 173→196
+  const org = [O(0, 'claw', 100, 300), O(1, 'eye', 100, 500), O(2, 'claw', 400, 150)];
+  let s = staged(org, { counters: [{ clawId: 2, slot: 0 }], threshold: 150, baseThreshold: 150 });
+  s = applyCut(s, [40, 300], [165, 300]).state;                      // 斬 0 號爪，反擊沒取消
+  assert.equal(s.threshold, 173);                                    // ceil(172.5)
+  s = applyCut({ ...s, counters: [{ clawId: 2, slot: 3 }] }, [40, 500], [165, 500]).state;   // 斬眼，又中一條
+  assert.deepEqual([s.threshold, s.hits], [195, 2]);
+});
 
 // ---------------------------------------------------------------- BH-04 縫合（8 種各一）
 test('BH-04／BV-04 鋒爪：每個爪 +6 籌碼', () => { assert.deepEqual([S(['claw', 'eye']), S(['claw', 'eye'], ['sharpClaw'])], [18, 24]); });   // 【v0.2】+10 → +6（v0.1：28）
@@ -176,9 +187,9 @@ test('BH-05 同種子同配置；不同種子不同', () => {
   assert.notDeepEqual(genMonster(42, 0), genMonster(43, 0));
   assert.deepEqual(newRun(9), newRun(9));
 });
-test('BH-05 200 個種子：14 個器官都在輪廓內、不重疊；每個配置都有合法刀線斬到 ≥4 個（腳本搜尋）', () => {
+test('BH-05 200 個種子×4 隻：14 個器官都在輪廓內、不重疊；每個配置都有合法刀線斬到 ≥4 個（腳本搜尋）', () => {
   let minBest = Infinity;
-  for (let seed = 1; seed <= 200; seed++) for (let m = 0; m < 3; m++) {
+  for (let seed = 1; seed <= 200; seed++) for (let m = 0; m < TUNE.THRESHOLDS.length; m++) {   // 【v0.2】涵蓋 4 隻
     const organs = genMonster(seed, m);
     assert.equal(organs.length, TUNE.ORGANS);
     for (const o of organs) assert.ok(inMonster(o.p, TUNE.R), `seed ${seed} m${m} #${o.id} 出界`);
@@ -196,6 +207,25 @@ test('BH-05 200 個種子：14 個器官都在輪廓內、不重疊；每個配�
 });
 
 // ---------------------------------------------------------------- BV-02 預告選法
+test('BV-02 選爪規則：線外的爪夠用時，預告爪一隻都不在當下最高分線上；線外的非血脈爪夠用時，預告爪都不在血脈上', () => {
+  // 審查 HIGH-1：只看比例 ≤20% 時，純亂數挑爪（約 17.6%）也會過；這裡直接守選法本身。開局與每一刀之前的狀態都檢查。
+  let checked = 0, veinChecked = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    let s = newRun(seed);
+    for (let guard = 0; guard < 30 && (s.phase === 'aim' || s.phase === 'stitch'); guard++) {
+      if (s.phase === 'stitch') { s = chooseStitch(s, s.offer[0], s.slots.includes(null) ? undefined : 0); continue; }
+      const b = bestLine({ ...s, counters: [] }, 'score'); if (!b) break;   // 盤面剩不到兩個器官時沒有候選線
+      const on = new Set(evaluate(s, b.a, b.b).path.severed);
+      const claws = s.organs.filter((o) => o.kind === 'claw');
+      const off = claws.filter((o) => !on.has(o.id)), offPlain = off.filter((o) => !o.vein);
+      const chosen = s.counters.map((c) => s.organs.find((o) => o.id === c.clawId)!);
+      if (off.length >= s.counters.length) { checked++; for (const o of chosen) assert.ok(!on.has(o.id), `seed ${seed} m${s.monster} cut${s.cutNo} 爪 ${o.id} 在最高分線上`); }
+      if (offPlain.length >= s.counters.length) { veinChecked++; for (const o of chosen) assert.ok(!o.vein, `seed ${seed} m${s.monster} cut${s.cutNo} 爪 ${o.id} 在血脈上`); }
+      s = applyCut(s, b.a, b.b).state;
+    }
+  }
+  assert.ok(checked > 100 && veinChecked > 50, `${checked}/${veinChecked}`);
+});
 test('BV-02 200 種子×4 隻：「當下最高分線同時斬斷全部預告爪」比例 ≤20%（報告實際值）', () => {
   let all = 0, n = 0;
   for (let seed = 1; seed <= 200; seed++) for (let m = 0; m < 4; m++) {

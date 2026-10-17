@@ -62,6 +62,12 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
         // 獨立重算：用放開前的盤面以規則函式重算這條刀線（結算刀線取紀錄的端點）
         const re = evaluate(s0.state, rec.a, rec.b);
         if (re.score.score !== rec.score.score) bad.push(`#${n} 重算 ${re.score.score}≠${rec.score.score}`);
+        // v0.2：預覽寫的「N 條反擊會打中／取消全部」要等於結算（會擊倒的刀反擊不發動）
+        if (!rec.cleared) {
+          const hitsRec = rec.counterResults.filter((x) => x !== 'cancelled').length, hitsPv = pv.counters - pv.saves;
+          if (hitsRec !== hitsPv) bad.push(`#${n} 反擊 預覽打中 ${hitsPv}≠結算 ${hitsRec}`);
+          if (hitsPv > 0 && !pre.previewText.includes(`${hitsPv} 條反擊會打中`)) bad.push(`#${n} 預覽文字沒寫 ${hitsPv} 條反擊會打中`);
+        }
         if (recIds.length >= 3) multi++;
         rec.score.patterns.forEach((p) => patSeen.add(p.key));
         if (after.phase === 'stitch') await pickFirst(page);
@@ -72,10 +78,10 @@ export async function runBladeTests({ bname, btype, devices, url, check }) {
   }
 
   // ===== BH-07 整局：勝一局（v0.2：4 隻）＋敗一局（4 刀不達標）＋再來一局重置 =====
-  // 勝局種子 142：tests/blade_stats.ts 的貪婪 bot 200 局中能全勝的兩個種子之一（142、167）；下面的拖曳策略與該 bot 相同。
+  // 勝局種子 167：tests/blade_stats.ts 的貪婪 bot 200 局中唯一全勝的種子；下面的拖曳策略與該 bot 相同。
   {
     const bad = [];
-    await page.evaluate(() => window.__blade.newGame({ seed: 142 })); await settled(page);
+    await page.evaluate(() => window.__blade.newGame({ seed: 167 })); await settled(page);
     let cuts = 0, twitches = 0;
     for (let guard = 0; guard < 60; guard++) {
       const s = await B(page);

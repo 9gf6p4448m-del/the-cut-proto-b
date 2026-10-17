@@ -194,8 +194,9 @@ function tryGen(rnd: () => number): Organ[] | null {
   if (pts.length < TUNE.ORGANS) return null;
   const sel = pts.slice(0, TUNE.ORGANS);
   const kinds = sel.map((s) => { const w = { ...TUNE.KIND_WEIGHTS }; if (s.vein) w.bone = 0; return pickW(rnd, w); });
-  // 爪至少 MIN_CLAWS 個（反擊需要爪）：不足就把非血脈、非骨的器官改成爪
-  for (let i = 0; kinds.filter((k) => k === 'claw').length < TUNE.MIN_CLAWS && i < kinds.length; i++) if (kinds[i] !== 'claw' && kinds[i] !== 'bone') kinds[i] = 'claw';
+  // 爪至少 MIN_CLAWS 個（反擊需要爪）：不足就把非骨的器官改成爪，先改非血脈的、再改血脈上的（審查 LOW-7）
+  const fixOrder = sel.map((x, i) => i).sort((i, j) => Number(sel[i].vein) - Number(sel[j].vein) || i - j);
+  for (const i of fixOrder) { if (kinds.filter((k) => k === 'claw').length >= TUNE.MIN_CLAWS) break; if (kinds[i] !== 'claw' && kinds[i] !== 'bone') kinds[i] = 'claw'; }
   return sel.map((s, i) => ({ id: i, kind: kinds[i], p: [Math.round(s.p[0] * 10) / 10, Math.round(s.p[1] * 10) / 10] as V, hp: kinds[i] === 'bone' ? TUNE.BONE_HP : 1, vein: s.vein }));
 }
 /** 抽搐：剩下的器官重新散布（種類與骨耐久保留，id 不變），依種子與次數決定。 */
@@ -221,7 +222,7 @@ export interface CutRecord {
 export interface RunState {
   seed: number; monster: number; organs: Organ[];
   cutsLeft: number; cutsMax: number; twitchesLeft: number; twitchNo: number; cutNo: number;
-  monsterScore: number; threshold: number; baseThreshold: number; hits: number;
+  monsterScore: number; threshold: number; baseThreshold: number; thresholdAdd: number; hits: number;   // threshold＝ceil(base＋累積加成)
   slots: (StitchId | null)[]; counters: Counter[];
   severedKinds: Kind[];       // 這隻怪被斬下的器官種類（縫合選項來源）
   phase: 'aim' | 'stitch' | 'won' | 'lost';
@@ -229,14 +230,14 @@ export interface RunState {
 }
 export function newRun(seed: number): RunState {
   const s: RunState = {
-    seed, monster: 0, organs: [], cutsLeft: 0, cutsMax: 0, twitchesLeft: 0, twitchNo: 0, cutNo: 0, monsterScore: 0, threshold: 0, baseThreshold: 0, hits: 0,
+    seed, monster: 0, organs: [], cutsLeft: 0, cutsMax: 0, twitchesLeft: 0, twitchNo: 0, cutNo: 0, monsterScore: 0, threshold: 0, baseThreshold: 0, thresholdAdd: 0, hits: 0,
     slots: Array(TUNE.SLOTS).fill(null), counters: [], severedKinds: [], phase: 'aim', offer: [], totalScore: 0, bestCut: 0, history: [],
   };
   return startMonster(s, 0);
 }
 export function startMonster(s: RunState, idx: number): RunState {
   const n: RunState = { ...s, monster: idx, organs: genMonster(s.seed, idx), cutsLeft: TUNE.CUTS, cutsMax: TUNE.CUTS, twitchesLeft: TUNE.TWITCHES, twitchNo: 0, cutNo: 0,
-    monsterScore: 0, threshold: TUNE.THRESHOLDS[idx], baseThreshold: TUNE.THRESHOLDS[idx], hits: 0, severedKinds: [], phase: 'aim', offer: [], counters: [] };
+    monsterScore: 0, threshold: TUNE.THRESHOLDS[idx], baseThreshold: TUNE.THRESHOLDS[idx], thresholdAdd: 0, hits: 0, severedKinds: [], phase: 'aim', offer: [], counters: [] };
   return withCounters(n);
 }
 const segDist = (p: V, a: V, b: V) => {
@@ -293,15 +294,16 @@ export function applyCut(s: RunState, a: V, b: V): { state: RunState; record: Cu
   organs = organs.map((o) => (path.boneHits.some((h) => h.id === o.id && !h.broke) ? { ...o, hp: o.hp - 1 } : o));
   const monsterScore = s.monsterScore + score.score;
   const cleared = monsterScore >= s.threshold;
-  let slots = s.slots, threshold = s.threshold, hits = s.hits, results: CounterResult[] = [], lost: StitchId[] = [];
+  let slots = s.slots, threshold = s.threshold, thresholdAdd = s.thresholdAdd, hits = s.hits, results: CounterResult[] = [], lost: StitchId[] = [];
   if (!cleared) {
     const r = resolveCounters(s.slots, s.counters, path.severed, s.baseThreshold);
-    slots = r.slots; threshold = Math.ceil(s.threshold + r.thresholdAdd - 1e-9); hits += r.hits; results = r.results; lost = r.lost;
+    thresholdAdd += r.thresholdAdd;                                  // 以本隻原門檻計、跨刀累加（不複利）；最後才無條件進位一次
+    slots = r.slots; threshold = Math.ceil(s.baseThreshold + thresholdAdd - 1e-9); hits += r.hits; results = r.results; lost = r.lost;
   }
   const severedKinds = [...s.severedKinds, ...path.severed.map((id) => byId.get(id)!.kind)];
   const record: CutRecord = { monster: s.monster, cutNo: s.cutNo, a: path.a, b: path.b, severed: path.severed.map((id) => ({ id, kind: byId.get(id)!.kind })), seq: score.seq, score,
     counters: s.counters, counterResults: results, lostStitches: lost, thresholdAfter: threshold, total: s.totalScore + score.score, cleared };
-  let n: RunState = { ...s, organs, slots, threshold, hits, monsterScore, severedKinds, cutsLeft: s.cutsLeft - 1, cutNo: s.cutNo + 1,
+  let n: RunState = { ...s, organs, slots, threshold, thresholdAdd, hits, monsterScore, severedKinds, cutsLeft: s.cutsLeft - 1, cutNo: s.cutNo + 1,
     totalScore: s.totalScore + score.score, bestCut: Math.max(s.bestCut, score.score), history: [...s.history, record] };
   if (cleared) {
     if (s.monster === TUNE.THRESHOLDS.length - 1) n = { ...n, phase: 'won', counters: [] };
