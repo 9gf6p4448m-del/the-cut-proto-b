@@ -211,6 +211,7 @@ function up(e: PointerEvent, cancelled: boolean): void {
 }
 els.canvas.addEventListener('pointerup', (e) => up(e, false));
 els.canvas.addEventListener('pointercancel', (e) => up(e, true));
+els.canvas.addEventListener('lostpointercapture', (e) => { if (G.drag && e.pointerId === G.drag.id) up(e, true); });   // 捕捉遺失＝取消，不殘留拖曳
 els.bd.forEach((b, i) => b.addEventListener('click', () => newMatch(BOARDS[i].id, G.mode)));
 els.mA1.addEventListener('click', () => newMatch(G.boardId, 'A1'));
 els.mB2.addEventListener('click', () => newMatch(G.boardId, 'B2'));
@@ -386,6 +387,9 @@ function loop(): void {
 // ---------------------------------------------------------------- PWA（子路徑獨立 scope）
 if ('serviceWorker' in navigator && window.isSecureContext) {
   void navigator.serviceWorker.register('./sw.js', { scope: './' });
+  // DL-069：順便讓根網址的註冊（若有）檢查更新——舊版根 SW 會被修好的新版取代，並清掉可能已被子頁汙染的舊根快取。
+  const rootUrl = new URL('../', location.href);
+  navigator.serviceWorker.getRegistration(rootUrl.href).then((r) => { if (r && new URL(r.scope).pathname === rootUrl.pathname) void r.update(); }).catch(() => { /* 略過 */ });
   const ownSw = new URL('./sw.js', location.href).href;
   const hadController = navigator.serviceWorker.controller?.scriptURL === ownSw;
   let reloaded = false;

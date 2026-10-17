@@ -101,6 +101,34 @@ export async function runTwinTests({ bname, btype, devices, url, check }) {
     if (!r2 || r2.side !== 'blue' || fields(pv) !== fields(r2) || r2.severed !== l1.severed) bad.push(`多指：預覽 ${fields(pv)} 結果 ${fields(r2)}`);
     await settle(page);
     check(`${tag} TS-07 回歸：拖曳中切換拆刀會重算預覽且預覽＝結果；多指時只認起刀那一指`, bad.length === 0, bad.join(' | '));
+    // RS-5（DL-069）：pointercancel、重開、換模式之後不殘留拖曳；下一刀正常
+    const bad5 = [];
+    const nextCutOk = async (lab) => {
+      const stx = await page.evaluate(() => window.__twin.st);
+      if (stx.turn !== 'blue') { bad5.push(`${lab}: 不是玩家回合`); return; }
+      const lx = candidateCuts(stx, 'blue').find((r) => r.fired.length), c0 = stx.cuts;
+      const a = await scr(page, lx.a), b = await scr(page, lx.b);
+      await P([['pointerdown', 5, a], ['pointermove', 5, b], ['pointerup', 5, b]]);
+      const r = await page.evaluate(() => window.__twin.last);
+      await settle(page);                                                              // 狀態在演出結束才套用
+      if (!r || r.side !== 'blue' || JSON.stringify(r.a.map(Math.round)) !== JSON.stringify(lx.a.map(Math.round)) || (await T(page)).cuts < c0 + 1) bad5.push(`${lab}: 下一刀異常 ${JSON.stringify({ side: r && r.side, a: r && r.a, want: lx.a, cuts: (await T(page)).cuts, c0 })}`);
+    };
+    const half = async () => { const stx = await page.evaluate(() => window.__twin.st); const lx = candidateCuts(stx, 'blue').find((r) => r.fired.length); await P([['pointerdown', 4, await scr(page, lx.a)], ['pointermove', 4, await scr(page, lx.b)]]); };
+    await page.evaluate(() => window.__twin.newMatch('b2', 'A1', { first: 'blue' })); await settle(page);
+    await half(); const pc = await T(page);
+    await P([['pointercancel', 4, { x: 10, y: 10 }]]);
+    if (await page.evaluate(() => window.__twin.preview) !== null || (await T(page)).cuts !== pc.cuts) bad5.push('pointercancel 後殘留預覽或出了刀');
+    await nextCutOk('pointercancel');
+    await page.evaluate(() => window.__twin.newMatch('b2', 'A1', { first: 'blue' })); await settle(page);
+    await half(); await page.evaluate(() => document.getElementById('restart').click()); await settle(page);
+    await page.evaluate(() => window.__twin.newMatch('b2', 'A1', { first: 'blue' })); await settle(page);
+    await P([['pointerup', 4, { x: 100, y: 700 }]]);                                   // 舊指頭放開：不得對新局出刀
+    if ((await T(page)).cuts !== 0) bad5.push('重開後舊拖曳仍出刀');
+    await nextCutOk('重開');
+    await page.evaluate(() => window.__twin.newMatch('b3', 'A1', { first: 'blue' })); await settle(page);
+    await half(); await page.evaluate(() => document.getElementById('mB2').click()); await settle(page);
+    if ((await T(page)).turn === 'blue') { const cm = (await T(page)).cuts; await P([['pointerup', 4, { x: 100, y: 700 }]]); if ((await T(page)).cuts !== cm) bad5.push('換模式後舊拖曳仍出刀'); await nextCutOk('換模式'); }
+    check(`${tag} RS-5 pointercancel／重開／換模式之後不殘留拖曳，下一刀正常`, bad5.length === 0, bad5.join(' | '));
   }
 
   // ===== TS-04 取消；TS-05 UI（切換鈕可用性、A1 不顯示次數） =====
