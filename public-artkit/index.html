@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070D19">
 <meta name="build-sha" content="__BUILD_SHA__">
-<title>執刀者 幽光美術模組 展示 v2</title>
+<title>執刀者 幽光美術模組 展示 v3</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-180.png">
 <style>
@@ -20,22 +20,23 @@
   .pair figcaption { font-size: 10px; opacity: .75; text-align: center; padding: 2px 0; }
   .pair img, .pair canvas { display: block; width: 100%; aspect-ratio: 852 / 1846; height: auto; }
   canvas.wide { display: block; width: 100%; }
-  #organs { height: 300px; } #pipe { height: 300px; }
+  #organs { height: 330px; } #pipe { height: 300px; } #feel { height: 340px; }
   p.note { font-size: 11px; opacity: .7; margin: 6px 12px 18px; line-height: 1.5; }
   #err { color: #ff8a8a; font-size: 12px; padding: 0 12px; }
   body.only header, body.only h2, body.only figcaption, body.only .pair figure.tgt, body.only p.note { display: none; }
-  body.only .pair { padding: 0; } body.only .pair canvas { width: 100vw; height: 100vh; aspect-ratio: auto; }
+  body.only canvas.wide { height: 100vh; } body.only .pair { padding: 0; } body.only .pair canvas { width: 100vw; height: 100vh; aspect-ratio: auto; }
 </style>
 </head>
 <body>
-<header><span><span class="tag">研究片段</span> <b>幽光美術模組 v2</b> · 版本 <span id="sha"></span></span><span>FPS <span id="fps">—</span></span></header>
+<header><span><span class="tag">研究片段</span> <b>幽光美術模組 v3</b> · 版本 <span id="sha"></span></span><span>FPS <span id="fps">—</span></span></header>
 <div id="err"></div>
 <section><h2>① 切割期（左：目標圖　右：實作）</h2><div class="pair"><figure class="tgt"><img src="./assets/targets/TARGET_cut.jpg" alt="目標 切割期"><figcaption>TARGET_cut</figcaption></figure><figure><canvas id="cut"></canvas><figcaption>實作</figcaption></figure></div></section>
 <section><h2>② 戰鬥期（左：目標圖　右：實作）</h2><div class="pair"><figure class="tgt"><img src="./assets/targets/TARGET_battle.jpg" alt="目標 戰鬥期"><figcaption>TARGET_battle</figcaption></figure><figure><canvas id="battle"></canvas><figcaption>實作</figcaption></figure></div></section>
 <section><h2>③ 縫合擺放（左：目標圖　右：實作）</h2><div class="pair"><figure class="tgt"><img src="./assets/targets/TARGET_stitch.jpg" alt="目標 縫合"><figcaption>TARGET_stitch</figcaption></figure><figure><canvas id="stitch"></canvas><figcaption>實作</figcaption></figure></div></section>
-<section><h2>④ 5 種器官 × 狀態（器官 sprite＝自發光＋雙層描邊，與骨架分開）</h2><canvas id="organs" class="wide"></canvas></section>
+<section><h2>④ 5 種器官 × 狀態（v0.3：素材＋陣營色外光邊，無圓框；可切脈動、按住加亮、鎖定護盾環、萌芽半透明、切除裂成兩半）</h2><canvas id="organs" class="wide"></canvas></section>
+<section><h2>⑥ v0.3 手感：教學虛擬手、刀痕光帶（亮／鈍刀）</h2><canvas id="feel" class="wide"></canvas></section>
 <section><h2>⑤ 素材管線：中性銀白素材 → 染色 → 自動身體多邊形</h2><canvas id="pipe" class="wide"></canvas></section>
-<p class="note">素材：製作人以 ChatGPT 生成的正式素材（assets/final/，縮小自 the-cut cut-battle/assets/）；?assets=placeholder 可切回從目標圖裁出的暫代素材。程式：src/art/sprites.ts、src/art/polygon.ts。單一畫面全螢幕：?only=cut｜battle｜stitch。</p>
+<p class="note">素材：製作人以 ChatGPT 生成的正式素材（assets/final/，縮小自 the-cut cut-battle/assets/）；?assets=placeholder 可切回從目標圖裁出的暫代素材。程式：src/art/sprites.ts、src/art/polygon.ts。單一畫面全螢幕：?only=cut｜battle｜stitch｜feel。v0.3：切割期本體調暗（alpha 0.45、飽和度 0.4），戰鬥期恢復。</p>
 <script src="./app.js?v=__BUILD_SHA__"></script>
 </body>
 </html>

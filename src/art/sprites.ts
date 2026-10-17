@@ -56,7 +56,9 @@ export async function loadAssets(base: string): Promise<Assets> {
   const [body, ...os] = await Promise.all([loadImage(`${base}/body.png`), ...kinds.map((k) => loadImage(`${base}/${k}.png`))]);
   return { body, organs: Object.fromEntries(kinds.map((k, i) => [k, os[i]])) as Record<Kind, HTMLImageElement> };
 }
-const keyOf = (im: Img) => (im instanceof HTMLImageElement ? im.src : `cv${(im as unknown as { __id?: number }).__id ?? 0}`);
+// 畫布沒有 src：沒帶 __id 的畫布各自配一個編號（之前一律是 cv0，不同畫布會共用快取而畫錯）
+const cvIds = new WeakMap<object, number>(); let cvNext = 1e6;
+const keyOf = (im: Img) => { if (im instanceof HTMLImageElement) return im.src; const id = (im as unknown as { __id?: number }).__id; if (id !== undefined) return `cv${id}`; let n = cvIds.get(im); if (n === undefined) { n = cvNext++; cvIds.set(im, n); } return `cv${n}`; };
 function pixels(im: Img): ImageData { const c = mk(im.width, im.height), x = c.getContext('2d')!; x.drawImage(im, 0, 0); return x.getImageData(0, 0, c.width, c.height); }
 /** 素材的 alpha 遮罩（給 bodyPolygon）。 */
 export function maskOf(im: Img): Mask { const d = pixels(im), a = new Uint8ClampedArray(d.width * d.height); for (let i = 0; i < a.length; i++) a[i] = d.data[i * 4 + 3]; return { width: d.width, height: d.height, alpha: a }; }
@@ -210,8 +212,9 @@ export type Fx2 =
   | { type: 'poison'; t0: number; at: P; stacks: number }
   | { type: 'boneShield'; t0: number; at: P; facing: number; absorbed?: number; value?: number }
   | { type: 'hitFlash'; t0: number; body: Img; rect: Rect; side: Side }
-  | { type: 'ko'; t0: number; w: number; h: number; winner: Side | 'draw' };
-const DUR2: Record<Fx2['type'], number> = { arcSlash: 0.6, critArc: 0.9, heal: 1.1, poison: 1.2, boneShield: 1.0, hitFlash: 0.3, ko: 2.6 };
+  | { type: 'ko'; t0: number; w: number; h: number; winner: Side | 'draw' }
+  | { type: 'split'; t0: number; im: Img; x: number; y: number; r: number; angle: number; side: Side; kind?: Kind; body?: Img; rect?: Rect };
+const DUR2: Record<Fx2['type'], number> = { arcSlash: 0.6, critArc: 0.9, heal: 1.1, poison: 1.2, boneShield: 1.0, hitFlash: 0.3, ko: 2.6, split: 0.6 };
 export const fx2Duration = (f: Readonly<Fx2>) => DUR2[f.type];
 export function shake2(f: Readonly<Fx2>, t: number): P { const u = t - f.t0; if (u < 0 || (f.type !== 'hitFlash' && f.type !== 'critArc')) return [0, 0]; const d = f.type === 'critArc' ? 0.3 : 0.2; if (u > d) return [0, 0]; const a = (f.type === 'critArc' ? 7 : 4) * (1 - u / d); return [Math.sin(u * 90) * a, Math.cos(u * 77) * a]; }
 /** 弧形斬擊：沿圓弧分段描線，寬度兩端尖、中間最寬（sin 輪廓）；先畫寬而淡的發光層，再畫亮核心。 */
@@ -282,6 +285,7 @@ export function playFx2(ctx: Ctx, f: Readonly<Fx2>, t: number): boolean {
       drawFitted(ctx, silhouette(f.body, RGB.white), f.rect, f.side);
       break;
     }
+    case 'split': drawSplit(ctx, f, k); break;
     case 'ko': {
       const { w, h } = f, z = 1 + 0.8 * Math.max(0, 1 - k * 5), col = f.winner === 'blue' ? '#AEEAFF' : f.winner === 'red' ? '#ff9aa6' : '#E8E0D0';
       ctx.fillStyle = `rgba(3,6,12,${0.6 * clamp01(k * 4)})`; ctx.fillRect(0, 0, w, h);
@@ -341,15 +345,20 @@ export function drawCard(ctx: Ctx, r: Rect, im: Img, kind: Kind, label: string, 
 }
 
 // ---------------------------------------------------------------- 整個對戰場景（效能用：背景＋兩獸本體＋前線帶靜態部分預烤成一張，每格只貼一次）
-export interface DuelSceneView { w: number; h: number; body: Img; rects: Record<Side, Rect>; brightness?: number; alphaGain?: number }
-const sceneCache = new Cache<{ cv: HTMLCanvasElement; blue: P[]; red: P[] }>(4);
+export interface DuelSceneView { w: number; h: number; body: Img; rects: Record<Side, Rect>; brightness?: number; alphaGain?: number; dim?: Readonly<Dim> }
+/** 本體調暗（v0.3 切割期）：alpha＝本體不透明度、saturation＝飽和度（1＝原色、0＝灰）。不傳＝v2 原樣。 */
+export interface Dim { alpha: number; saturation: number }
+export const CUT_DIM: Readonly<Dim> = Object.freeze({ alpha: 0.45, saturation: 0.4 });
+const sceneCache = new Cache<{ cv: HTMLCanvasElement; blue: P[]; red: P[] }>(6); // 切割期（調暗）與戰鬥期各一份，切換階段不重烤
 /** 建議遊戲用這個：靜態部分快取（鍵＝尺寸＋素材＋rect＋dpr），動態只畫前線邊界上的流動光點。 */
 export function drawDuelScene(ctx: Ctx, s: Readonly<DuelSceneView>, t: number): void {
   const dpr = dprOf(ctx), br = s.brightness ?? 0.8, ag = s.alphaGain ?? 1.3, R = s.rects;
-  const sc = sceneCache.get(`${s.w}x${s.h}|${keyOf(s.body)}|${JSON.stringify(R)}|${br}|${ag}@${dpr}`, () => {
+  const dm = s.dim, da = dm && Number.isFinite(dm.alpha) ? clamp01(dm.alpha) : 1, ds = dm && Number.isFinite(dm.saturation) ? clamp01(dm.saturation) : 1;
+  const sc = sceneCache.get(`${s.w}x${s.h}|${keyOf(s.body)}|${JSON.stringify(R)}|${br}|${ag}|${dm ? `${da},${ds}` : '-'}@${dpr}`, () => {
     const cv = mk(s.w * dpr, s.h * dpr), c = cv.getContext('2d')!; c.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawBackdrop(c, s.w, s.h);
-    for (const side of ['red', 'blue'] as Side[]) { const f = fitRect(s.body, R[side]), cx = R[side].x + R[side].w / 2, cy = R[side].y + R[side].h / 2, g = c.createRadialGradient(cx, cy, 10, cx, cy, Math.max(f.w, f.h) * 0.6); g.addColorStop(0, `rgba(${sideRGB(side)},0.16)`); g.addColorStop(1, `rgba(${sideRGB(side)},0)`); c.fillStyle = g; c.fillRect(f.x - 40, f.y - 40, f.w + 80, f.h + 80); drawFitted(c, tinted(s.body, SIDE_HEX[side], br, ag), R[side], side); }
+    for (const side of ['red', 'blue'] as Side[]) { const f = fitRect(s.body, R[side]), cx = R[side].x + R[side].w / 2, cy = R[side].y + R[side].h / 2, g = c.createRadialGradient(cx, cy, 10, cx, cy, Math.max(f.w, f.h) * 0.6); g.addColorStop(0, `rgba(${sideRGB(side)},${0.16 * da})`); g.addColorStop(1, `rgba(${sideRGB(side)},0)`); c.fillStyle = g; c.fillRect(f.x - 40, f.y - 40, f.w + 80, f.h + 80);
+      const tb = tinted(s.body, SIDE_HEX[side], br, ag); c.globalAlpha = da; drawFitted(c, ds < 1 ? desaturated(tb, `${keyOf(s.body)}|${side}|${br}|${ag}`, ds) : tb, R[side], side); c.globalAlpha = 1; }
     const blue = bodyPolyWorld(s.body, R.blue, 'blue'), red = bodyPolyWorld(s.body, R.red, 'red');
     drawFrontBandStatic(c, blue, red);
     return { cv, blue, red };
@@ -380,4 +389,160 @@ function drawFrontGlints(ctx: Ctx, blue: readonly P[], red: readonly P[], t: num
     for (let k = 0; k < 40; k++) { let d = ((k / 40 + t * 0.03) % 1) * per; for (const [a, b, l] of segs) { if (d <= l) { const q = d / l, p: P = [a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q]; if (pointIn(p, inside)) { ctx.beginPath(); ctx.arc(p[0], p[1], 1.8, 0, Math.PI * 2); ctx.fill(); } break; } d -= l; } }
   }
   ctx.restore();
+}
+
+// ---------------------------------------------------------------- v0.3 手感與可讀性（DL-084）：只新增函式，v2 函式行為不變
+/** 器官判定半徑＝顯示半徑（v0.3 起 34）。 */
+export const ORGAN_R = 34;
+/** 灰階混色：飽和度 sat（1＝原色）；不改原圖，以 鍵＋sat 快取。 */
+const desatCache = new Cache<HTMLCanvasElement>(8);
+function desaturated(src: Img, key: string, sat: number): HTMLCanvasElement {
+  return desatCache.get(`${key}|${sat}`, () => { const d = pixels(src), c = mk(d.width, d.height), x = c.getContext('2d')!, out = x.createImageData(d.width, d.height), a = d.data, o = out.data;
+    for (let i = 0; i < a.length; i += 4) { const l = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2]; o[i] = l + (a[i] - l) * sat; o[i + 1] = l + (a[i + 1] - l) * sat; o[i + 2] = l + (a[i + 2] - l) * sat; o[i + 3] = a[i + 3]; }
+    x.putImageData(out, 0, 0); return c; });
+}
+/** 素材主體（alpha>127）的外框（素材像素座標）。 */
+const boxCache = new Cache<Rect>(32);
+export function contentBox(im: Img): Rect {
+  return boxCache.get(keyOf(im), () => { const d = pixels(im); let x0 = d.width, y0 = d.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) if (d.data[(y * d.width + x) * 4 + 3] > 127) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    return x1 < 0 ? { x: 0, y: 0, w: im.width, h: im.height } : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }; });
+}
+/** 素材在器官上的擺法：主體外框長邊＝2r、外框中心對齊 (x,y)。回傳整張素材要畫的位置。 */
+export function organPlacement(im: Img, x: number, y: number, r: number): Rect {
+  const b = contentBox(im), s = (2 * r) / Math.max(b.w, b.h, 1);
+  return { x: x - (b.x + b.w / 2) * s, y: y - (b.y + b.h / 2) * s, w: im.width * s, h: im.height * s };
+}
+/** 外光邊最高不透明度：壓在 0.5 以下，量「alpha>50%」的顯示範圍時只會量到素材本體（顯示半徑＝r），光邊只是柔光。 */
+export const RIM_MAX_ALPHA = 0.47;
+/** 外光邊顏色：高飽和陣營色。不透明度壓低後疊在暗底上，淡色（sideL）會混成中性灰，所以光邊用比本體亮色更飽和的版本。 */
+const RIM_RGB: Record<Side, string> = { blue: '60,165,255', red: '255,45,70' };
+/** 器官預烤層（rim＝只有光邊（陣營色）、rimW＝只有光邊（白，加亮用）、body＝素材本體；邊長 2(r+pad)·dpr，器官中心在正中）：鍵＝素材＋種類＋側＋r＋dpr。 */
+type OrganLayers = { rim: HTMLCanvasElement; rimW: HTMLCanvasElement; body: HTMLCanvasElement; pad: number };
+const organLayerCache = new Cache<OrganLayers>(48);
+export function organLayers(im: Img, kind: Kind, side: Side, r: number, dpr: number): OrganLayers {
+  return organLayerCache.get(`${keyOf(im)}|${kind}|${side}|${r}@${dpr}`, () => {
+    const pad = Math.ceil(r * 0.36), size = 2 * (r + pad), pl = organPlacement(im, r + pad, r + pad, r);
+    const rimOf = (rgb: string) => {
+      const sil = silhouette(im, rgb), tmp = mk(size * dpr, size * dpr), tc = tmp.getContext('2d')!; tc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 剪影往 16 個方向位移疊印（外圈淡、內圈濃）＝沿素材輪廓膨脹的柔光，不是圓框；挖掉輪廓內；整層再乘上 RIM_MAX_ALPHA
+      for (const [d, a] of [[r * 0.3, 0.1], [r * 0.18, 0.22], [r * 0.09, 0.55]] as [number, number][]) { tc.globalAlpha = a; for (let i = 0; i < 16; i++) { const an = (i / 16) * Math.PI * 2; tc.drawImage(sil, pl.x + Math.cos(an) * d, pl.y + Math.sin(an) * d, pl.w, pl.h); } }
+      tc.globalAlpha = 1; tc.globalCompositeOperation = 'destination-out'; tc.drawImage(sil, pl.x, pl.y, pl.w, pl.h);
+      const c = mk(size * dpr, size * dpr), x = c.getContext('2d')!; x.globalAlpha = RIM_MAX_ALPHA; x.drawImage(tmp, 0, 0); return c;
+    };
+    const body = mk(size * dpr, size * dpr), bc = body.getContext('2d')!; bc.setTransform(dpr, 0, 0, dpr, 0, 0); bc.drawImage(organImg(im, kind, side), pl.x, pl.y, pl.w, pl.h);
+    return { rim: rimOf(RIM_RGB[side]), rimW: rimOf(RGB.white), body, pad };
+  });
+}
+/** 光邊＋本體合成一張（每個器官每格只貼一次；12 個器官時貼圖像素量約為分開貼的 4 成）。rimA＝光邊強度（脈動量化 8 階）、w＝光邊往白色混的比例（加亮，量化 4 階）。 */
+const organCombCache = new Cache<HTMLCanvasElement>(128);
+function organCombined(im: Img, kind: Kind, side: Side, r: number, dpr: number, rimA: number, w: number): HTMLCanvasElement {
+  return organCombCache.get(`${keyOf(im)}|${kind}|${side}|${r}|${rimA}|${w}@${dpr}`, () => { const L = organLayers(im, kind, side, r, dpr), c = mk(L.rim.width, L.rim.height), x = c.getContext('2d')!;
+    x.globalAlpha = rimA * (1 - w); x.drawImage(L.rim, 0, 0); x.globalAlpha = rimA * w; x.drawImage(L.rimW, 0, 0); x.globalAlpha = 1; x.drawImage(L.body, 0, 0); return c; });
+}
+export interface OrganStateV3 { mode: 'normal' | 'locked' | 'sprout'; cuttable?: boolean; lit?: number; target?: boolean; k?: number; label?: string }
+const finitePos = (v: number, d: number) => (Number.isFinite(v) && v > 0 ? v : d);
+/**
+ * v0.3 器官：素材本身＋陣營色外光邊（無圓框）。顯示半徑＝o.r：素材主體外框長邊＝2r、外框中心＝(x,y)；光邊不透明度 ≤RIM_MAX_ALPHA，量 alpha>50% 只量得到本體。
+ * cuttable＝對方可切（光邊緩慢脈動）；lit 0～1＝按住提示加亮（光邊轉白、本體提亮）；locked＝護盾環（k＝剩餘比例、label＝秒數）；sprout＝半透明；target＝直線預覽命中（紅色小圈，半徑 0.42r）。
+ */
+export function drawOrganV3(ctx: Ctx, im: Img, o: Readonly<OrganView>, st: Readonly<OrganStateV3>, t: number): void {
+  const { kind, side, x, y } = o, r = finitePos(o.r, ORGAN_R), lit = clamp01(Number.isFinite(st.lit) ? (st.lit as number) : 0), dpr = dprOf(ctx), L = organLayers(im, kind, side, r, dpr), half = r + L.pad;
+  const base = st.mode === 'sprout' ? 0.4 : 1, litQ = Math.round(lit * 3) / 3;
+  // 可切：光邊強度 0.45～1 緩慢脈動（0.8Hz，量化 8 階）；按住加亮時固定最強；其他固定 0.85
+  const ph = Number.isFinite(t) ? 0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 0.8) : 1, rimA = litQ > 0 ? 1 : st.cuttable ? 0.45 + 0.55 * Math.round(ph * 7) / 7 : 0.85;
+  ctx.save();
+  ctx.globalAlpha = base; ctx.drawImage(organCombined(im, kind, side, r, dpr, rimA, litQ * 0.8), x - half, y - half, half * 2, half * 2);
+  if (lit > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = base * lit * 0.4; ctx.drawImage(L.body, x - half, y - half, half * 2, half * 2); ctx.globalCompositeOperation = 'source-over'; } // 只提亮本體範圍內，不擴大顯示範圍
+  ctx.globalAlpha = 1;
+  if (st.mode === 'locked') shieldRing(ctx, x, y, r, clamp01(st.k ?? 1), t, side, st.label);
+  if (st.target) { ctx.strokeStyle = '#ff4d5e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.restore();
+}
+/** 護盾環：半透明護罩＋環，外弧＝剩餘時間，右上小鎖頭、上方秒數（不遮住器官本體）。 */
+function shieldRing(ctx: Ctx, x: number, y: number, r: number, k: number, t: number, side: Side, label?: string): void {
+  const R = r * 1.22, lt = sideL(side);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, r * 0.6, x, y, R); g.addColorStop(0, `rgba(${lt},0)`); g.addColorStop(1, `rgba(${lt},0.28)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = `rgba(${lt},${0.75 + 0.15 * Math.sin(t * 4)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(240,247,255,0.95)'; ctx.beginPath(); ctx.arc(x, y, R + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+  const s = r * 0.16, lx = x + R * 0.72, ly = y - R * 0.72; ctx.fillStyle = 'rgba(7,13,25,0.8)'; ctx.beginPath(); ctx.arc(lx, ly, s * 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#F0F7FF'; ctx.lineWidth = s * 0.5; ctx.beginPath(); ctx.arc(lx, ly - s * 0.2, s * 0.8, Math.PI, 0); ctx.stroke(); ctx.fillStyle = '#F0F7FF'; ctx.fillRect(lx - s * 1.1, ly - s * 0.2, s * 2.2, s * 1.5);
+  if (label) { ctx.font = NUM(13); ctx.fillStyle = `rgb(${lt})`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(label, x, y - R - 8); }
+  ctx.restore();
+}
+
+// ---- 切除特效（Fx2 'split'）：器官沿刀的方向裂成兩半，往刀的兩側分開、順著刀勢飛出並淡出；有傳 body、rect 就同時本體閃白
+type SplitFx = Extract<Fx2, { type: 'split' }>;
+/** 兩半的位移（世界座標）：[刀左側那半, 刀右側那半]。垂直刀向的分量方向相反。 */
+export function splitHalves(f: Readonly<SplitFx>, t: number): [P, P] {
+  const e = easeOut((t - f.t0) / DUR2.split), r = finitePos(f.r, ORGAN_R), dx = Math.cos(f.angle), dy = Math.sin(f.angle), nx = -dy, ny = dx;
+  const at = (sg: number): P => [nx * sg * e * r * 1.6 + dx * e * r * 0.9, ny * sg * e * r * 1.6 + dy * e * r * 0.9 + e * e * r * 0.5];
+  return [at(-1), at(1)];
+}
+function drawSplit(ctx: Ctx, f: Readonly<SplitFx>, k: number): void {
+  const r = finitePos(f.r, ORGAN_R), a = 1 - k, dx = Math.cos(f.angle), dy = Math.sin(f.angle), nx = -dy, ny = dx, src = organImg(f.im, f.kind ?? 'claw', f.side), pl = organPlacement(f.im, 0, 0, r);
+  const hs = splitHalves(f, f.t0 + k * DUR2.split), L = r * 3;
+  if (f.body && f.rect) { ctx.save(); ctx.globalAlpha = 0.55 * (1 - Math.min(1, k * 3)) ** 2; ctx.globalCompositeOperation = 'lighter'; drawFitted(ctx, silhouette(f.body, RGB.white), f.rect, f.side); ctx.restore(); }
+  [-1, 1].forEach((sg, i) => {
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(f.x + hs[i][0], f.y + hs[i][1]); ctx.rotate(sg * easeOut(k) * 0.6);
+    ctx.beginPath(); ctx.moveTo(-dx * L, -dy * L); ctx.lineTo(dx * L, dy * L); ctx.lineTo(dx * L + nx * sg * L, dy * L + ny * sg * L); ctx.lineTo(-dx * L + nx * sg * L, -dy * L + ny * sg * L); ctx.closePath(); ctx.clip();
+    ctx.drawImage(src, pl.x, pl.y, pl.w, pl.h);
+    ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,236,240,${0.95 * a})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-dx * r, -dy * r); ctx.lineTo(dx * r, dy * r); ctx.stroke();
+    ctx.restore();
+  });
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const R = r * (0.8 + 2.2 * easeOut(k)); ctx.drawImage(glow(RGB.white, 0.9 * a * a), f.x - R, f.y - R, R * 2, R * 2);
+  const sl = r * (1.2 + 1.6 * easeOut(Math.min(1, k * 2))); ctx.strokeStyle = `rgba(240,247,255,${a})`; ctx.lineWidth = 2.5 * a + 0.5; ctx.beginPath(); ctx.moveTo(f.x - dx * sl, f.y - dy * sl); ctx.lineTo(f.x + dx * sl, f.y + dy * sl); ctx.stroke();
+  const rr = rand(Math.round(f.x * 7 + f.y)), col = f.kind === 'poison' ? RGB.poison : sideL(f.side);
+  for (let i = 0; i < 16; i++) { const an = f.angle + (rr() - 0.5) * 1.6 + (i % 2 ? Math.PI / 2 : -Math.PI / 2) * rr(), d = r * (0.3 + (1 + rr()) * easeOut(k) * 1.8); ctx.fillStyle = `rgba(${i % 3 ? col : RGB.white},${a * (0.4 + rr() * 0.6)})`; ctx.beginPath(); ctx.arc(f.x + Math.cos(an) * d, f.y + Math.sin(an) * d, 1 + rr() * 2, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+// ---- 刀痕光帶：跟手、舊點淡出。blunt＝鈍刀（灰、暗）；每個點的 blunt 可蓋過整條設定（點 i 決定 i−1→i 那段）
+export interface TrailPt { x: number; y: number; t: number; blunt?: boolean }
+export const TRAIL_LIFE = 0.25;
+/** 還有沒淡完的段嗎（給呼叫端決定何時丟掉點列）。 */
+export function trailAlive(pts: readonly TrailPt[], now: number, life = TRAIL_LIFE): boolean { return pts.some((p, i) => i > 0 && now - p.t <= life && now - p.t >= 0); }
+export function drawTrail(ctx: Ctx, pts: readonly TrailPt[], now: number, blunt = false, life = TRAIL_LIFE, side: Side = 'blue'): void {
+  if (pts.length < 2 || !(life > 0)) return;
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let pass = 0; pass < 3; pass++) for (let i = 1; i < pts.length; i++) {
+    const p = pts[i], q = pts[i - 1], age = now - p.t; if (!(age >= 0 && age <= life) || !Number.isFinite(p.x + p.y + q.x + q.y)) continue;
+    const a = 1 - age / life, b = p.blunt ?? blunt;
+    if (b) { if (pass === 0) continue; ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = pass === 1 ? `rgba(110,118,130,${0.45 * a})` : `rgba(165,172,182,${0.55 * a})`; ctx.lineWidth = pass === 1 ? 6 * a + 1 : 1.6; }
+    else { ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = pass === 0 ? `rgba(${sideL(side)},${0.18 * a})` : pass === 1 ? `rgba(${sideL(side)},${0.55 * a})` : `rgba(${RGB.white},${0.95 * a})`; ctx.lineWidth = (pass === 0 ? 16 : pass === 1 ? 7 : 2.6) * (0.35 + 0.65 * a); }
+    ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---- 教學虛擬手：半透明手（食指指尖在 (x,y)），pressed＝按下（指尖光點＋擴散環、手略縮）
+export function drawTutorialHand(ctx: Ctx, x: number, y: number, t: number, pressed: boolean): void {
+  if (!Number.isFinite(x + y)) return;
+  ctx.save(); ctx.translate(x, y); const s = pressed ? 0.94 : 1; ctx.scale(s, s); ctx.lineCap = 'round';
+  if (pressed) { ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(glow(RGB.white, 0.8), -16, -16, 32, 32); const q = (((t * 1.6) % 1) + 1) % 1; ctx.strokeStyle = `rgba(${RGB.blueL},${0.8 * (1 - q)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 8 + q * 22, 0, Math.PI * 2); ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
+  const limb = (x0: number, y0: number, x1: number, y1: number, w: number) => { ctx.lineWidth = w + 3; ctx.strokeStyle = 'rgba(240,247,255,0.55)'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.lineWidth = w; ctx.strokeStyle = 'rgba(200,225,250,0.38)'; ctx.stroke(); };
+  limb(3, 4, 11, 40, 13); // 食指
+  for (const [fx, fy] of [[23, 34], [33, 38], [41, 44]] as P[]) limb(fx, fy, fx + 2, fy + 14, 12); // 其餘三指（彎）
+  limb(2, 52, 13, 44, 12); // 拇指
+  ctx.fillStyle = 'rgba(200,225,250,0.36)'; ctx.strokeStyle = 'rgba(240,247,255,0.55)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(26, 60, 22, 19, -0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // 手掌
+  ctx.restore();
+}
+/** 路徑上依弧長比例 u（0～1）的點。 */
+export function pathPoint(path: readonly P[], u: number): P {
+  if (!path.length) return [0, 0]; if (path.length === 1) return [path[0][0], path[0][1]];
+  let tot = 0; for (let i = 1; i < path.length; i++) tot += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+  let d = clamp01(Number.isFinite(u) ? u : 0) * tot;
+  for (let i = 1; i < path.length; i++) { const l = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); if (d <= l || i === path.length - 1) { const q = l > 0 ? Math.min(1, d / l) : 0; return [path[i - 1][0] + (path[i][0] - path[i - 1][0]) * q, path[i - 1][1] + (path[i][1] - path[i - 1][1]) * q]; } d -= l; }
+  return [path[path.length - 1][0], path[path.length - 1][1]];
+}
+/** 教學示範一刀（純函式，只看 t）：0～15% 手出現並按下、15～70% 沿路徑劃過（帶刀痕）、70～100% 抬手淡出。播完回傳 false。 */
+export function playTutorialSwipe(ctx: Ctx, path: readonly P[], t0: number, t: number, dur = 3, side: Side = 'blue'): boolean {
+  if (!(dur > 0)) return false; const u = (t - t0) / dur; if (u < 0) return true; if (u > 1) return false;
+  const sw = (v: number) => easeOut((v - 0.15) / 0.55), pos = pathPoint(path, sw(u));
+  if (u > 0.15) { const pts: TrailPt[] = []; for (let tt = Math.max(t0 + 0.15 * dur, t - TRAIL_LIFE); tt <= t + 1e-9; tt += 1 / 60) { const p = pathPoint(path, sw((tt - t0) / dur)); pts.push({ x: p[0], y: p[1], t: tt }); } drawTrail(ctx, pts, t, false, TRAIL_LIFE, side); }
+  ctx.save(); ctx.globalAlpha = u < 0.08 ? u / 0.08 : u > 0.75 ? Math.max(0, 1 - (u - 0.75) / 0.25) : 1; drawTutorialHand(ctx, pos[0], pos[1], t, u > 0.1 && u < 0.72); ctx.restore();
+  return true;
 }

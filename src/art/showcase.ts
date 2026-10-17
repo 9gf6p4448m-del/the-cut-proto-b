@@ -1,8 +1,9 @@
-// 幽光美術模組展示頁 v2（子路徑 art-kit/）：「生成圖當素材＋程式負責動態」。三個目標畫面（切割／戰鬥／縫合）各與目標圖並排，
-// 另有器官 × 狀態、素材管線（染色＋自動身體多邊形）。?only=cut|battle|stitch 只全螢幕畫一個畫面（393×852 截圖與 FPS 量測用）。
+// 幽光美術模組展示頁 v3（子路徑 art-kit/）：「生成圖當素材＋程式負責動態」。三個目標畫面（切割／戰鬥／縫合）各與目標圖並排，
+// 另有器官 × 狀態、素材管線（染色＋自動身體多邊形）、v0.3 手感（教學虛擬手、刀痕光帶）。?only=cut|battle|stitch|feel 只全螢幕畫一個畫面（393×852 截圖與 FPS 量測用）。
+// v0.3（DL-084）：切割期本體調暗（CUT_DIM）、器官改 drawOrganV3（無圓框、陣營色外光邊、半徑 ORGAN_R＝34）、切除特效 split、刀痕 drawTrail。
 // v1 的程式繪製獸身展示（drawScene 等）仍在 src/art/ghostlight.ts，可在 git 歷史 06797e8 的展示頁看到。
-import { bodyPolyWorld, drawBackdrop, drawBlade, drawBodySprite, drawCard, drawDuelScene, drawHud, loadLog, drawOrganSprite, drawSlot, drawSuture, loadAssets, maskOf, playFx2, shake2, tinted } from './sprites.ts';
-import type { Assets, Fx2, Kind, OrganState, Rect, Side } from './sprites.ts';
+import { CUT_DIM, ORGAN_R, bodyPolyWorld, organLayers, drawBackdrop, drawBodySprite, drawCard, drawDuelScene, drawHud, drawOrganSprite, drawOrganV3, drawSlot, drawSuture, drawTrail, loadAssets, loadLog, maskOf, pathPoint, playFx2, playTutorialSwipe, shake2, tinted } from './sprites.ts';
+import type { Assets, Fx2, Kind, OrganStateV3, Rect, Side, TrailPt } from './sprites.ts';
 import { bodyPolygon, maskArea, polygonArea, downsampleMask, outerRingArea } from './polygon.ts';
 import type { P } from './polygon.ts';
 
@@ -38,20 +39,29 @@ function countsColumn(c: CanvasRenderingContext2D, A: Assets, x: number, side: S
   (['claw', 'heart', 'eye', 'poison'] as Kind[]).forEach((k, i) => { const y = 92 + i * 34, im = k === 'poison' ? A.organs[k] : tinted(A.organs[k], side === 'blue' ? '#278DD1' : '#C73548', 1.05); c.drawImage(im, x - 13, y - 13, 26, 26); c.font = 'italic 300 16px Georgia,serif'; c.fillStyle = side === 'blue' ? '#AEEAFF' : '#ffb0b8'; c.textAlign = align > 0 ? 'left' : 'right'; c.textBaseline = 'middle'; c.fillText(`${n[k]}`, x + align * 20, y); });
 }
 
-// ---- 切割期（TARGET_cut）----
+// ---- 切割期（TARGET_cut）：本體調暗、器官無圓框；每 3.2 秒示範一刀：按住（範圍內的對方器官加亮）→ 劃過自己的心（鎖定）→ 切下對方的毒（裂成兩半）----
+const CUT_LOOP = 3.2, HOLD: [number, number] = [0.3, 0.7], SWIPE: [number, number] = [0.7, 1.05];
+function cutPath(os: ReturnType<typeof organs>): P[] { const tg = os.find((o) => o.side === 'red' && o.kind === 'poison')!.p, own = os.find((o) => o.side === 'blue' && o.kind === 'heart')!.p; return [[own[0] + 70, own[1] + 120], own, tg]; }
 const drawCut: Draw = (c, w, h, t, A) => {
-  const R = duelRects(w, h), r = Math.max(16, w * 0.054);
-  drawDuelScene(c, { w, h, body: A.body, rects: R }, t);
-  const os = organs(R), a: P = [w * 0.86, h * 0.73], b: P = [w * 0.2, h * 0.32];
-  const hit = (p: P) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy, q = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)); return Math.hypot(p[0] - a[0] - q * dx, p[1] - a[1] - q * dy) < r * 1.1; };
-  os.forEach((o, i) => { const st: OrganState = o.side === 'blue' && o.kind === 'heart' ? { mode: 'locked', k: 1 - ((t * 0.2) % 1), label: (3 - ((t * 0.6) % 3)).toFixed(1) } : i === 11 ? { mode: 'sprout', k: (t * 0.5) % 1 } : { mode: 'normal', target: o.side === 'red' && hit(o.p) }; drawOrganSprite(c, A.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r }, st, t); });
-  drawBlade(c, a, b, os.filter((o) => o.side === 'red' && hit(o.p)).map((o) => o.p), t, true);
-  countsColumn(c, A, 22, 'blue', { claw: 2, heart: 1, eye: 1, poison: 1, bone: 1 }, 1); countsColumn(c, A, w - 22, 'red', { claw: 2, heart: 1, eye: 1, poison: 1, bone: 1 }, -1);
+  const R = duelRects(w, h), r = ORGAN_R, os = organs(R), lt = ((t % CUT_LOOP) + CUT_LOOP) % CUT_LOOP, base = t - lt, path = cutPath(os), start = path[0];
+  drawDuelScene(c, { w, h, body: A.body, rects: R, dim: CUT_DIM }, t);
+  const at = (tt: number): P => pathPoint(path, (tt - base - SWIPE[0]) / (SWIPE[1] - SWIPE[0])), cut = lt >= SWIPE[1], holding = lt >= HOLD[0] && lt < SWIPE[0], lockAt = (SWIPE[0] + SWIPE[1]) / 2;
+  os.forEach((o, i) => {
+    if (cut && o.side === 'red' && o.kind === 'poison') return;
+    const near = Math.hypot(o.p[0] - start[0], o.p[1] - start[1]) <= 420;
+    const st: OrganStateV3 = o.side === 'blue' && o.kind === 'heart' ? (lt >= lockAt ? { mode: 'locked', k: 1 - (lt - lockAt) / 3, label: (3 - (lt - lockAt)).toFixed(1) } : { mode: 'normal' }) : i === 11 ? { mode: 'sprout' } : { mode: 'normal', cuttable: o.side === 'red', lit: o.side === 'red' && holding && near ? Math.min(1, (lt - HOLD[0]) / 0.15) : 0 };
+    drawOrganV3(c, A.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r }, st, t);
+  });
+  if (lt >= SWIPE[0]) { const pts: TrailPt[] = []; for (let tt = Math.max(base + SWIPE[0], t - 0.25); tt <= Math.min(t, base + SWIPE[1]) + 1e-9; tt += 1 / 60) { const p = at(tt); pts.push({ x: p[0], y: p[1], t: tt }); } drawTrail(c, pts, t); }
+  const tg = path[2], own = path[1];
+  playFx2(c, { type: 'split', t0: base + SWIPE[1], im: A.organs.poison, kind: 'poison', side: 'red', x: tg[0], y: tg[1], r, angle: Math.atan2(tg[1] - own[1], tg[0] - own[0]), body: A.body, rect: R.red }, t);
+  if (holding) { c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = 'rgba(174,234,255,0.5)'; c.lineWidth = 2; c.beginPath(); c.arc(start[0], start[1], 10 + 6 * Math.sin(t * 9), 0, Math.PI * 2); c.stroke(); c.restore(); }
+  countsColumn(c, A, 22, 'blue', { claw: 2, heart: 1, eye: 1, poison: 1, bone: 1 }, 1); countsColumn(c, A, w - 22, 'red', { claw: 2, heart: 1, eye: 1, poison: cut ? 0 : 1, bone: 1 }, -1);
   drawHud(c, { w, timer: `0:${String(18 - Math.floor(t % 18)).padStart(2, '0')}`, hp: { blue: 92, red: 61, max: 100 } });
 };
 // ---- 戰鬥期（TARGET_battle）----
 const drawBattle: Draw = (c, w, h, t, A) => {
-  const R = duelRects(w, h), r = Math.max(16, w * 0.054), os = organs(R), loop = 4.8, lt = t % loop, base = t - lt;
+  const R = duelRects(w, h), r = ORGAN_R, os = organs(R), loop = 4.8, lt = t % loop, base = t - lt;
   const P = (side: Side, kind: Kind) => os.find((o) => o.side === side && o.kind === kind)!.p;
   const fxs: Fx2[] = [
     { type: 'arcSlash', t0: base + 0.2, from: P('blue', 'claw'), to: P('red', 'eye'), side: 'blue', dmg: 4 },
@@ -64,7 +74,7 @@ const drawBattle: Draw = (c, w, h, t, A) => {
   let sx = 0, sy = 0; for (const f of fxs) { const o = shake2(f, t); sx += o[0]; sy += o[1]; }
   c.fillStyle = '#070D19'; c.fillRect(0, 0, w, h); c.save(); c.translate(sx, sy);
   drawDuelScene(c, { w, h, body: A.body, rects: R }, t);
-  os.forEach((o) => drawOrganSprite(c, A.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r }, { mode: 'normal', lit: o.side === 'red' && o.kind === 'heart' ? Math.max(0, 1 - ((lt - 2.0 + loop) % loop) * 3) : 0 }, t));
+  os.forEach((o) => drawOrganV3(c, A.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r }, { mode: 'normal', lit: o.side === 'red' && o.kind === 'heart' ? Math.max(0, 1 - ((lt - 2.0 + loop) % loop) * 3) : 0 }, t));
   for (const f of fxs) playFx2(c, f, t);
   c.restore();
   drawHud(c, { w, banner: '×2 加時', hp: { blue: 74, red: 68 - Math.floor((lt / loop) * 6), max: 100 } });
@@ -83,16 +93,30 @@ const drawStitch: Draw = (c, w, h, t, A) => {
   cards.forEach(([k, s], i) => drawCard(c, { x: w * 0.05 + i * (cw + w * 0.035), y: cy, w: cw, h: ch }, A.organs[k], k, s, i === 2, t));
   const from: P = [w * 0.05 + 2 * (cw + w * 0.035) + cw / 2, cy + 10], to = at(0.57, 0.3); drawSuture(c, from, to, t); drawSlot(c, to[0], to[1], r * 0.9, 'hover', t);
 };
-// ---- 器官 × 狀態 ----
-const COLS: { name: string; side: Side; st: (t: number) => OrganState }[] = [
-  { name: '正常藍', side: 'blue', st: () => ({ mode: 'normal' }) }, { name: '正常紅', side: 'red', st: () => ({ mode: 'normal' }) },
-  { name: '發動', side: 'blue', st: (t) => ({ mode: 'normal', lit: Math.max(0, 1 - (t % 1.4) * 1.6) }) }, { name: '鎖定', side: 'blue', st: (t) => ({ mode: 'locked', k: 1 - ((t * 0.25) % 1) }) },
-  { name: '萌芽', side: 'blue', st: (t) => ({ mode: 'sprout', k: (t * 0.45) % 1 }) }, { name: '爆開', side: 'red', st: (t) => ({ mode: 'burst', k: (t * 0.7) % 1 }) },
+// ---- 器官 × 狀態（v0.3：素材＋陣營色外光邊，無圓框）----
+const COLS: { name: string; side: Side; st?: (t: number) => OrganStateV3 }[] = [
+  { name: '正常藍', side: 'blue', st: () => ({ mode: 'normal' }) }, { name: '可切紅（脈動）', side: 'red', st: () => ({ mode: 'normal', cuttable: true }) },
+  { name: '按住加亮', side: 'red', st: (t) => ({ mode: 'normal', cuttable: true, lit: 0.5 + 0.5 * Math.sin(t * 3) }) }, { name: '鎖定（護盾環）', side: 'blue', st: (t) => ({ mode: 'locked', k: 1 - ((t * 0.25) % 1) }) },
+  { name: '萌芽（半透明）', side: 'red', st: () => ({ mode: 'sprout' }) }, { name: '切除', side: 'red' },
 ];
 const drawOrgans: Draw = (c, w, h, t, A) => {
-  drawBackdrop(c, w, h); const top = 26, left = 24, cw = (w - left) / COLS.length, rh = (h - top) / KINDS.length, R = Math.min(cw, rh) * 0.28;
-  COLS.forEach((col, j) => label(c, col.name, left + cw * (j + 0.5), 12, 10));
-  KINDS.forEach((k, i) => { label(c, ZH[k], 11, top + rh * (i + 0.5), 14, '#F0F7FF'); COLS.forEach((col, j) => drawOrganSprite(c, A.organs[k], { kind: k, side: col.side, x: left + cw * (j + 0.5), y: top + rh * (i + 0.5), r: R }, col.st(t), t)); });
+  drawBackdrop(c, w, h); const top = 26, left = 24, cw = (w - left) / COLS.length, rh = (h - top) / KINDS.length, R = Math.min(cw, rh) * 0.36;
+  COLS.forEach((col, j) => label(c, col.name, left + cw * (j + 0.5), 12, 9));
+  KINDS.forEach((k, i) => { label(c, ZH[k], 11, top + rh * (i + 0.5), 14, '#F0F7FF'); COLS.forEach((col, j) => { const x = left + cw * (j + 0.5), y = top + rh * (i + 0.5);
+    if (col.st) drawOrganV3(c, A.organs[k], { kind: k, side: col.side, x, y, r: R }, col.st(t), t);
+    else { const lp = 1.2, t0 = t - (((t % lp) + lp) % lp); if (t - t0 < 0.2) drawOrganV3(c, A.organs[k], { kind: k, side: col.side, x, y, r: R }, { mode: 'normal', cuttable: true }, t); else playFx2(c, { type: 'split', t0: t0 + 0.2, im: A.organs[k], kind: k, side: col.side, x, y, r: R, angle: -0.6 }, t); } }); });
+};
+// ---- v0.3 手感：教學虛擬手（沿路徑劃一刀，約 3 秒）＋刀痕光帶兩種樣式 ----
+function curveTrail(t: number, f: (tt: number) => P, blunt: boolean): TrailPt[] { const pts: TrailPt[] = []; for (let tt = t - 0.25; tt <= t + 1e-9; tt += 1 / 60) { const p = f(tt); pts.push({ x: p[0], y: p[1], t: tt, blunt }); } return pts; }
+const drawFeel: Draw = (c, w, h, t, A) => {
+  drawBackdrop(c, w, h); const half = w / 2;
+  label(c, '教學虛擬手（每台裝置一次）', half / 2, 14, 11); label(c, '刀痕光帶', half + half / 2, 14, 11);
+  const path: P[] = [[half * 0.8, h * 0.82], [half * 0.45, h * 0.5], [half * 0.2, h * 0.22]], lp = 3.6, t0 = t - (((t % lp) + lp) % lp);
+  drawOrganV3(c, A.organs.claw, { kind: 'claw', side: 'red', x: path[2][0], y: path[2][1], r: 22 }, { mode: 'normal', cuttable: true }, t);
+  playTutorialSwipe(c, path, t0, t, 3);
+  const fx = (y0: number) => (tt: number): P => [half + half * (0.5 + 0.36 * Math.sin(tt * 2.6)), y0 + 26 * Math.sin(tt * 5.2)];
+  drawTrail(c, curveTrail(t, fx(h * 0.36), false), t); label(c, '切割中（亮）', half + half / 2, h * 0.36 + 44, 10);
+  drawTrail(c, curveTrail(t, fx(h * 0.72), true), t); label(c, '鈍刀（灰暗：速度不足）', half + half / 2, h * 0.72 + 44, 10);
 };
 // ---- 素材管線：原圖、染藍、染紅（轉 180°）＋自動身體多邊形 ----
 let pipeInfo = '';
@@ -106,7 +130,7 @@ const drawPipe: Draw = (c, w, h, t, A) => {
   label(c, pipeInfo, w / 2, h - 18, 10, '#FFD27A');
 };
 
-panel('cut', drawCut); panel('battle', drawBattle); panel('stitch', drawStitch); panel('organs', drawOrgans); panel('pipe', drawPipe);
+panel('cut', drawCut); panel('battle', drawBattle); panel('stitch', drawStitch); panel('organs', drawOrgans); panel('pipe', drawPipe); panel('feel', drawFeel);
 
 // ---- 迴圈與 FPS ----
 const cost: Record<string, number> = {};
@@ -134,5 +158,6 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-(window as unknown as { __art: unknown }).__art = { fps, cost, get ready() { return !!assets; }, sha: SHA, loadLog };
+// v3 繪圖函式與素材也掛出來，給瀏覽器像素測試在頁面裡直接呼叫（tests/browser/artkit_tests.mjs）
+(window as unknown as { __art: unknown }).__art = { fps, cost, get ready() { return !!assets; }, get assets() { return assets; }, sha: SHA, loadLog, api: { CUT_DIM, ORGAN_R, drawOrganV3, organLayers, drawDuelScene, bodyPolyWorld, drawTrail, playFx2 } };
 if ('serviceWorker' in navigator && window.isSecureContext) void navigator.serviceWorker.register('./sw.js', { scope: './' });
