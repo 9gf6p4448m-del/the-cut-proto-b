@@ -29,7 +29,10 @@ export interface Mode {
   maxPerSide?: Record<Side, number>;         // 再生上限；不給＝MAX_PER_SIDE（8）
   spawnRule?: 'cb';                          // 'cb'＝再生位置另須整個圓在獸身內、對方刀碰得到（DUEL_BLADE_V01 補述 1）
   aiJitter?: number;                         // AI 出刀間隔＝冷卻＋0～aiJitter 步；不給＝AI_JITTER_STEPS
+  body?: Record<Side, V[]>;                  // 獸身多邊形（duel2：由已確認的 beast_boundary.json 換成世界座標）；不給＝BODY
 }
+/** 這一局的獸身多邊形（起刀、再生、位置規則都用它）。 */
+export const bodyOf = (mode: { body?: Record<Side, V[]> }, side: Side): V[] => mode.body?.[side] ?? BODY[side];
 export const MODE_RT1: Mode = { knockout: false, regen: false };
 export const MODE_RT2: Mode = { knockout: true, regen: true };
 export const REGEN_STEPS = 300;              // 每 5 秒一個再生節拍【試玩數值】
@@ -97,22 +100,22 @@ function segPointDist(p: V, a: V, b: V): number {
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2));
   return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
 }
-/** 圓心在獸身內，且到每條邊 ≥ 半徑＋1（整個圓在獸身內，不壓邊）。 */
-export function circleInside(p: V, side: Side, r = R): boolean {
-  const poly = BODY[side];
+/** 圓心在獸身內，且到每條邊 ≥ 半徑＋1（整個圓在獸身內，不壓邊）。body 不給＝BODY。 */
+export function circleInside(p: V, side: Side, r = R, body?: Record<Side, V[]>): boolean {
+  const poly = body?.[side] ?? BODY[side];
   if (!inside(p, poly)) return false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if (segPointDist(p, poly[j], poly[i]) < r + 1) return false;
   return true;
 }
 /** 攻擊方獸身內存在一個起點，長度 ≤ MAX_LEN 的刀碰得到這個圓（圓心到攻擊方獸身距離 ≤ MAX_LEN＋R−1）。 */
-export function reachableBy(p: V, attacker: Side, r = R): boolean {
-  const poly = BODY[attacker];
+export function reachableBy(p: V, attacker: Side, r = R, body?: Record<Side, V[]>): boolean {
+  const poly = body?.[attacker] ?? BODY[attacker];
   if (inside(p, poly)) return true;
   let d = Infinity;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) d = Math.min(d, segPointDist(p, poly[j], poly[i]));
   return d <= MAX_LEN + r - 1;
 }
-export const validSpot = (p: V, side: Side) => circleInside(p, side) && reachableBy(p, other(side));
+export const validSpot = (p: V, side: Side, body?: Record<Side, V[]>) => circleInside(p, side, R, body) && reachableBy(p, other(side), R, body);
 
 // ---------------------------------------------------------------- 狀態
 export type Phase = 'cut' | 'duel' | 'ko';
@@ -178,7 +181,7 @@ export function resolveStrike(s: GameState, side: Side, raw: Line): StrikeResult
   if (s.phase !== 'cut' || s.step >= endStep(s)) return { ...base, ok: false, reject: 'phase' };
   if (Math.hypot(raw.b[0] - raw.a[0], raw.b[1] - raw.a[1]) < MIN_LEN) return { ...base, ok: false, reject: 'short' };
   if (s.cdUntil[side] > s.step) return { ...base, ok: false, reject: 'cooldown' };
-  if (!inside(raw.a, BODY[side])) return { ...base, ok: false, reject: 'start' };
+  if (!inside(raw.a, bodyOf(s.mode, side))) return { ...base, ok: false, reject: 'start' };
   const line = clampLine(raw);
   const hits: { i: number; t: number }[] = [];
   s.organs.forEach((o, i) => { if (!isReady(s, i)) return; const t = entryDist(line.a, line.b, o.p); if (t !== null) hits.push({ i, t }); });
@@ -207,14 +210,14 @@ export interface StepOut { state: GameState; events: GameEvent[] }
 
 /** 再生位置：獸身多邊形內、與所有現存器官（含萌芽中、含對方）中心距 ≥2R；用再生亂數流取樣，最多 400 次。改寫 s.regenRng。 */
 function spawnPoint(s: GameState, side: Side): V | null {
-  const xs = BODY[side].map((p) => p[0]), ys = BODY[side].map((p) => p[1]);
+  const poly = bodyOf(s.mode, side), xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   for (let tries = 0; tries < 400; tries++) {
     let u: number, v: number;
     [u, s.regenRng] = rand(s.regenRng); [v, s.regenRng] = rand(s.regenRng);
     const p: V = [Math.round(x0 + u * (x1 - x0)), Math.round(y0 + v * (y1 - y0))];
-    if (!inside(p, BODY[side])) continue;
-    if (s.mode.spawnRule === 'cb' && !validSpot(p, side)) continue;
+    if (!inside(p, poly)) continue;
+    if (s.mode.spawnRule === 'cb' && !validSpot(p, side, s.mode.body)) continue;
     if (s.organs.some((o, i) => s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 2 * R)) continue;
     return p;
   }

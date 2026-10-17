@@ -11,6 +11,7 @@ import { runTwinSimTests } from './twinsim_tests.mjs';
 import { runRtCutTests } from './rtcut_tests.mjs';
 import { runRtCut2Tests } from './rtcut2_tests.mjs';
 import { runCbTests } from './cb_tests.mjs';
+import { runDaTests } from './da_tests.mjs';
 import { runArtKitTests } from './artkit_tests.mjs';
 import { runRootSwTests } from './root_sw_tests.mjs';
 
@@ -257,6 +258,8 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runRtCut2Tests({ bname, btype, devices, url, check });
   await runCbTests({ bname, btype, devices, url, check });
+  await runCbTests({ bname, btype, devices, url, check, sub: 'duel2', ver: 'v0.2 美術合併', winSeed: 2 });
+  await runDaTests({ bname, btype, devices, url, check });
 }
 
 // ---- 幽光美術展示頁（art-kit/）：素材載入重試與失敗提示（2026-10-18 iOS 回報） ----

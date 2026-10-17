@@ -38,16 +38,17 @@ function legalSpot(camp) {
   return null;
 }
 
-export async function runCbTests({ bname, btype, devices, url, check }) {
+export async function runCbTests({ bname, btype, devices, url, check, sub = 'duel', ver = 'v0.1 切割→戰鬥', winSeed = 1 }) {
   const browser = await btype.launch();
-  const tag = `[${bname}][duel]`;
+  const tag = `[${bname}][${sub}]`;
+  const ready = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady !== false && !!window.__cb.camp, null, { timeout: 30000 });
   const { ctx, page } = await newPage(browser, bname, devices, ...SIZES.iPhone14Pro);
-  await page.goto(url + '/duel/');
-  await page.waitForFunction(() => !!window.__cb);
+  await page.goto(url + `/${sub}/`);
+  await ready(page);
   await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 0.05 }); });
   const sha = await page.getAttribute('meta[name="build-sha"]', 'content');
   const top = await page.textContent('#top');
-  check(`${tag} CB-07 版本 SHA、「研究片段」、畫面顯示「v0.1 切割→戰鬥」`, top.includes(sha) && top.includes('研究片段') && (await page.textContent('#ver')) === 'v0.1 切割→戰鬥' && !sha.includes('__'), sha);
+  check(`${tag} CB-07 版本 SHA、「研究片段」、畫面顯示「${ver}」`, top.includes(sha) && top.includes('研究片段') && (await page.textContent('#ver')) === ver && !sha.includes('__'), sha);
 
   // ===== CB-04 可讀性：5 種器官都有視覺事件；貢獻表＝事件加總；點器官有說明 =====
   {
@@ -89,7 +90,7 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
   // 種子 1：tests/cb_stats.ts 的零延遲貪婪探針在 Node 端能三場全勝；這裡用同一套挑刀規則以真實拖曳重打
   {
     const bad = []; let placed = null, rejectSeen = false;
-    await page.evaluate(() => window.__cb.newRun({ seed: 1 }));
+    await page.evaluate((sd) => window.__cb.newRun({ seed: sd }), winSeed);
     for (let stage = 0; stage < 3; stage++) {
       await playCut(page);
       await waitUi(page, 'contrib');
@@ -128,7 +129,7 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
     // 重開：全部重置
     await page.click('#again');
     const z = await C(page);
-    const reset = z.ui === 'cut' && z.camp.stage === 0 && z.camp.stitches.length === 0 && z.camp.history.length === 0 && z.camp.phase === 'cut' && z.game.step === 0 && !z.game.organs.some((o) => o.id.startsWith('藍縫')) && z.camp.seed !== 1;
+    const reset = z.ui === 'cut' && z.camp.stage === 0 && z.camp.stitches.length === 0 && z.camp.history.length === 0 && z.camp.phase === 'cut' && z.game.step === 0 && !z.game.organs.some((o) => o.id.startsWith('藍縫')) && z.camp.seed !== winSeed;
     check(`${tag} CB-06 重開後狀態全部重置`, reset, JSON.stringify({ ui: z.ui, stage: z.camp.stage, st: z.camp.stitches.length }));
   }
   // ===== CB-06 第 1 場輸：不出刀 =====
@@ -144,7 +145,7 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
   // ===== CB-07 手機版面（兩種尺寸；切割、戰鬥貢獻、縫合選項、結果） =====
   for (const [label, [w, h]] of Object.entries(SIZES)) {
     const { ctx: c2, page: p } = await newPage(browser, bname, devices, w, h);
-    await p.goto(url + '/duel/'); await p.waitForFunction(() => !!window.__cb);
+    await p.goto(url + `/${sub}/`); await ready(p);
     await p.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 0.05 }); window.__cb.newRun({ seed: 1 }); });
     const bad = [];
     const visible = async (sel) => p.evaluate((s) => {
