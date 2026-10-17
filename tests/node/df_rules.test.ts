@@ -136,6 +136,10 @@ test('DF-01 長度 420 截止；放開、cancel、第二指都會結束；冷卻
   assert.ok(c1.s.alive[1]); assert.equal(ofType(c1, 'freeReject')[0].e.reason, 'cooldown');
   const c2 = run(g, [...swipe([100, 900], [300, 900], 0, 100, 8), ...swipe([350, 760], [350, 380], t96, 100, 8)], 400);
   assert.equal(c2.s.alive[1], false);
+  // 同一步內：一刀結束後立刻再按下（還在同一個 1/60 秒內）→ 也算冷卻中
+  const same = run(g, [{ t: 20, k: 'down', p: [100, 900] }, { t: 22, k: 'move', p: [140, 900] }, { t: 23, k: 'up', p: [140, 900] }, { t: 25, k: 'down', p: [350, 760] }, { t: 30, k: 'move', p: [350, 380] }, { t: 31, k: 'up', p: [350, 380] }], 40);
+  assert.equal(stepOf(20), stepOf(31));
+  assert.deepEqual(ofType(same, 'freeReject').map((x) => x.e.reason), ['cooldown']); assert.ok(same.s.alive[1]);
   // 切割期結束：進行中的刀作廢
   const shortGame = game([B1, R1], { ...MODE, cutSteps: 10 });
   const pe = run(shortGame, swipe([100, 900], [300, 900], 100, 400, 8), 100);
