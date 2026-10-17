@@ -9,7 +9,7 @@ const { srv, url } = await serve(process.cwd());
 const shotDir = process.argv[2];
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]].filter(([n]) => !process.env.DA_ONLY || n === process.env.DA_ONLY)) {
   await runDaTests({ bname, btype, devices, url, check, shotDir: bname === 'chromium' ? shotDir : undefined });
-  if (!process.env.DA_SKIP_CB) await runCbTests({ bname, btype, devices, url, check, sub: 'duel2', ver: 'v0.2 美術合併', winSeed: Number(process.env.DA_WIN_SEED ?? 2) });
+  if (!process.env.DA_SKIP_CB) await runCbTests({ bname, btype, devices, url, check, sub: 'duel2', ver: 'v0.2 美術合併', winSeed: Number(process.env.DA_WIN_SEED ?? 3) });
 }
 srv.close();
 const failed = results.filter((r) => !r.ok);

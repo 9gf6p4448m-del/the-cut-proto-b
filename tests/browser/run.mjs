@@ -258,7 +258,7 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runRtCut2Tests({ bname, btype, devices, url, check });
   await runCbTests({ bname, btype, devices, url, check });
-  await runCbTests({ bname, btype, devices, url, check, sub: 'duel2', ver: 'v0.2 美術合併', winSeed: 2 });
+  await runCbTests({ bname, btype, devices, url, check, sub: 'duel2', ver: 'v0.2 美術合併', winSeed: 3 });
   await runDaTests({ bname, btype, devices, url, check });
 }
 

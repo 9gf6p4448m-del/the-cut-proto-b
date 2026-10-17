@@ -58,7 +58,7 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
   // ===== DA-04 對齊：讀畫面像素量器官 sprite 實際中心 vs 規則座標（≤2 CSS px）；觸控換算：刀線端點＝手指位置；刀線預覽命中＝結算命中（≥10 條實拖） =====
   // 量測位置＝使用者看到的像素：測試模式下只畫一個器官（黑底），讀整張畫布，取「亮像素」（RGB 和 >300：雙層描邊環與器官圖本體，排除淡光暈）外框的中心；環是以器官中心對稱的圓，器官圖若偏離中心會撐大外框而被量到。
   {
-    const bad = []; let n = 0, maxErr = 0, checked = 0, maxTouch = 0;
+    const bad = []; let n = 0, maxErr = 0, checked = 0, maxTouch = 0, rejected = 0;
     const pixelCenter = (id) => page.evaluate(async (oid) => {
       window.__cb.isolate(oid);
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -79,9 +79,9 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
       }
     };
     await alignCheck();
-    for (let g = 0; g < 4 && n < 12; g++) {
+    for (let g = 0; g < 5 && n - rejected < 12; g++) {
       await page.evaluate((sd) => window.__cb.newRun({ seed: sd }), 40 + g); await page.waitForTimeout(80);
-      for (let k = 0; k < 8 && n < 12; k++) {
+      for (let k = 0; k < 8 && n - rejected < 12; k++) {
         const s = await D(page); if (s.ui !== 'cut') break;
         if (s.game.cdUntil.blue > s.game.step) { await page.evaluate((m) => window.__cb.advance(m), s.game.cdUntil.blue - s.game.step); continue; }
         const cs = candidates(s.game, 'blue').filter((l) => resolveStrike(s.game, 'blue', l).ok);
@@ -96,7 +96,10 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
         await page.evaluate(() => window.__cb.advance(1));
         const post = await D(page); n++;
         const pv = pre.preview, rec = post.last;
-        if (!pv || !rec) { bad.push(`#${n} 沒有預覽或結算`); continue; }
+        if (!pv) { bad.push(`#${n} 沒有預覽`); continue; }
+        // 預覽說不能出刀（例如手指換算後起點剛好落在龍身邊界外）→ 結算也不能出刀：冷卻不變、沒有新的一刀
+        if (!pv.ok) { if (post.game.cdUntil.blue !== pre.game.cdUntil.blue) bad.push(`#${n} 預覽拒絕（${pv.reject}）但結算出了刀`); rejected++; continue; }
+        if (!rec || post.game.cdUntil.blue === pre.game.cdUntil.blue) { bad.push(`#${n} 預覽可出刀但結算沒有出刀`); continue; }
         // 觸控換算：結算刀線的起點（世界座標）換回螢幕，要落在手指按下的位置
         const a2 = await scr(page, rec.line.a), te = Math.hypot(a2.x - A.x, a2.y - A.y); maxTouch = Math.max(maxTouch, te);
         if (te > 2) bad.push(`#${n} 刀線起點和手指差 ${te.toFixed(2)}px`);
@@ -104,7 +107,7 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
         if (key(pv) !== key(rec)) bad.push(`#${n} 預覽 ${key(pv)}≠結算 ${key(rec)}`);
       }
     }
-    check(`${tag} DA-04 對齊：器官 sprite 的像素中心與規則座標誤差 ≤2 CSS px、刀線起點＝手指位置；刀線預覽命中＝結算命中（實拖 ${n} 條）`, bad.length === 0 && n >= 10 && checked >= 30, `像素中心最大誤差 ${maxErr.toFixed(2)}px（${checked} 個）、觸控最大誤差 ${maxTouch.toFixed(2)}px｜${bad.slice(0, 3).join('；')}`);
+    check(`${tag} DA-04 對齊：器官 sprite 的像素中心與規則座標誤差 ≤2 CSS px、刀線起點＝手指位置；刀線預覽命中＝結算命中（實拖 ${n} 條）`, bad.length === 0 && n - rejected >= 10 && checked >= 30, `出刀 ${n - rejected}／預覽拒絕 ${rejected}｜像素中心最大誤差 ${maxErr.toFixed(2)}px（${checked} 個）、觸控最大誤差 ${maxTouch.toFixed(2)}px｜${bad.slice(0, 3).join('；')}`);
   }
 
   // ===== DA-03 畫面：三個畫面都由 art-kit 繪製；393×852 截圖與目標圖並排存檔 =====

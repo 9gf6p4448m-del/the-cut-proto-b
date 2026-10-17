@@ -366,6 +366,8 @@ let fps = { frames: 0, t0: 0, last: 0 };
 let isolateId: string | null = null;
 function draw(now: number): void {
   const t = now / 1000;
+  // 畫布的 CSS 尺寸會因上方文字換行等版面變動而改變（不一定觸發 resize）；尺寸一變就重算換算與緩衝區，否則畫面和觸控會錯位（DA-04，WebKit 實測 4px）
+  { const r = els.canvas.getBoundingClientRect(); if (Math.abs(r.width - cw) > 0.5 || Math.abs(r.height - ch) > 0.5) layout(); }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#070D19'; ctx.fillRect(0, 0, cw, ch);
   if (!ASSETS) return;
   // 畫面震動只在戰鬥期：切割期玩家正在拖線，整個畫面一晃，刀線和器官就會短暫錯位（DA-04 對齊）；切割期的受擊改用器官裂開＋手機震動
