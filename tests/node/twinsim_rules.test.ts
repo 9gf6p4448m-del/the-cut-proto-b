@@ -36,7 +36,7 @@ test('TSIM-02 快照判刀：雙方刀路＝resolveCut(回合開始盤面)；對
   // 紅這刀切的是藍刀路上的下心：藍的「刀路」仍含下心（判在快照上），只是實際不發動
   assert.deepEqual([...rr.blue.path.fired].sort(), ['blue:下心', 'blue:下爪1', 'blue:下爪2']);
   assert.equal(rr.red.path.severed, 'blue:下心');
-  // 雙方互切：藍切掉紅刀路上的截爪3、紅切掉藍刀路上的器官——兩邊的刀路都仍判在快照上（先套用任一方都會讓這裡變紅）
+  // 藍切掉紅刀路上的截爪3：紅的刀路仍判在快照上（含截爪3、只是未發動）。抓「先套用藍的切除、再判紅」；反方向由上面「藍刀路仍含下心」抓
   const c3 = candidateCuts(snap, 'blue').find((r) => r.severed === 'red:截爪3' && r.fired.length >= 1)!;
   const both = round(s, L(c3.a, c3.b), ECUT2);
   assert.ok(both.red.path.fired.includes('red:截爪3') && both.red.cancelled.includes('red:截爪3'), '紅刀路仍含截爪3（判在快照上），但未發動');

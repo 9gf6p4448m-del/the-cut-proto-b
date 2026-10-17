@@ -142,6 +142,7 @@ export async function runTwinSimTests({ bname, btype, devices, url, check }) {
     if (!(await page.evaluate(() => window.__sim.phase === 'reveal' && window.__sim.animActive))) bad.push('沒進揭曉');
     await page.click('#restart'); await page.evaluate(() => window.__sim.setTimings({ animScale: 0.15 }));
     seed = await fresh('揭曉中', seed);
+    await page.evaluate(() => window.__sim.newMatch({ seed: 31 })); await waitPlayer(page);   // 終局段用固定種子：路徑可重現
     for (let r = 0; r < 4; r++) { const s = await S(page); if (s.phase === 'end') break; const st2 = await sim(page), c = candidateCuts(snapshot(st2), 'blue'); const x = c.find((y) => y.fired.length >= 2) ?? c[0]; await drag(page, x.a, x.b); await waitSettled(page); }
     if ((await S(page)).phase !== 'end') bad.push('沒打到終局');
     const endInfo = await page.evaluate(() => window.__sim.infoText);
@@ -169,9 +170,12 @@ export async function runTwinSimTests({ bname, btype, devices, url, check }) {
       if (m.cv[0] < 0 || m.cv[1] > m.vh + 0.5 || m.cv[2] < 0 || m.cv[3] > m.vw + 0.5 || m.cv[4] < 200) bad.push(`${name} 畫布 ${m.cv}`);
       if (m.btns.some((x) => x < 44)) bad.push(`${name} 按鈕 ${m.btns}`);
       if (m.sw > m.vw) bad.push(`${name} 水平捲動 ${m.sw}>${m.vw}`);
+      // 最長的終局文字（由正式組字函式產生）放進資訊框，每一行都要在框內
+      const worst = await p2.evaluate(() => { const el = document.getElementById('info'); el.innerHTML = window.__sim.worstInfoHtml(); const box = el.getBoundingClientRect(); const ok = [...el.children].every((c) => c.getBoundingClientRect().bottom <= box.bottom + 0.5); return { ok, text: el.innerText, lines: el.children.length }; });
+      if (!worst.ok || worst.lines < 3 || !worst.text.includes('本回合被切除，未能發動')) bad.push(`${name} 最長終局文字被裁：${worst.text}`);
       await c2.close();
     }
-    check(`${tag} TSIM-13 393×852、375×667：畫布完整、按鈕 ≥44px、無水平捲動`, bad.length === 0, bad.join('；'));
+    check(`${tag} TSIM-13 393×852、375×667：畫布完整、按鈕 ≥44px、無水平捲動、最長終局文字不被裁`, bad.length === 0, bad.join('；'));
     console.log(`[只回報] ${tag} AI 鎖刀耗時 ms：${lockMs.join(',')}`);
   }
   await browser.close();

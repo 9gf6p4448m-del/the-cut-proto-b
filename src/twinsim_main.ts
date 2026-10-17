@@ -132,7 +132,7 @@ function triggerHits(a: Anim, now: number): void {
 // ---------------------------------------------------------------- 流程
 function newMatch(force?: { seed?: number }): void {
   G.match++; G.token++;
-  G.sim = newSim(force?.seed ?? ((Math.random() * 1e9) >>> 0) + 1);   // 每局（含每次載入）隨機種子；種子寫進紀錄，可重現
+  G.sim = newSim(force?.seed ?? ((Math.random() * 1e9) >>> 0) + 1);   // 每局（含每次載入）隨機種子；種子寫進紀錄（複製紀錄可取得），之後可用同種子重算
   G.drag = null; G.preview = null; G.last = null; G.lastBefore = null; G.ghost = false; G.anim = null; G.plan = null; G.planCalls = 0; G.summary = '';
   fx.trail = []; fx.splits = []; fx.blood = []; fx.pops = [];
   G.logs.push({ seed: G.sim.seed, rounds: [], result: null, cancels: 0, lockMs: [] });
@@ -229,6 +229,18 @@ function summaryHtml(rr: RoundResult): string {
   if (c.length) lines.push(`<div class="warnline">${c.join('；')}</div>`);
   return lines.join('');
 }
+/** 終局文字：結果行放最前面，摘要在後。 */
+function endHtml(r: NonNullable<SimState['result']>, hp: Record<Side, number>, summary: string): string {
+  const who = r.winner === 'draw' ? '平手' : r.winner === 'blue' ? '你贏了' : '你輸了';
+  const why = r.reason === 'kill' ? '血量歸零' : r.reason === 'mutual' ? '雙方同回合歸零' : `${ROUNDS} 回合比血`;
+  return `<div class="${r.winner === 'blue' ? 'good' : r.winner === 'red' ? 'bad' : ''}">${who}（${why}）你 ${hp.blue}／他 ${hp.red}，按「重開」再來</div>${summary}`;
+}
+/** 版面測試用：最長的終局文字（第 4 回合雙方互切、互相截斷、比血平手），全部由正式的組字函式產生。 */
+function worstInfoHtml(): string {
+  const side = (dmg: number, sev: string, can: string) => ({ dmg, cancelled: [can], fired: [], path: { severed: sev } });
+  const rr = { blue: side(12, 'red:截爪3', 'blue:下心'), red: side(12, 'blue:下心', 'red:截爪3'), after: { round: ROUNDS } } as unknown as RoundResult;
+  return endHtml({ winner: 'draw', reason: 'rounds' }, { blue: 18, red: 18 }, summaryHtml(rr));
+}
 function refresh(): void {
   const st = G.anim ? G.anim.before : G.sim;
   els.hpMe.textContent = String(st.hp.blue); els.hpFoe.textContent = String(st.hp.red);
@@ -238,12 +250,10 @@ function refresh(): void {
   const now = performance.now(); let html = '';
   if (G.msg && now < G.msgUntil) html = `<div class="${G.msgCls}">${G.msg}</div>`;
   else if (G.phase === 'end' && G.sim.result) {
-    const r = G.sim.result, who = r.winner === 'draw' ? '平手' : r.winner === 'blue' ? '你贏了' : '你輸了';
-    const why = r.reason === 'kill' ? '血量歸零' : r.reason === 'mutual' ? '雙方同回合歸零' : `${ROUNDS} 回合打完比血`;
-    html = `<div class="${r.winner === 'blue' ? 'good' : r.winner === 'red' ? 'bad' : ''}">${who}（${why}）血 你 ${G.sim.hp.blue}／他 ${G.sim.hp.red}　按「重開」再來一局</div>${G.summary}`;   // 結果行放最前面，不被裁掉
+    html = endHtml(G.sim.result, G.sim.hp, G.summary);
   } else if (G.phase === 'lock') html = `<div class="hint">他正在暗中出刀…</div>${G.summary}`;
   else if (G.phase === 'reveal') html = '<div>同時揭曉！</div>';
-  else html = `<div><b>他已暗中出刀。</b>從下方藍獸起刀，放開＝出刀。</div>${G.summary}`;
+  else html = `<div><b>他已暗中出刀。</b>從下方藍獸起刀，放開出刀，拉回起點取消。</div>${G.summary}`;
   els.info.innerHTML = html;
   kick();
 }
@@ -364,7 +374,7 @@ function loop(): void {
   get fx() { return { events: [...fx.events], audio: [...audio.events] }; },
   toScreen: (x: number, y: number) => { const r = els.canvas.getBoundingClientRect(); return { x: r.left + sx(x), y: r.top + sy(y) }; },
   newMatch: (force?: { seed?: number }) => newMatch(force), setTimings: (o: { lockDelay?: number; animScale?: number }) => { if (o.lockDelay !== undefined) G.lockDelay = o.lockDelay; if (o.animScale !== undefined) G.animScale = o.animScale; },
-  clearFx: () => { fx.events = []; audio.events = []; },
+  clearFx: () => { fx.events = []; audio.events = []; }, worstInfoHtml: () => worstInfoHtml(),
 };
 
 // ---------------------------------------------------------------- PWA（子路徑獨立 scope）
