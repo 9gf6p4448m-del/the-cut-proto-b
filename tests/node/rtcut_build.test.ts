@@ -33,5 +33,5 @@ test('RT-09 舊原型不變：src/twinslash*、src/twinsim*、public*/（public-
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '--', 'src/twinslash', 'src/twinsim', 'public', 'public-exp', 'public-skewer', 'public-twinslash', 'public-twinsim'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(out.trim() + untracked.trim(), '');
   const dirs = execFileSync('git', ['ls-files', '--', 'public*'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean).map((f) => f.split('/')[0]);
-  assert.deepEqual([...new Set(dirs)].sort(), ['public', 'public-exp', 'public-rtcut', 'public-rtcut2' /* rt-cut2 新增（R2-07 授權的新子路徑） */, 'public-skewer', 'public-twinslash', 'public-twinsim'].filter((d) => dirs.includes(d)).sort());
+  assert.deepEqual([...new Set(dirs)].sort(), ['public', 'public-exp', 'public-rtcut', 'public-rtcut2' /* rt-cut2 新增（R2-07 授權的新子路徑） */, 'public-artkit' /* 幽光美術模組展示頁（主 session 美術派工授權的新子路徑 art-kit/） */, 'public-skewer', 'public-twinslash', 'public-twinsim'].filter((d) => dirs.includes(d)).sort());
 });
