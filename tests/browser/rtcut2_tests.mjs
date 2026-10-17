@@ -51,7 +51,7 @@ export async function runRtCut2Tests({ bname, btype, devices, url, check }) {
       await drag(page, [60, 500], [400, 500]);
       try { await page.waitForFunction(() => window.__rt.ui === 'ko', null, { timeout: 2000 }); ko = await page.evaluate(() => ({ end: window.__rt.state.end, t: performance.now(), n: window.__rt.events.filter((e) => e.e.t === 'strike').length, all: window.__rt.events.length })); } catch { /* 被擋或被 AI 鎖住：重來 */ }
       // 擊倒演出期間真實拖曳一刀：不得出刀（對抗式檢查 L3）
-      if (ko) { await drag(page, [100, 560], [100, 420]); ko.n2 = await page.evaluate(() => window.__rt.events.filter((e) => e.e.t === 'strike').length); ko.all2 = await page.evaluate(() => window.__rt.events.length); // 連被拒事件一起算：擊倒後輸入不得再進入規則步（覆審 L3） }
+      if (ko) { await drag(page, [100, 560], [100, 420]); ko.n2 = await page.evaluate(() => window.__rt.events.filter((e) => e.e.t === 'strike').length); ko.all2 = await page.evaluate(() => window.__rt.events.length); } // all／all2 連被拒事件一起算：擊倒後輸入不得再進入規則步（覆審 L3）
     }
     await page.waitForFunction(() => window.__rt.ui === 'end', null, { timeout: 6000 });
     const koMs = (await page.evaluate(() => performance.now())) - (ko ? ko.t : 0);
