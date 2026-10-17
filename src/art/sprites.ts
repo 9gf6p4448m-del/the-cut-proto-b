@@ -415,6 +415,8 @@ export function organPlacement(im: Img, x: number, y: number, r: number): Rect {
 }
 /** 外光邊最高不透明度：壓在 0.5 以下，量「alpha>50%」的顯示範圍時只會量到素材本體（顯示半徑＝r），光邊只是柔光。 */
 export const RIM_MAX_ALPHA = 0.47;
+/** 外光邊顏色：高飽和陣營色。不透明度壓低後疊在暗底上，淡色（sideL）會混成中性灰，所以光邊用比本體亮色更飽和的版本。 */
+const RIM_RGB: Record<Side, string> = { blue: '60,165,255', red: '255,45,70' };
 /** 器官預烤層（rim＝只有光邊（陣營色）、rimW＝只有光邊（白，加亮用）、body＝素材本體；邊長 2(r+pad)·dpr，器官中心在正中）：鍵＝素材＋種類＋側＋r＋dpr。 */
 type OrganLayers = { rim: HTMLCanvasElement; rimW: HTMLCanvasElement; body: HTMLCanvasElement; pad: number };
 const organLayerCache = new Cache<OrganLayers>(48);
@@ -429,7 +431,7 @@ export function organLayers(im: Img, kind: Kind, side: Side, r: number, dpr: num
       const c = mk(size * dpr, size * dpr), x = c.getContext('2d')!; x.globalAlpha = RIM_MAX_ALPHA; x.drawImage(tmp, 0, 0); return c;
     };
     const body = mk(size * dpr, size * dpr), bc = body.getContext('2d')!; bc.setTransform(dpr, 0, 0, dpr, 0, 0); bc.drawImage(organImg(im, kind, side), pl.x, pl.y, pl.w, pl.h);
-    return { rim: rimOf(sideL(side)), rimW: rimOf(RGB.white), body, pad };
+    return { rim: rimOf(RIM_RGB[side]), rimW: rimOf(RGB.white), body, pad };
   });
 }
 /** 光邊＋本體合成一張（每個器官每格只貼一次；12 個器官時貼圖像素量約為分開貼的 4 成）。rimA＝光邊強度（脈動量化 8 階）、w＝光邊往白色混的比例（加亮，量化 4 階）。 */

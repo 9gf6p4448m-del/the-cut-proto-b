@@ -71,16 +71,32 @@ export async function runArtKitTests({ bname, btype, devices, url, check }) {
       const s0 = stat(split(0)), s1 = stat(split(0.2)), sEnd = stat(split(0.59));
       const flashRegion = (d) => { let s2 = 0; for (let y = 130; y < 200; y++) for (let x = 0; x < 200; x++) s2 += d[(y * 200 + x) * 4 + 3]; return s2; };
       const flashOn = flashRegion(split(0.02, { body: A.body, rect: { x: 0, y: 0, w: 200, h: 200 } }, 10, [100, 30])), flashOff = flashRegion(split(0.02, {}, 10, [100, 30]));
+      // AV3-2（截圖口徑，第二輪覆審 HIGH）：器官疊在實際對戰場景上（切割期調暗／戰鬥期不調暗），本體外緣 2～8px 環帶平均色：藍方 B>R、紅方 R>B。
+      // 可切取脈動最暗相位（t=0.9375）。環帶＝本體層 alpha<5、但 2～8px 內 16 個方向有本體 alpha>127 的像素。
+      const rimScene = [];
+      for (const dim of [X.CUT_DIM, undefined]) for (const k of KINDS) for (const side of ['blue', 'red']) for (const [sn, st, t] of [['normal', { mode: 'normal' }, 0], ['cuttable', { mode: 'normal', cuttable: side === 'red' }, 0.9375]]) {
+        const rc = R2[side], u = 0.44, v = 0.36, ox = rc.x + rc.w * u, oy = rc.y + rc.h * v, cx = Math.round(side === 'red' ? 2 * (rc.x + rc.w / 2) - ox : ox), cy = Math.round(side === 'red' ? 2 * (rc.y + rc.h / 2) - oy : oy);
+        const [c, x] = mkc(w, h); X.drawDuelScene(x, { w, h, body: A.body, rects: R2, dim }, 1); X.drawOrganV3(x, A.organs[k], { kind: k, side, x: cx, y: cy, r }, st, t);
+        const Lb = X.organLayers(A.organs[k], k, side, r, 1), B = px(Lb.body), BW = Lb.body.width, half = r + Lb.pad, bodyA = (xx, yy) => { const bx = xx - (cx - half), by = yy - (cy - half); return bx >= 0 && by >= 0 && bx < BW && by < BW ? B[(by * BW + bx) * 4 + 3] : 0; };
+        const d = x.getImageData(cx - half, cy - half, 2 * half, 2 * half).data; let R = 0, Bl = 0, n = 0;
+        for (let yy = cy - half; yy < cy + half; yy++) for (let xx = cx - half; xx < cx + half; xx++) {
+          if (bodyA(xx, yy) >= 5) continue; let near = false;
+          for (let dd = 2; dd <= 8 && !near; dd += 2) for (let i = 0; i < 16; i++) { const an = (i / 16) * Math.PI * 2; if (bodyA(Math.round(xx + Math.cos(an) * dd), Math.round(yy + Math.sin(an) * dd)) > 127) { near = true; break; } }
+          if (!near) continue; const i = ((yy - (cy - half)) * 2 * half + (xx - (cx - half))) * 4; R += d[i]; Bl += d[i + 2]; n++;
+        }
+        rimScene.push({ dim: !!dim, k, side, sn, R: Math.round(R / n), B: Math.round(Bl / n), n });
+      }
       // 審查 MEDIUM 回歸：dim 為 NaN、r 為 Infinity 不丟例外；兩張不同的畫布（沒帶 __id）當器官圖不會共用快取
       const errs = []; const tryDo = (n, fn) => { try { fn(); } catch (e) { errs.push(`${n}: ${e}`); } };
       tryDo('dimNaN', () => { const [, x] = mkc(w, h); X.drawDuelScene(x, { w, h, body: A.body, rects: R2, dim: { alpha: NaN, saturation: NaN } }, 1); });
       tryDo('rInf', () => { const [, x] = mkc(200, 200); X.drawOrganV3(x, A.organs.eye, { kind: 'eye', side: 'blue', x: 100, y: 100, r: Infinity }, { mode: 'normal' }, 0); });
       const cvImg = (W, H) => { const [c, x] = mkc(W, H, '#fff'); return c; }, tall = (im) => { const [c, x] = mkc(200, 200); X.drawOrganV3(x, im, { kind: 'claw', side: 'blue', x: 100, y: 100, r: 20 }, { mode: 'normal' }, 0); const d = px(c); let y0 = 1e9, y1 = -1; for (let y = 0; y < 200; y++) for (let xx = 0; xx < 200; xx++) if (d[(y * 200 + xx) * 4 + 3] > 127) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); } return y1 - y0 + 1; };
       const hSquare = tall(cvImg(100, 100)), hFlat = tall(cvImg(100, 20));
-      return { ...out, dimL, fullL, sharp: trail(false), blunt: trail(true), sp: { s0, s1, sEnd, flashOn, flashOff }, errs, hSquare, hFlat };
+      return { ...out, dimL, fullL, sharp: trail(false), blunt: trail(true), sp: { s0, s1, sEnd, flashOn, flashOff }, errs, hSquare, hFlat, rimScene };
     });
     { const bad = m.radius.filter((x) => !(Math.abs(x.long - 68) <= 2 && Math.abs(x.dcx) <= 2 && Math.abs(x.dcy) <= 2)); check(`${tag} AV3-3 顯示半徑（drawOrganV3 實際輸出，含光邊）：alpha>50% 外框長邊＝2r±2、中心偏差 ≤2px（r=34；5 種×正常／可切最亮／加亮×dpr1、2×兩側＝${m.radius.length} 例；長邊 ${Math.min(...m.radius.map((x) => x.long))}～${Math.max(...m.radius.map((x) => x.long))}）`, bad.length === 0, JSON.stringify(bad.slice(0, 6))); }
-    check(`${tag} AV3-2 陣營色外光邊：藍方光邊 B>R、紅方 R>B`, m.rim.every((x) => x.n > 50 && (x.side === 'blue' ? x.B > x.R : x.R > x.B)), JSON.stringify(m.rim.map((x) => [x.k, x.side, Math.round(x.R), Math.round(x.B), x.n])));
+    { const bad = m.rimScene.filter((x) => !(x.n > 50 && (x.side === 'blue' ? x.B > x.R : x.R > x.B))); check(`${tag} AV3-2 陣營色外光邊（疊在對戰場景上、切割期調暗與戰鬥期、可切取最暗相位，${m.rimScene.length} 例）：藍方外緣 B>R、紅方 R>B（最小差 藍 ${Math.min(...m.rimScene.filter((x) => x.side === 'blue').map((x) => x.B - x.R))}、紅 ${Math.min(...m.rimScene.filter((x) => x.side === 'red').map((x) => x.R - x.B))}）`, bad.length === 0, JSON.stringify(bad.slice(0, 8))); }
+    check(`${tag} AV3-2 陣營色外光邊（透明底單獨量）：藍方光邊 B>R、紅方 R>B`, m.rim.every((x) => x.n > 50 && (x.side === 'blue' ? x.B > x.R : x.R > x.B)), JSON.stringify(m.rim.map((x) => [x.k, x.side, Math.round(x.R), Math.round(x.B), x.n])));
     check(`${tag} AV3-4 狀態：可切脈動（t 不同像素不同）、萌芽半透明、按住加亮、鎖定護盾環`, m.cuttable.every((x) => x.diff > 1000) && m.sprout.every((x) => x.sprout < 0.6 * x.normal) && m.lit.every((x) => x.lit > 1.1 * x.base) && m.locked.every((x) => x.locked > x.normal + 100), JSON.stringify({ c: m.cuttable.map((x) => x.diff), s: m.sprout.map((x) => +(x.sprout / x.normal).toFixed(2)), l: m.lit.map((x) => +(x.lit / x.base).toFixed(2)), k: m.locked.map((x) => [x.locked, x.normal]) }));
     check(`${tag} AV3-5 切割期調暗：藍方身體內平均亮度 調暗/不調暗 ≤0.75（${m.dimL.toFixed(1)}/${m.fullL.toFixed(1)}＝${(m.dimL / m.fullL).toFixed(2)}）`, m.dimL / m.fullL <= 0.75);
     check(`${tag} AV3-8 刀痕兩樣式：鈍刀比亮刀暗（亮度 ≤0.7 倍）且較灰（飽和度較低）`, m.blunt.lum <= 0.7 * m.sharp.lum && m.blunt.sat < m.sharp.sat, JSON.stringify({ sharp: m.sharp, blunt: m.blunt }));
