@@ -25,7 +25,7 @@ for (const [name, bt] of [['webkit', webkit], ['chromium', chromium]]) {
   const ok = URL.startsWith('https://') && sha === SHA && text.includes(SHA) && text.includes('研究片段') && text.includes('v0.1 切割→戰鬥') && typeof sw === 'string' && sw.endsWith('/duel/')
     && last && last.ok && last.severed !== null && page.__errs.length === 0 && bad.length === 0;
   if (!ok) fail++;
-  console.log(`${ok ? 'PASS' : 'FAIL'} [${name}] v0.2=${text.includes('v0.1 切割→戰鬥')} https=${URL.startsWith('https://')} sha=${sha} swScope=${sw} cut=${last ? (last.severed !== null ? '切下' : '未切') : 'none'} errs=${page.__errs.length} bad=${bad.join(',')}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'} [${name}] ver(v0.1 切割→戰鬥)=${text.includes('v0.1 切割→戰鬥')} https=${URL.startsWith('https://')} sha=${sha} swScope=${sw} cut=${last ? (last.severed !== null ? '切下' : '未切') : 'none'} errs=${page.__errs.length} bad=${bad.join(',')}`);
   await b.close();
 }
 process.exit(fail ? 1 : 0);
