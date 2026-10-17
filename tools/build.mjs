@@ -55,7 +55,20 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-twin/${f}`, readFileSync(`public-twinslash/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', TWIN_SUB));
 }
 writeFileSync('dist-twin/.build-info.json', JSON.stringify({ sub: TWIN_SUB, sha: short }) + '\n');
+// ---- 同時下刀研究片段（子路徑 twin-sim/）：獨立輸出 dist-sim/；快取前綴與其他子路徑都分開 ----
+// 部署：node tools/deploy.mjs --sub twin-sim（只替換 gh-pages 的 twin-sim/）。上面四份輸出不受這段影響。
+const SIM_SUB = 'twin-sim';
+rmSync('dist-sim', { recursive: true, force: true });
+mkdirSync('dist-sim', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/twinsim_main.ts'], outfile: 'dist-sim/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-sim/${f}`);
+writeFileSync('dist-sim/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-twinsim/sim.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-sim/${f}`, readFileSync(`public-twinsim/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', SIM_SUB));
+}
+writeFileSync('dist-sim/.build-info.json', JSON.stringify({ sub: SIM_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
 console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);
 console.log(`build twin ok sub=${TWIN_SUB} sha=${short}`);
+console.log(`build sim ok sub=${SIM_SUB} sha=${short}`);
