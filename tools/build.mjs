@@ -91,6 +91,18 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-rt2/${f}`, readFileSync(`public-rtcut2/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', RT2_SUB));
 }
 writeFileSync('dist-rt2/.build-info.json', JSON.stringify({ sub: RT2_SUB, sha: short }) + '\n');
+// ---- 對決 切割→戰鬥（子路徑 duel/；the-cut docs/fusion/CUT_BATTLE_V01.md）：獨立輸出 dist-duel/；快取前綴 thecut-duel- 與其他子路徑都分開 ----
+// 部署：node tools/deploy.mjs --sub duel（只替換 gh-pages 的 duel/）。上面各份輸出不受這段影響。
+const DUEL_SUB = 'duel';
+rmSync('dist-duel', { recursive: true, force: true });
+mkdirSync('dist-duel', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/cutbattle_main.ts'], outfile: 'dist-duel/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-duel/${f}`);
+writeFileSync('dist-duel/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-duel/cb.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-duel/${f}`, readFileSync(`public-duel/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', DUEL_SUB));
+}
+writeFileSync('dist-duel/.build-info.json', JSON.stringify({ sub: DUEL_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
 console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);
@@ -98,3 +110,4 @@ console.log(`build twin ok sub=${TWIN_SUB} sha=${short}`);
 console.log(`build sim ok sub=${SIM_SUB} sha=${short}`);
 console.log(`build rt ok sub=${RT_SUB} sha=${short}`);
 console.log(`build rt2 ok sub=${RT2_SUB} sha=${short}`);
+console.log(`build duel ok sub=${DUEL_SUB} sha=${short}`);

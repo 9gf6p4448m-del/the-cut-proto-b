@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="對決">
+<meta name="theme-color" content="#070D19">
+<meta name="build-sha" content="__BUILD_SHA__">
+<title>執刀者 對決 切割→戰鬥 研究片段</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="stylesheet" href="./style.css?v=__BUILD_SHA__">
+</head>
+<body class="cb">
+<header id="top">
+  <div class="warn"><b class="tag">研究片段</b> 對決 <b id="ver">v0.1 切割→戰鬥</b> · 版本 <span id="sha"></span></div>
+  <div class="row1"><b id="stage">對手 1／3</b><span id="phase" class="ph">切割</span><b id="clock" class="clock">30</b></div>
+  <div class="bars">
+    <div class="bar foe"><span>敵</span><div class="track"><i id="foeBar"></i><u id="foeShield"></u></div><b id="foeTxt"></b></div>
+    <div class="bar me"><span>你</span><div class="track"><i id="meBar"></i><u id="meShield"></u></div><b id="meTxt"></b></div>
+  </div>
+  <div class="row2"><div class="cdwrap" title="出刀冷卻"><i id="cd"></i></div><div id="info" class="info" aria-live="polite"></div></div>
+</header>
+<main><canvas id="scene"></canvas><div id="tip" class="tip" role="status" hidden></div></main>
+<footer>
+  <div class="tools">
+    <button id="fast">快轉</button>
+    <button id="sound" aria-pressed="true">音效：開</button>
+    <button id="restart">重新征途</button>
+  </div>
+</footer>
+<section id="contrib" class="modal" hidden>
+  <div class="box"><h2 id="contribTitle"></h2><div id="contribBody"></div><button id="contribNext" class="primary">繼續</button></div>
+</section>
+<section id="pick" class="modal" hidden>
+  <div class="box"><h2>挑一個器官縫進身體</h2><p class="hint">選好後，點你的獸身放下去。</p><div id="pickOpts" class="opts"></div></div>
+</section>
+<section id="end" class="modal" hidden>
+  <div class="box end"><h2 id="endTitle"></h2><div id="endBody"></div><button id="again" class="primary">再來一次征途</button></div>
+</section>
+<script src="./app.js?v=__BUILD_SHA__"></script>
+</body>
+</html>

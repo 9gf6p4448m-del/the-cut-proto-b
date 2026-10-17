@@ -1,8 +1,10 @@
 // 「即時亂切」研究片段（子路徑 rt-cut/）的全部規則：盤面常數、單刀判定、固定步長模擬、AI、對決戰力。純函式，不碰 DOM。
 // 規格：the-cut docs/rt-cut/ACCEPTANCE_FROZEN.md（RT-01～09＋補述 1）。可丟棄原型，非正式規則。
+// 切割→戰鬥（duel/，the-cut 7c48d18 docs/fusion/CUT_BATTLE_V01.md）以 Mode 的選填欄位沿用本檔：局長、器官組成、再生上限、生成位置規則、AI 亂數上限。
+// 選填欄位不給時（MODE_RT1／MODE_RT2）行為與 rt-cut／rt-cut2 完全相同。
 export type V = [number, number];
 export type Side = 'blue' | 'red';
-export type Kind = 'claw' | 'heart';
+export type Kind = 'claw' | 'heart' | 'eye' | 'poison' | 'bone';   // 眼／毒／骨只出現在切割→戰鬥；切割期它們只是普通器官
 export interface Line { a: V; b: V }
 export interface OrganDef { id: string; side: Side; kind: Kind; p: V }
 export const SIDES: Side[] = ['blue', 'red'];
@@ -18,9 +20,16 @@ export const AIM_STEPS = 36;                 // AI 預告 0.6 秒（凍結下限
 export const AI_JITTER_STEPS = 54;           // 出刀間隔＝冷卻＋0～0.9 秒
 export const AI_FIRST_FIRE_STEP = 60;        // 開場 1 秒後 AI 第一刀生效【試玩數值】
 export const MIN_LEN = 120, MAX_LEN = 420, R = 28;
-export const VALUE: Record<Kind, number> = { claw: 2, heart: 4 };
+export const VALUE: Record<Kind, number> = { claw: 2, heart: 4, eye: 3, poison: 3, bone: 2 };   // 眼／毒／骨的 AI 切除價值是切割→戰鬥的試玩值
 // rt-cut2（擊倒＋再生）：以模式參數開關；預設 MODE_RT1＝原版行為不變（R2-04）
-export interface Mode { knockout: boolean; regen: boolean }
+export interface Mode {
+  knockout: boolean; regen: boolean;
+  // ---- 切割→戰鬥（CB）專用，選填 ----
+  cutSteps?: number;                         // 局長（步）；不給＝END_STEP（40 秒）
+  maxPerSide?: Record<Side, number>;         // 再生上限；不給＝MAX_PER_SIDE（8）
+  spawnRule?: 'cb';                          // 'cb'＝再生位置另須整個圓在獸身內、對方刀碰得到（DUEL_BLADE_V01 補述 1）
+  aiJitter?: number;                         // AI 出刀間隔＝冷卻＋0～aiJitter 步；不給＝AI_JITTER_STEPS
+}
 export const MODE_RT1: Mode = { knockout: false, regen: false };
 export const MODE_RT2: Mode = { knockout: true, regen: true };
 export const REGEN_STEPS = 300;              // 每 5 秒一個再生節拍【試玩數值】
@@ -79,6 +88,32 @@ export function clampLine(l: Line): Line {
   return { a: l.a, b: [l.a[0] + ((l.b[0] - l.a[0]) * MAX_LEN) / d, l.a[1] + ((l.b[1] - l.a[1]) * MAX_LEN) / d] };
 }
 
+/** 本局切割期的結束步。 */
+export const endStep = (s: { mode: Mode }) => s.mode.cutSteps ?? END_STEP;
+
+// ---------------------------------------------------------------- 位置規則（CB；DUEL_BLADE_V01 補述 1）
+function segPointDist(p: V, a: V, b: V): number {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2));
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+/** 圓心在獸身內，且到每條邊 ≥ 半徑＋1（整個圓在獸身內，不壓邊）。 */
+export function circleInside(p: V, side: Side, r = R): boolean {
+  const poly = BODY[side];
+  if (!inside(p, poly)) return false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if (segPointDist(p, poly[j], poly[i]) < r + 1) return false;
+  return true;
+}
+/** 攻擊方獸身內存在一個起點，長度 ≤ MAX_LEN 的刀碰得到這個圓（圓心到攻擊方獸身距離 ≤ MAX_LEN＋R−1）。 */
+export function reachableBy(p: V, attacker: Side, r = R): boolean {
+  const poly = BODY[attacker];
+  if (inside(p, poly)) return true;
+  let d = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) d = Math.min(d, segPointDist(p, poly[j], poly[i]));
+  return d <= MAX_LEN + r - 1;
+}
+export const validSpot = (p: V, side: Side) => circleInside(p, side) && reachableBy(p, other(side));
+
 // ---------------------------------------------------------------- 狀態
 export type Phase = 'cut' | 'duel' | 'ko';
 export interface Aim { line: Line; aimStep: number; fireStep: number }
@@ -105,12 +140,12 @@ export interface GameState {
 }
 export interface DuelResult { claws: Record<Side, number>; hearts: Record<Side, number>; power: Record<Side, number>; winner: Side | 'draw' }
 
-export function newGame(seed: number, mode: Mode = MODE_RT1): GameState {
+export function newGame(seed: number, mode: Mode = MODE_RT1, organs: OrganDef[] = ORGANS): GameState {
   return {
-    seed: seed >>> 0, step: 0, phase: 'cut', alive: ORGANS.map(() => true), lockUntil: ORGANS.map(() => 0),
+    seed: seed >>> 0, step: 0, phase: 'cut', alive: organs.map(() => true), lockUntil: organs.map(() => 0),
     cdUntil: { blue: 0, red: 0 }, drag: { blue: null, red: null }, aim: null, aiNextFire: AI_FIRST_FIRE_STEP,
     rng: (seed >>> 0) || 0x9e3779b9, result: null,
-    mode, organs: ORGANS, readyAt: ORGANS.map(() => 0), severedQ: { blue: [], red: [] }, severedN: { blue: 0, red: 0 },
+    mode, organs, readyAt: organs.map(() => 0), severedQ: { blue: [], red: [] }, severedN: { blue: 0, red: 0 },
     regenRng: ((seed ^ 0x5bd1e995) >>> 0) || 1, end: null,
   };
 }
@@ -140,7 +175,7 @@ export interface StrikeResult {
 }
 export function resolveStrike(s: GameState, side: Side, raw: Line): StrikeResult {
   const base = { side, line: raw, locks: [] as number[], severed: null, blocked: null, end: raw.b };
-  if (s.phase !== 'cut' || s.step >= END_STEP) return { ...base, ok: false, reject: 'phase' };
+  if (s.phase !== 'cut' || s.step >= endStep(s)) return { ...base, ok: false, reject: 'phase' };
   if (Math.hypot(raw.b[0] - raw.a[0], raw.b[1] - raw.a[1]) < MIN_LEN) return { ...base, ok: false, reject: 'short' };
   if (s.cdUntil[side] > s.step) return { ...base, ok: false, reject: 'cooldown' };
   if (!inside(raw.a, BODY[side])) return { ...base, ok: false, reject: 'start' };
@@ -179,18 +214,20 @@ function spawnPoint(s: GameState, side: Side): V | null {
     [u, s.regenRng] = rand(s.regenRng); [v, s.regenRng] = rand(s.regenRng);
     const p: V = [Math.round(x0 + u * (x1 - x0)), Math.round(y0 + v * (y1 - y0))];
     if (!inside(p, BODY[side])) continue;
+    if (s.mode.spawnRule === 'cb' && !validSpot(p, side)) continue;
     if (s.organs.some((o, i) => s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 2 * R)) continue;
     return p;
   }
   return null;
 }
+export const KIND_ZH: Record<Kind, string> = { claw: '爪', heart: '心', eye: '眼', poison: '毒', bone: '骨' };
 export function step(s0: GameState, input: StepInput = {}): StepOut {
   const ev: GameEvent[] = [];
   if (s0.phase !== 'cut') return { state: s0, events: ev };
   const s = clone(s0);
   const k = s.step;
-  if (k >= END_STEP) {
-    // 剛好達 40 秒：凍結盤面、拖曳作廢、預告作廢、進入對決
+  if (k >= endStep(s)) {
+    // 剛好達局長（原版 40 秒）：凍結盤面、拖曳作廢、預告作廢、進入對決
     s.phase = 'duel'; s.drag = { blue: null, red: null }; s.aim = null; s.result = duel(s); s.end = { by: 'time', winner: s.result.winner };
     if (input.blue) ev.push({ t: 'reject', side: 'blue', reason: 'phase' });
     ev.push({ t: 'duel', result: s.result });
@@ -224,25 +261,25 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
   }
   // 再生：固定節拍（第 300、600…步＝5、10…秒），未滿 8 個就長回最早被切的種類，萌芽 0.5 秒
   if (s.mode.regen && k > 0 && k % REGEN_STEPS === 0) for (const side of SIDES) {
-    if (countSide(s, side) >= MAX_PER_SIDE || !s.severedQ[side].length) continue;
+    if (countSide(s, side) >= (s.mode.maxPerSide?.[side] ?? MAX_PER_SIDE) || !s.severedQ[side].length) continue;
     const p = spawnPoint(s, side);
     if (!p) continue;
     const kind = s.severedQ[side].shift()!;
     const n = s.organs.filter((o) => o.side === side && o.kind === kind).length + 1;
-    s.organs = [...s.organs, { id: `${side === 'blue' ? '藍' : '紅'}${kind === 'claw' ? '爪' : '心'}${n}`, side, kind, p }];
+    s.organs = [...s.organs, { id: `${side === 'blue' ? '藍' : '紅'}${KIND_ZH[kind]}${n}`, side, kind, p }];
     s.alive.push(true); s.lockUntil.push(0); s.readyAt.push(k + SPROUT_STEPS);
     ev.push({ t: 'spawn', i: s.organs.length - 1 });
   }
   if (red) {
     // 下一刀生效時刻＝這刀＋冷卻＋0～0.9 秒種子亂數
     const [u, n] = rand(s.rng); s.rng = n;
-    s.aiNextFire = k + COOLDOWN_STEPS + Math.floor(u * (AI_JITTER_STEPS + 1));
+    s.aiNextFire = k + COOLDOWN_STEPS + Math.floor(u * ((s.mode.aiJitter ?? AI_JITTER_STEPS) + 1));
   }
   s.step = k + 1;
   // 預告開始：下一步起算 AIM_STEPS 步後生效；選刀看的是本步套用後的公開狀態
   if (!s.aim && s.aiNextFire - AIM_STEPS <= s.step) {
     const fireStep = Math.max(s.aiNextFire, s.step + AIM_STEPS);
-    if (fireStep < END_STEP) {
+    if (fireStep < endStep(s)) {
       const pick = aiChoose(s); s.rng = pick.rng;
       if (pick.line) { s.aim = { line: pick.line, aimStep: s.step, fireStep }; ev.push({ t: 'aim', aim: s.aim }); }
       else s.aiNextFire = s.step + 30; // 沒有合法刀時半秒後再看
@@ -304,7 +341,7 @@ export function publicView(s: GameState): GameState {
 export const power = (claws: number, hearts: number) => 2 * claws * (1 + hearts);
 export function duel(s: GameState): DuelResult {
   const claws = { blue: 0, red: 0 }, hearts = { blue: 0, red: 0 };
-  s.organs.forEach((o, i) => { if (s.alive[i]) (o.kind === 'claw' ? claws : hearts)[o.side]++; });
+  s.organs.forEach((o, i) => { if (s.alive[i] && o.kind === 'claw') claws[o.side]++; else if (s.alive[i] && o.kind === 'heart') hearts[o.side]++; });
   const pw = { blue: power(claws.blue, hearts.blue), red: power(claws.red, hearts.red) };
   return { claws, hearts, power: pw, winner: pw.blue > pw.red ? 'blue' : pw.red > pw.blue ? 'red' : 'draw' };
 }

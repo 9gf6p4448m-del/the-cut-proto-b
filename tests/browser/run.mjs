@@ -10,6 +10,7 @@ import { runTwinTests } from './twin_tests.mjs';
 import { runTwinSimTests } from './twinsim_tests.mjs';
 import { runRtCutTests } from './rtcut_tests.mjs';
 import { runRtCut2Tests } from './rtcut2_tests.mjs';
+import { runCbTests } from './cb_tests.mjs';
 import { runRootSwTests } from './root_sw_tests.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
@@ -254,6 +255,7 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
 // ---- 即時亂切 v2（rt-cut2/）：R2-05、06、07 ----
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runRtCut2Tests({ bname, btype, devices, url, check });
+  await runCbTests({ bname, btype, devices, url, check });
 }
 
 // ---- 根網址 service worker 相容性（DL-069，RS-1～RS-4；舊 SW 重現、新 SW 修好） ----
