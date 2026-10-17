@@ -13,6 +13,7 @@ import { runRtCut2Tests } from './rtcut2_tests.mjs';
 import { runCbTests } from './cb_tests.mjs';
 import { runDaTests } from './da_tests.mjs';
 import { runArtKitTests } from './artkit_tests.mjs';
+import { runDfTests, LINE_INIT } from './df_tests.mjs';
 import { runRootSwTests } from './root_sw_tests.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
@@ -260,6 +261,13 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runCbTests({ bname, btype, devices, url, check });
   await runCbTests({ bname, btype, devices, url, check, sub: 'duel2', ver: 'v0.2 美術合併', winSeed: 3 });
   await runDaTests({ bname, btype, devices, url, check });
+}
+
+// ---- 對決 v0.3 手感與可讀性（duel3/）：DF-03～07；DF-03＝直線預覽下照跑 duel2 的 cb／da 測試 ----
+for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
+  await runDfTests({ bname, btype, devices, url, check, shotDir: bname === 'chromium' ? 'test-output/df_shots' : 'test-output/df_shots/webkit' });
+  await runCbTests({ bname, btype, devices, url, check, sub: 'duel3', ver: 'v0.3 手感與可讀性', winSeed: 3, init: LINE_INIT });
+  await runDaTests({ bname, btype, devices, url, check, sub: 'duel3', init: LINE_INIT });
 }
 
 // ---- 幽光美術展示頁（art-kit/）：素材載入重試與失敗提示（2026-10-18 iOS 回報） ----
