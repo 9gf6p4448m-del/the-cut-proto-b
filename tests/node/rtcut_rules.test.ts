@@ -64,8 +64,11 @@ test('RT-01 同步出刀：藍鎖 X、紅切 X（X 步開始時未鎖）→ X �
   const s = at(0);
   const a = step(withAim(s, RED_DOWN_X), { blue: BLUE_ROW }).state;
   assert.equal(a.alive[X0], false, 'X＝藍爪1 被切'); assert.equal(a.lockUntil[X0], 0); assert.equal(a.alive[Y3], false, '藍那刀照樣切到紅爪3');
-  // 調換：紅鎖自己的 Y＝紅爪3（由 (200,440) 往上，入點 t=12）、藍切 Y（由 (200,560) 往上，入點 t=52）
-  const b = step(withAim(s, L([200, 440], [200, 300])), { blue: L([200, 560], [200, 400]) }).state;
+  // 調換：紅鎖自己的 Y＝紅爪3（由 (200,440) 往下，入點 t=12）、藍切 Y（由 (200,560) 往上，入點 t=52）
+  const bo = step(withAim(s, L([200, 440], [200, 560])), { blue: L([200, 560], [200, 400]) });
+  const redR = bo.events.find((e) => e.t === 'strike' && e.r.side === 'red');
+  assert.ok(redR && redR.t === 'strike' && redR.r.locks.includes(Y3), '活性：紅刀確實穿過 Y（要鎖它）');
+  const b = bo.state;
   assert.equal(b.alive[Y3], false, 'Y 被切'); assert.equal(b.lockUntil[Y3], 0);
   // 反例：步開始時 X 已鎖 → 擋下
   const pre = { ...s, lockUntil: s.lockUntil.map((v, i) => (i === X0 ? 50 : v)) };
@@ -77,7 +80,7 @@ test('RT-01 刀長：<120 不出刀、不耗冷卻；>420 截斷為 420 再判�
   const s = at(0);
   const sh = step(s, { blue: L([100, 700], [100, 819.9]) }).state;
   assert.equal(sh.cdUntil.blue, 0); assert.equal(board(sh), board(s));
-  // 由 (100,980) 往上 600：截斷後終點 (100,560)，碰不到藍爪1(100,520)（圓下緣 548）——未截斷會碰到
+  // 由 (100,975) 往上 600：截斷後終點 (100,555)，碰不到藍爪1(100,520)（圓下緣 548）——未截斷會碰到
   const r = resolveStrike(s, 'blue', L([100, 975], [100, 375]));
   assert.deepEqual(r.line.b, [100, 555]); assert.deepEqual(r.locks, []); assert.equal(r.severed, null);
 });

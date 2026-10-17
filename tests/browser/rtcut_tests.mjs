@@ -120,7 +120,10 @@ export async function runRtCutTests({ bname, btype, devices, url, check }) {
       if (s.timer !== '40.0' && !s.timer.startsWith('39.')) bad.push(`${label}：計時 ${s.timer}`);
       if (!s.alive.every(Boolean)) bad.push(`${label}：器官沒全回`);
       if (!s.lockUntil.every((v) => v === 0)) bad.push(`${label}：鎖沒清`);
-      if (s.cdUntil.blue !== 0) bad.push(`${label}：冷卻沒清 ${JSON.stringify(s.cdUntil)}`);
+      if (s.cdUntil.blue !== 0 || s.cdUntil.red !== 0) bad.push(`${label}：冷卻沒清 ${JSON.stringify(s.cdUntil)}`);
+      // AI 預告：新局第一個預告在第 24 步才出現（第 60 步生效）；舊局預告不得殘留（對抗式檢查 F2）
+      if (s.aim !== null && s.aim.aimStep !== 24) bad.push(`${label}：殘留舊預告 ${JSON.stringify(s.aim)}`);
+      if (s.aimVis > 1) bad.push(`${label}：預告紀錄沒清 ${s.aimVis}`);
       if (s.seed === prevSeed) bad.push(`${label}：種子沒換`);
       return s.seed;
     };
@@ -129,6 +132,8 @@ export async function runRtCutTests({ bname, btype, devices, url, check }) {
     await page.waitForTimeout(300);
     await drag(page, [60, 500], [400, 500]);
     await page.waitForFunction(() => window.__rt.state.cdUntil.blue > window.__rt.state.step && window.__rt.state.lockUntil.some((v) => v > 0), null, { timeout: 5000 });
+    // 等到舊局紅方也在冷卻中、且有預告進行中，再按重開
+    await page.waitForFunction(() => { const s = window.__rt.state; return s.cdUntil.red > s.step && !!s.aim; }, null, { timeout: 10000 });
     let seed = await page.evaluate(() => window.__rt.state.seed);
     await page.click('#restart');
     await page.waitForTimeout(50);
@@ -153,6 +158,19 @@ export async function runRtCutTests({ bname, btype, devices, url, check }) {
     await page.click('#restart');
     await clean('結果畫面（底部重開）', seed);
     check(`${tag} RT-07 任何階段重開：計時歸 40、器官全回、鎖與冷卻清空、新種子；舊局計時器不寫入新局`, bad.length === 0, bad.join('；'));
+  }
+
+  // ===== 補述 1 計時：分頁切到背景就暫停（對抗式檢查 F3；以覆寫 document.hidden＋visibilitychange 模擬，不是真的切背景） =====
+  {
+    await page.evaluate(() => window.__rt.restart());
+    await page.waitForTimeout(300);
+    const s0 = await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); return window.__rt.state.step; });
+    await page.waitForTimeout(1500);
+    const s1 = await page.evaluate(() => window.__rt.state.step);
+    await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
+    await page.waitForTimeout(500);
+    const s2 = await page.evaluate(() => window.__rt.state.step);
+    check(`${tag} 補述 1 背景分頁暫停：隱藏 1.5 秒步數不動、恢復後不補跑累積時間`, s1 === s0 && s2 > s1 && s2 - s1 <= 45, `step ${s0}→${s1}（隱藏）→${s2}（恢復 0.5 秒）`);
   }
 
   // ===== 子路徑 PWA（RT-09 建置隔離的瀏覽器部分） =====
