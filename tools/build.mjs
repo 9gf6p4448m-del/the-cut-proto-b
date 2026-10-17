@@ -67,8 +67,21 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-sim/${f}`, readFileSync(`public-twinsim/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', SIM_SUB));
 }
 writeFileSync('dist-sim/.build-info.json', JSON.stringify({ sub: SIM_SUB, sha: short }) + '\n');
+// ---- 刀譜研究片段（子路徑 blade/）：獨立輸出 dist-blade/；快取前綴 thecut-blade- 與其他子路徑都分開 ----
+// 部署：node tools/deploy.mjs --sub blade（只替換 gh-pages 的 blade/）。上面五份輸出不受這段影響。
+const BLADE_SUB = 'blade';
+rmSync('dist-blade', { recursive: true, force: true });
+mkdirSync('dist-blade', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/blade_main.ts'], outfile: 'dist-blade/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-blade/${f}`);
+writeFileSync('dist-blade/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-blade/blade.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-blade/${f}`, readFileSync(`public-blade/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', BLADE_SUB));
+}
+writeFileSync('dist-blade/.build-info.json', JSON.stringify({ sub: BLADE_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
 console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);
 console.log(`build twin ok sub=${TWIN_SUB} sha=${short}`);
 console.log(`build sim ok sub=${SIM_SUB} sha=${short}`);
+console.log(`build blade ok sub=${BLADE_SUB} sha=${short}`);
