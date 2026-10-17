@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { serve } from './serve.mjs';
 import { runExpTests } from './exp_tests.mjs';
 import { runSkewerTests } from './skewer_tests.mjs';
+import { runTwinTests } from './twin_tests.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
 const results = [];
@@ -229,6 +230,11 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
 // ---- 串刺研究片段（core-skewer/）：K-2～K-8 與子路徑 PWA ----
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runSkewerTests({ bname, btype, devices, url, check, shotsDir: process.env.SKEWER_SHOTS_DIR });
+}
+
+// ---- 一刀雙獸研究片段（twin-slash/）：TS-04、05、07～12、15 與子路徑 PWA ----
+for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
+  await runTwinTests({ bname, btype, devices, url, check });
 }
 
 // ---- T-15①～③ PWA（Chromium；localhost 視為安全來源） ----

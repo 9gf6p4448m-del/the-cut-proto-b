@@ -1,0 +1,20 @@
+
+/* ---- 一刀雙獸研究片段追加樣式（接在 public/style.css 之後） ---- */
+body.twin { height:100dvh; overflow:hidden; background:#0E1116; }
+.tag { background:var(--amber); color:#11151B; padding:1px 6px; border-radius:6px; font-size:11px; }
+.row { display:flex; gap:6px; margin-top:5px; align-items:center; }
+.seg { display:flex; gap:6px; flex:1; }
+.seg button { flex:1 1 0; font-size:14px; padding:0 4px; }
+.seg button[aria-pressed="true"] { background:#3d4a5e; border-color:var(--bone); font-weight:bold; }
+.hud { margin:5px 0 0; }
+.hp.me .bar i { background:#58c4dd; } .hp.foe .bar i { background:#e05a5a; }
+.info { height:52px; overflow:hidden; margin-top:4px; padding:4px 8px; background:#161b23; border-radius:8px; font-size:13px; line-height:1.35; }
+.info .bad { color:#ff7a7a; font-weight:bold; } .info .good { color:#9be29b; font-weight:bold; } .info .hint { opacity:.75; font-size:12px; }
+.tools { display:flex; gap:6px; margin-top:5px; }
+.tools button { flex:1 1 0; font-size:13px; padding:0 4px; min-height:44px; }
+.tools button[aria-pressed="true"] { background:#3d4a5e; border-color:var(--bone); }
+#sever[aria-pressed="true"] { background:#8C2635; border-color:#ff8a8a; font-weight:bold; }
+#sever:disabled { opacity:.35; }
+.modal { position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; z-index:20; padding:16px; }
+.modal .box { background:#1b2029; border:1px solid #3a4150; border-radius:12px; padding:12px; width:100%; max-width:420px; }
+.modal textarea { width:100%; border-radius:8px; border:1px solid #3a4150; background:#1b2029; color:var(--bone); font-size:16px; padding:6px; -webkit-user-select:text; user-select:text; }

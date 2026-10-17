@@ -43,6 +43,19 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-skewer/${f}`, readFileSync(`public-skewer/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', SKEWER_SUB));
 }
 writeFileSync('dist-skewer/.build-info.json', JSON.stringify({ sub: SKEWER_SUB, sha: short }) + '\n');
+// ---- 一刀雙獸研究片段（子路徑 twin-slash/）：獨立輸出 dist-twin/；快取前綴與其他子路徑都分開 ----
+// 部署：node tools/deploy.mjs --sub twin-slash（只替換 gh-pages 的 twin-slash/）。上面三份輸出不受這段影響。
+const TWIN_SUB = 'twin-slash';
+rmSync('dist-twin', { recursive: true, force: true });
+mkdirSync('dist-twin', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/twinslash_main.ts'], outfile: 'dist-twin/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-twin/${f}`);
+writeFileSync('dist-twin/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-twinslash/twin.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-twin/${f}`, readFileSync(`public-twinslash/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', TWIN_SUB));
+}
+writeFileSync('dist-twin/.build-info.json', JSON.stringify({ sub: TWIN_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
 console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);
+console.log(`build twin ok sub=${TWIN_SUB} sha=${short}`);

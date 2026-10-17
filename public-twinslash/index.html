@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="一刀雙獸">
+<meta name="theme-color" content="#0E1116">
+<meta name="build-sha" content="__BUILD_SHA__">
+<title>執刀者 一刀雙獸 研究片段</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="stylesheet" href="./style.css?v=__BUILD_SHA__">
+</head>
+<body class="twin">
+<header id="top">
+  <div class="warn"><b class="tag">研究片段</b> 一刀雙獸 twin-slash · 版本 <span id="sha"></span> · 非正式規則</div>
+  <div class="row">
+    <div class="seg" role="group" aria-label="盤面"><button id="bd1" aria-pressed="true">盤面一</button><button id="bd2" aria-pressed="false">盤面二</button><button id="bd3" aria-pressed="false">盤面三</button></div>
+  </div>
+  <div class="row">
+    <div class="seg" role="group" aria-label="模式"><button id="mA1" aria-pressed="true">A1 直接拆</button><button id="mB2" aria-pressed="false">B2 拆刀次數</button></div>
+  </div>
+  <div class="hud">
+    <div class="hp me"><span>你</span><div class="bar"><i id="hpMeBar"></i></div><b id="hpMe"></b></div>
+    <div class="hp foe"><span>他</span><div class="bar"><i id="hpFoeBar"></i></div><b id="hpFoe"></b></div>
+  </div>
+  <div id="info" class="info" role="status" aria-live="polite"></div>
+</header>
+<main><canvas id="scene"></canvas></main>
+<footer>
+  <div class="tools">
+    <button id="sever" aria-pressed="false" disabled>拆刀</button>
+    <button id="replay">重播上一刀</button>
+    <button id="restart" class="primary">重開</button>
+  </div>
+  <div class="tools">
+    <button id="reduce" aria-pressed="false">減少閃爍震動血腥</button>
+    <button id="sound" aria-pressed="true">音效：開</button>
+    <button id="exportBtn">複製紀錄</button>
+  </div>
+</footer>
+<section id="exportModal" class="modal" hidden><div class="box"><p>瀏覽器不允許自動複製。請長按下方文字全選複製：</p><textarea id="exportBox" readonly rows="8"></textarea><button id="exportClose">關閉</button></div></section>
+<script src="./app.js?v=__BUILD_SHA__"></script>
+</body>
+</html>
