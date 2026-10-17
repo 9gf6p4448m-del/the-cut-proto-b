@@ -8,6 +8,7 @@ import { runExpTests } from './exp_tests.mjs';
 import { runSkewerTests } from './skewer_tests.mjs';
 import { runTwinTests } from './twin_tests.mjs';
 import { runTwinSimTests } from './twinsim_tests.mjs';
+import { runRtCutTests } from './rtcut_tests.mjs';
 import { runRootSwTests } from './root_sw_tests.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
@@ -242,6 +243,11 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
 // ---- 同時下刀研究片段（twin-sim/）：TSIM-08～13 ----
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runTwinSimTests({ bname, btype, devices, url, check });
+}
+
+// ---- 即時亂切研究片段（rt-cut/）：RT-03、06、07、08 與子路徑 PWA ----
+for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
+  await runRtCutTests({ bname, btype, devices, url, check });
 }
 
 // ---- 根網址 service worker 相容性（DL-069，RS-1～RS-4；舊 SW 重現、新 SW 修好） ----

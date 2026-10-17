@@ -67,8 +67,21 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-sim/${f}`, readFileSync(`public-twinsim/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', SIM_SUB));
 }
 writeFileSync('dist-sim/.build-info.json', JSON.stringify({ sub: SIM_SUB, sha: short }) + '\n');
+// ---- 即時亂切研究片段（子路徑 rt-cut/）：獨立輸出 dist-rt/；快取前綴與其他子路徑都分開 ----
+// 部署：node tools/deploy.mjs --sub rt-cut（只替換 gh-pages 的 rt-cut/）。上面五份輸出不受這段影響。
+const RT_SUB = 'rt-cut';
+rmSync('dist-rt', { recursive: true, force: true });
+mkdirSync('dist-rt', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/rtcut_main.ts'], outfile: 'dist-rt/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-rt/${f}`);
+writeFileSync('dist-rt/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-rtcut/rt.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-rt/${f}`, readFileSync(`public-rtcut/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', RT_SUB));
+}
+writeFileSync('dist-rt/.build-info.json', JSON.stringify({ sub: RT_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
 console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);
 console.log(`build twin ok sub=${TWIN_SUB} sha=${short}`);
 console.log(`build sim ok sub=${SIM_SUB} sha=${short}`);
+console.log(`build rt ok sub=${RT_SUB} sha=${short}`);
