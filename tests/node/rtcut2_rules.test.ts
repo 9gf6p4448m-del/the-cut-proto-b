@@ -1,12 +1,13 @@
 // 即時亂切 v2（擊倒＋再生）規則（the-cut docs/rt-cut2/ACCEPTANCE_FROZEN.md R2-01～05 的 Node 部分）。作者測試。
-// 預期值依凍結檔與盤面常數手算後寫死；刀線幾何見各案註解（同 rtcut_rules.test.ts）。
+// 預期值依凍結檔與盤面常數手算後寫死；刀線幾何見各案註解（同 rtcut_rules.test.ts）。設 RTCUT_RULES 可改測突變版。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { BODY, MODE_RT1, MODE_RT2, ORGANS, R, REGEN_STEPS, SPROUT_STEPS, aiChoose, candidates, countSide, inside, newGame, resolveStrike, runMatch, runRandomPlayer, step } from '../../src/rtcut/rules.ts';
+const mod: typeof import('../../src/rtcut/rules.ts') = await import(process.env.RTCUT_RULES ? pathToFileURL(process.env.RTCUT_RULES).href : '../../src/rtcut/rules.ts'); // 突變驗紅時指向突變版（tests/rtcut2_mutation.mjs）
+const { BODY, MODE_RT1, MODE_RT2, ORGANS, R, REGEN_STEPS, SPROUT_STEPS, aiChoose, aiScore, candidates, countSide, inside, isReady, newGame, resolveStrike, runMatch, runRandomPlayer, step } = mod;
 import type { GameState, Line, Side, V } from '../../src/rtcut/rules.ts';
 import { ROOT } from './helpers.ts';
 
@@ -123,4 +124,92 @@ test('R2-05 AI：對手只剩萌芽器官時不出攻擊刀（只可能出保護
   // 原版模式（對照）：同局面 AI 仍會出刀（可能無目標）——v2 的限制只在 v2 模式生效
   const v1 = { ...sp, mode: MODE_RT1 };
   assert.notEqual(aiChoose(v1).line, null);
+});
+
+// ---------------------------------------------------------------- 對抗式檢查補強（H1～H6、M3）
+test('R2-02 先切先長（H3）：切「爪→心」長「爪→心」，切「心→爪」長「心→爪」', () => {
+  const kinds = (at: Record<number, Line>) => { const r = run({ ...newGame(3, MODE_RT2), aiNextFire: 10 ** 9 }, 2 * REGEN_STEPS + 1, at); return r.ev.map((e) => r.s.organs[e.i].kind); };
+  assert.deepEqual(kinds({ 0: BLUE_ROW, 100: HEART_UP }), ['claw', 'heart']);
+  assert.deepEqual(kinds({ 0: HEART_UP, 100: BLUE_ROW }), ['heart', 'claw']);
+});
+
+test('R2-02 藍方再生位置（H4）：在藍身內、不與任何現存器官重疊（40 種子）', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const s0 = { ...newGame(seed, MODE_RT2), aiNextFire: 10 ** 9 };
+    const r = run(withAim(s0, RED_DOWN_X), REGEN_STEPS + 1); // 第 0 步紅刀切藍爪1
+    assert.equal(r.ev.length, 1, `seed ${seed}`);
+    const o = r.s.organs[r.ev[0].i];
+    assert.equal(o.side, 'blue'); assert.ok(inside(o.p, BODY.blue), `seed ${seed} 在藍身`);
+    r.s.organs.forEach((q, i) => { if (i !== r.ev[0].i && r.s.alive[i]) assert.ok(Math.hypot(q.p[0] - o.p[0], q.p[1] - o.p[1]) >= 2 * R, `seed ${seed} 與 ${q.id} 重疊`); });
+  }
+});
+
+test('R2-01／02 擊倒與再生節拍同一步（H5）：第 300 步切掉最後一個器官 → 立即擊倒、不再生', () => {
+  const s = { ...only([X0, Y3, idx('藍爪2')], REGEN_STEPS), severedQ: { blue: ['claw' as const], red: ['claw' as const, 'heart' as const] } };
+  const o = step(s, { blue: BLUE_ROW });
+  assert.deepEqual(o.state.end, { by: 'ko', winner: 'blue' });
+  assert.equal(o.events.filter((e) => e.t === 'spawn').length, 0);
+  assert.equal(o.state.organs.length, ORGANS.length);
+  // 對照：同一步沒有擊倒時，節拍照常再生
+  const n = step({ ...s, alive: s.alive.map((v, i) => v || i === idx('紅爪2')) }, { blue: L([300, 300], [300, 100]) /* 起點不在藍身：不出刀 */ });
+  assert.ok(n.events.filter((e) => e.t === 'spawn').length >= 1);
+});
+
+test('R2-03 萌芽長度（H6）：凍結 0.5 秒＝30 步；第 300 步長出 → 第 330 步起才存在', () => {
+  assert.equal(SPROUT_STEPS, 30);
+  const r = run({ ...newGame(3, MODE_RT2), aiNextFire: 10 ** 9 }, REGEN_STEPS + 1, { 0: BLUE_ROW });
+  const i = r.ev[0].i;
+  assert.equal(r.s.readyAt[i], 330);
+  assert.equal(isReady({ ...r.s, step: 329 }, i), false); assert.equal(isReady({ ...r.s, step: 330 }, i), true);
+});
+
+test('R2-05 AI 不對空出刀（H1）：你只剩萌芽器官時，200 個亂數狀態下 AI 每次選刀都只能是保護刀或不出刀', () => {
+  const s = newGame(1, MODE_RT2);
+  const sp: GameState = { ...s, step: 100, alive: s.alive.map((v, i) => ORGANS[i].side === 'red' || i === X0), readyAt: s.readyAt.map((v, i) => (i === X0 ? 120 : v)) };
+  let picks = 0;
+  for (let r = 1; r <= 200; r++) {
+    const pick = aiChoose({ ...sp, rng: r * 2654435761 >>> 0 });
+    if (!pick.line) continue;
+    picks++;
+    const res = resolveStrike({ ...sp, cdUntil: { blue: 0, red: 0 } }, 'red', pick.line);
+    assert.ok(res.severed === null && res.blocked === null && res.locks.length > 0, `rng ${r}：不是保護刀 ${JSON.stringify(pick.line)}`);
+  }
+  assert.ok(picks > 0, '活性：這個局面 AI 會出保護刀');
+  // 牠自己的器官也都還鎖著（保護刀沒有價值）→ 沒有任何有目標的刀 → AI 必須不出刀（原版模式會照樣揮一刀）
+  const allLocked: GameState = { ...sp, lockUntil: sp.lockUntil.map((v, i) => (ORGANS[i].side === 'red' ? 10 ** 6 : v)) };
+  for (let r = 1; r <= 50; r++) assert.equal(aiChoose({ ...allLocked, rng: (r * 2654435761) >>> 0 }).line, null, `rng ${r}`);
+  assert.notEqual(aiChoose({ ...allLocked, mode: MODE_RT1 }).line, null, '對照：原版模式會出無目標的刀');
+  // 整步模擬：預告在萌芽期間開始 → 預告刀線也只能是保護刀
+  for (let r = 1; r <= 50; r++) {
+    const o = step({ ...sp, rng: r * 40503 >>> 0, aim: null, aiNextFire: 100 + 36 }, {});
+    const a = o.events.find((e) => e.t === 'aim');
+    if (a && a.t === 'aim') { const res = resolveStrike({ ...o.state, cdUntil: { blue: 0, red: 0 } }, 'red', a.aim.line); assert.ok(res.severed === null && res.locks.length > 0, `step rng ${r}`); }
+  }
+});
+
+test('R2-05 AI 會打再生出來的器官（H2）：藍方只剩一個再生器官（萌芽已結束），AI 打分與實際選刀都把它當目標', () => {
+  // 第 0 步紅刀切藍爪1 → 第 300 步藍方再生 → 第 330 步成熟；之後只留這個再生器官
+  // seed 5：再生在 (130,772)，紅方候選刀碰得到（seed 4 長在 (378,961)，任何紅刀都碰不到——另列發現）
+  const r = run(withAim({ ...newGame(5, MODE_RT2), aiNextFire: 10 ** 9 }, RED_DOWN_X), 331);
+  assert.deepEqual(r.s.organs[r.ev[0].i].p, [130, 772]);
+  const g = r.ev[0].i;
+  assert.ok(g >= ORGANS.length);
+  const s: GameState = { ...r.s, alive: r.s.alive.map((v, i) => r.s.organs[i].side === 'red' ? v : i === g) };
+  const pr = { ...s, cdUntil: { blue: 0, red: 0 } };
+  // ① AI 打分把再生器官當成切除目標：切到它的刀，分數比同一刀不算切除時多出爪的價值 2
+  const sev = candidates(pr, 'red').map((l) => resolveStrike(pr, 'red', l)).filter((x) => x.ok && x.severed === g);
+  assert.ok(sev.length > 0, '有候選刀切得到');
+  for (const x of sev) assert.equal(aiScore(pr, 'red', x) - aiScore(pr, 'red', { ...x, severed: null }), 2);
+  // ② 實際選刀（400 個亂數狀態）確實會挑到切它的刀（原版 14 次；把再生器官價值歸零的突變只剩 2 次）
+  let hits = 0;
+  for (let k = 1; k <= 400; k++) { const p = aiChoose({ ...s, rng: (k * 2654435761) >>> 0 }); if (p.line && resolveStrike(pr, 'red', p.line).severed === g) hits++; }
+  assert.ok(hits >= 8, `400 次中切到再生器官 ${hits} 次`);
+});
+
+test('R2-02 再生器官被切後重新排入佇列（M3）', () => {
+  // 在盤面加一個紅方器官（模擬再生出來的、已成熟）於 (300,455)：藍刀由 (300,560) 往上先鎖藍爪2(300,520)，再切它
+  const s0 = newGame(1, MODE_RT2), extra = { id: '紅爪7', side: 'red' as Side, kind: 'claw' as const, p: [300, 455] as V };
+  const s: GameState = { ...s0, aiNextFire: 10 ** 9, organs: [...s0.organs, extra], alive: [...s0.alive, true], lockUntil: [...s0.lockUntil, 0], readyAt: [...s0.readyAt, 0] };
+  const o = step(s, { blue: L([300, 560], [300, 420]) });
+  assert.equal(o.state.alive[16], false); assert.deepEqual(o.state.severedQ.red, ['claw']); assert.equal(o.state.severedN.blue, 1);
 });

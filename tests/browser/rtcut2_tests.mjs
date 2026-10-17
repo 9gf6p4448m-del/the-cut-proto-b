@@ -49,16 +49,16 @@ export async function runRtCut2Tests({ bname, btype, devices, url, check }) {
       await page.evaluate((ids) => window.__rt.testSever(ids), RED.filter((i) => i !== idx('紅爪3')));
       await page.waitForFunction((y) => { const s = window.__rt.state; return s.cdUntil.blue <= s.step && s.lockUntil[y] <= s.step; }, idx('紅爪3'), { timeout: 5000 });
       await drag(page, [60, 500], [400, 500]);
-      try { await page.waitForFunction(() => window.__rt.ui === 'ko', null, { timeout: 2000 }); ko = await page.evaluate(() => ({ end: window.__rt.state.end, t: performance.now() })); } catch { /* 被擋或被 AI 鎖住：重來 */ }
+      try { await page.waitForFunction(() => window.__rt.ui === 'ko', null, { timeout: 2000 }); ko = await page.evaluate(() => ({ end: window.__rt.state.end, t: performance.now(), n: window.__rt.events.filter((e) => e.e.t === 'strike').length })); } catch { /* 被擋或被 AI 鎖住：重來 */ }
+      // 擊倒演出期間真實拖曳一刀：不得出刀（對抗式檢查 L3）
+      if (ko) { await drag(page, [100, 560], [100, 420]); ko.n2 = await page.evaluate(() => window.__rt.events.filter((e) => e.e.t === 'strike').length); }
     }
     await page.waitForFunction(() => window.__rt.ui === 'end', null, { timeout: 6000 });
     const koMs = (await page.evaluate(() => performance.now())) - (ko ? ko.t : 0);
     const r = await rows(page), title = await page.textContent('#resTitle');
     const endRow = r.find((x) => x[0] === '結束方式'), cutRow = r.find((x) => x[0] === '總切除數');
-    // 擊倒後再拖：不出刀
-    const n0 = await page.evaluate(() => window.__rt.events.filter((e) => e.e.t === 'strike').length);
-    const ok = ko && ko.end.by === 'ko' && ko.end.winner === 'blue' && title === '擊倒勝' && endRow && endRow[1] === '擊倒' && cutRow && cutRow[1] === '1' && koMs <= 3300 && n0 >= 1;
-    check(`${tag} R2-06 擊倒勝：真實拖曳切掉最後一個器官 → 擊倒演出（${Math.round(koMs)}ms）→ 結果寫「擊倒勝／結束方式 擊倒／總切除數」`, ok, JSON.stringify({ end: ko && ko.end, title, endRow, cutRow, koMs: Math.round(koMs) }));
+    const ok = ko && ko.end.by === 'ko' && ko.end.winner === 'blue' && title === '擊倒勝' && endRow && endRow[1] === '擊倒' && cutRow && cutRow[1] === '1' && koMs <= 3300 && ko.n >= 1 && ko.n2 === ko.n;
+    check(`${tag} R2-06 擊倒勝：真實拖曳切掉最後一個器官 → 擊倒演出（${Math.round(koMs)}ms，期間拖曳不出刀）→ 結果寫「擊倒勝／結束方式 擊倒／總切除數」`, ok, JSON.stringify({ end: ko && ko.end, title, endRow, cutRow, koMs: Math.round(koMs) }));
     const KO_MS = await page.evaluate(() => window.__rt.KO_MS);
     check(`${tag} R2-01 擊倒演出 ≤3 秒（設定 ${KO_MS}ms）`, KO_MS <= 3000);
   }
@@ -120,7 +120,8 @@ export async function runRtCut2Tests({ bname, btype, devices, url, check }) {
       const strikes = await page.evaluate((k) => window.__rt.events.filter((e) => e.e.t === 'strike' && e.e.r.side === 'red' && e.step > k).map((e) => ({ step: e.step, r: e.e.r })), b0.step);
       for (const a of aims) { const s = strikes.find((x) => x.step === a.fireStep + 1); if (s && (s.r.severed !== null || s.r.locks.length === 0)) bad.push(`(b) 萌芽期間預告的刀不是保護刀 ${JSON.stringify(s.r)}`); }
     }
-    check(`${tag} R2-05 AI 不對空出刀：(a) 牠只剩萌芽時每刀都有目標；(b) 你只剩萌芽時 AI 只出保護刀或不出刀`, bad.length === 0, bad.join('；') + ` (a)紅刀 ${aStr.length} 刀`);
+    // 註：(b) 視當局預告時刻，萌芽窗內可能沒有新預告（對抗式檢查 H1）；「只出保護刀或不出刀」的鑑別力由 Node rtcut2_rules.test.ts 的 H1 案與突變驗紅負責
+    check(`${tag} R2-05 AI 不對空出刀（瀏覽器實測）：(a) 牠只剩萌芽時每刀都有目標；(b) 你只剩萌芽時窗內的預告不是攻擊刀`, bad.length === 0, bad.join('；') + ` (a)紅刀 ${aStr.length} 刀`);
   }
 
   // ===== R2-07 手機版面 =====
