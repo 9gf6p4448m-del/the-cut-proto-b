@@ -1,7 +1,7 @@
 // B 軌建置：esbuild 打包，node:crypto／node:fs 以相容層替換（研究引擎檔案不修改）。
 import * as esbuild from 'esbuild';
 import { execSync } from 'node:child_process';
-import { mkdirSync, copyFileSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, copyFileSync, cpSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
 
 const sha = process.env.GITHUB_SHA || (() => { try { return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'local'; } })();
 const short = sha.slice(0, 7);
@@ -98,6 +98,7 @@ rmSync('dist-art', { recursive: true, force: true });
 mkdirSync('dist-art', { recursive: true });
 await esbuild.build({ ...common, entryPoints: ['src/art/showcase.ts'], outfile: 'dist-art/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
 for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-art/${f}`);
+cpSync('public-artkit/assets', 'dist-art/assets', { recursive: true }); // 暫代／正式素材與縮小的目標圖
 for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-art/${f}`, readFileSync(`public-artkit/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', ART_SUB));
 }
