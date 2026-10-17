@@ -28,7 +28,7 @@ interface CutLog {
 interface MatchLog { board: string; mode: Mode; first: Side; seed: number; cuts: CutLog[]; result: State['result']; cancels: number }
 const G = {
   boardId: 'b1', mode: 'A1' as Mode, match: 0, st: null as unknown as State, phase: 'player' as Phase,
-  drag: null as { a: V; b: V; max: number } | null, preview: null as CutResult | null, toggle: false,
+  drag: null as { id: number; a: V; b: V; max: number } | null, preview: null as CutResult | null, toggle: false,
   reduced: false, sound: true, msg: '', msgCls: '', msgUntil: 0, aiDelay: 550,
   last: null as null | { before: State; res: CutResult }, display: null as State | null,
   logs: [] as MatchLog[], anim: null as null | Anim,
@@ -183,12 +183,12 @@ function capture(e: PointerEvent): void { try { els.canvas.setPointerCapture(e.p
 els.canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 els.canvas.addEventListener('pointerdown', (e) => {
   ac();
-  if (G.phase !== 'player' || G.st.turn !== 'blue') return;
+  if (G.phase !== 'player' || G.st.turn !== 'blue' || G.drag) return;      // 已有一指在拖：其他指標一律忽略
   capture(e); const p = toWorld(e.clientX, e.clientY);
-  G.drag = { a: p, b: p, max: 0 }; fx.trail = [p]; fx.trailFade = 0; G.preview = null; kick();
+  G.drag = { id: e.pointerId, a: p, b: p, max: 0 }; fx.trail = [p]; fx.trailFade = 0; G.preview = null; kick();
 });
 els.canvas.addEventListener('pointermove', (e) => {
-  if (!G.drag || G.phase !== 'player') return;
+  if (!G.drag || e.pointerId !== G.drag.id || G.phase !== 'player') return;
   const p = clampB(G.drag.a, toWorld(e.clientX, e.clientY)); G.drag.b = p;
   fx.trail.push(p); if (fx.trail.length > 120) fx.trail.shift();
   const len = Math.hypot(p[0] - G.drag.a[0], p[1] - G.drag.a[1]); G.drag.max = Math.max(G.drag.max, len);
@@ -196,7 +196,8 @@ els.canvas.addEventListener('pointermove', (e) => {
   kick();
 });
 function up(e: PointerEvent, cancelled: boolean): void {
-  if (!G.drag || G.phase !== 'player') { G.drag = null; return; }
+  if (!G.drag || e.pointerId !== G.drag.id) return;                          // 只處理起刀的那一指
+  if (G.phase !== 'player') { G.drag = null; return; }
   const d = G.drag; G.drag = null; const p = clampB(d.a, toWorld(e.clientX, e.clientY));
   const len = Math.hypot(p[0] - d.a[0], p[1] - d.a[1]);
   fx.trailFade = performance.now(); G.preview = null;
@@ -214,7 +215,7 @@ els.bd.forEach((b, i) => b.addEventListener('click', () => newMatch(BOARDS[i].id
 els.mA1.addEventListener('click', () => newMatch(G.boardId, 'A1'));
 els.mB2.addEventListener('click', () => newMatch(G.boardId, 'B2'));
 els.restart.addEventListener('click', () => newMatch());
-els.sever.addEventListener('click', () => { if (G.st.mode === 'B2' && G.st.charges.blue > 0 && G.phase === 'player') { G.toggle = !G.toggle; refresh(); } });
+els.sever.addEventListener('click', () => { if (G.st.mode === 'B2' && G.st.charges.blue > 0 && G.phase === 'player') { G.toggle = !G.toggle; if (G.drag) { const len = Math.hypot(G.drag.b[0] - G.drag.a[0], G.drag.b[1] - G.drag.a[1]); G.preview = len >= MIN_LEN ? resolveCut(G.st, 'blue', G.drag.a, G.drag.b, G.toggle) : null; } refresh(); } });   // 拖曳中切換：用同一組刀路重算預覽
 els.replay.addEventListener('click', () => {
   if (!G.last || G.phase === 'anim' || G.phase === 'ai') return;
   const keep = G.phase; const cur = G.st; G.display = G.last.before; G.phase = 'anim';

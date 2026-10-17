@@ -65,6 +65,44 @@ export async function runTwinTests({ bname, btype, devices, url, check }) {
     check(`${tag} TS-07 預覽＝結果：真實拖曳 ${n} 條線，發動／切除／穿過／撞骨／停刀／傷害／扣次數逐項相同；紀錄同結果`, n >= 10 && bad.length === 0 && seen.sever && seen.pass && seen.bone && seen.spend && seen.fired >= 10, `${JSON.stringify(seen)} ${bad.slice(0, 2).join(' | ')}`);
   }
 
+  // ===== TS-07 回歸（Codex THECUT-TWINSLASH-R1 兩項 HIGH）：拖曳中切換拆刀、多指 =====
+  {
+    const bad = [];
+    // ① 拖曳中切換拆刀：預覽必須跟著變，放開結果＝切換後的預覽
+    await page.evaluate(() => window.__twin.newMatch('b1', 'B2', { first: 'red' })); await settle(page);
+    const st = await page.evaluate(() => window.__twin.st);
+    const l = candidateCuts(st, 'blue').find((r) => !r.useSever && r.passed.length && r.fired.length);
+    if (st.charges.blue < 1 || !l) bad.push(`前提不成立 charges=${st.charges.blue} line=${!!l}`);
+    else {
+      await drag(page, l.a, l.b, false);
+      const p0 = await page.evaluate(() => window.__twin.preview);
+      await page.evaluate(() => document.getElementById('sever').click());      // 另一指點拆刀（刀端不動）
+      const p1 = await page.evaluate(() => window.__twin.preview);
+      await page.mouse.up();
+      const r = await page.evaluate(() => window.__twin.last);
+      if (!(p0.passed.length && !p0.spend)) bad.push('切換前預覽應為穿過');
+      if (!(p1.severed && p1.spend)) bad.push(`切換後預覽未更新 ${fields(p1)}`);
+      if (fields(p1) !== fields(r)) bad.push(`切換後預覽≠結果 ${fields(p1)} / ${fields(r)}`);
+      await settle(page);
+    }
+    // ② 多指：第二指的按下／移動／放開一律忽略，結果＝第一指的刀
+    await page.evaluate(() => window.__twin.newMatch('b1', 'A1', { first: 'blue' })); await settle(page);
+    const st2 = await page.evaluate(() => window.__twin.st);
+    const c = candidateCuts(st2, 'blue'), l1 = c.find((r) => r.severed), l2 = c.find((r) => r.fired.length && !r.severed && r.a.join() !== l1.a.join());
+    const P = async (pts) => page.evaluate((pts) => { const cv = document.getElementById('scene'); for (const [t, id, q] of pts) cv.dispatchEvent(new PointerEvent(t, { clientX: q.x, clientY: q.y, pointerId: id, pointerType: 'touch', isPrimary: id === 1, bubbles: true })); }, pts);
+    const A1 = await scr(page, l1.a), B1 = await scr(page, l1.b), A2 = await scr(page, l2.a), B2 = await scr(page, l2.b);
+    await P([['pointerdown', 1, A1], ['pointermove', 1, B1], ['pointerdown', 2, A2], ['pointermove', 2, B2]]);
+    const pv = await page.evaluate(() => window.__twin.preview);
+    await P([['pointerup', 2, B2]]);
+    const mid = (await T(page)).cuts;
+    await P([['pointerup', 1, B1]]);
+    const r2 = await page.evaluate(() => window.__twin.last);
+    if (mid !== 0) bad.push('第二指放開就出刀了');
+    if (!r2 || r2.side !== 'blue' || fields(pv) !== fields(r2) || r2.severed !== l1.severed) bad.push(`多指：預覽 ${fields(pv)} 結果 ${fields(r2)}`);
+    await settle(page);
+    check(`${tag} TS-07 回歸：拖曳中切換拆刀會重算預覽且預覽＝結果；多指時只認起刀那一指`, bad.length === 0, bad.join(' | '));
+  }
+
   // ===== TS-04 取消；TS-05 UI（切換鈕可用性、A1 不顯示次數） =====
   {
     await page.evaluate(() => window.__twin.newMatch('b1', 'A1', { first: 'blue' })); await settle(page);
