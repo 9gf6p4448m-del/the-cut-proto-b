@@ -1,7 +1,7 @@
 // 幽光美術模組展示頁 v2（子路徑 art-kit/）：「生成圖當素材＋程式負責動態」。三個目標畫面（切割／戰鬥／縫合）各與目標圖並排，
 // 另有器官 × 狀態、素材管線（染色＋自動身體多邊形）。?only=cut|battle|stitch 只全螢幕畫一個畫面（393×852 截圖與 FPS 量測用）。
 // v1 的程式繪製獸身展示（drawScene 等）仍在 src/art/ghostlight.ts，可在 git 歷史 06797e8 的展示頁看到。
-import { bodyPolyWorld, drawBackdrop, drawBlade, drawBodySprite, drawCard, drawDuelScene, drawHud, drawOrganSprite, drawSlot, drawSuture, loadAssets, maskOf, playFx2, shake2, tinted } from './sprites.ts';
+import { bodyPolyWorld, drawBackdrop, drawBlade, drawBodySprite, drawCard, drawDuelScene, drawHud, loadLog, drawOrganSprite, drawSlot, drawSuture, loadAssets, maskOf, playFx2, shake2, tinted } from './sprites.ts';
 import type { Assets, Fx2, Kind, OrganState, Rect, Side } from './sprites.ts';
 import { bodyPolygon, maskArea, polygonArea, downsampleMask, outerRingArea } from './polygon.ts';
 import type { P } from './polygon.ts';
@@ -113,7 +113,19 @@ const cost: Record<string, number> = {};
 const fps = { frames: 0, since: performance.now(), value: 0, samples: [] as number[] };
 let assets: Assets | null = null;
 // 預設正式素材；?assets=placeholder 看暫代
-loadAssets(new URLSearchParams(location.search).get('assets') === 'placeholder' ? './assets/placeholder' : './assets/final').then((a) => { assets = a; }).catch((e) => { (document.getElementById('err') as HTMLElement).textContent = String(e); });
+loadAssets(new URLSearchParams(location.search).get('assets') === 'placeholder' ? './assets/placeholder' : './assets/final').then((a) => { assets = a; }).catch((e) => showLoadError(e));
+/** 素材載入全部失敗：顯示原因、[DEBUG-artkit] 嘗試紀錄，以及「重新載入」「改用暫代素材」按鈕（不再整片空白）。 */
+function showLoadError(e: unknown): void {
+  const box = document.getElementById('err') as HTMLElement; box.textContent = '';
+  const msg = document.createElement('div'); msg.textContent = String(e instanceof Error ? e.message : e); box.appendChild(msg);
+  const fails = loadLog.filter((x) => !x.ok).slice(-6);
+  const dbg = document.createElement('div'); dbg.style.cssText = 'font-size:10px;opacity:.8;margin:4px 0;word-break:break-all';
+  dbg.textContent = '[DEBUG-artkit] ' + fails.map((x) => `${x.url.split('/').pop()} 第${x.attempt}次 ${x.ms}ms online=${x.online} sw=${x.sw}`).join('｜') + `｜成功 ${loadLog.filter((x) => x.ok).length} 個`;
+  box.appendChild(dbg);
+  const btn = (label: string, fn: () => void) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'min-height:44px;margin:4px 8px 4px 0;padding:0 14px;border-radius:10px;border:1px solid #3a4150;background:#232935;color:#F0F7FF;font-size:14px'; b.addEventListener('click', fn); box.appendChild(b); };
+  btn('重新載入', () => location.reload());
+  btn('改用暫代素材', () => { const u = new URL(location.href); u.searchParams.set('assets', 'placeholder'); location.href = u.toString(); });
+}
 function frame(now: number): void {
   const t = Number.isFinite(FREEZE) ? FREEZE : now / 1000;
   if (assets) for (const p of panels) { if (!p.visible) continue; const c0 = performance.now(); fit(p); p.draw(p.ctx, p.w, p.h, t, assets); cost[p.id] = (cost[p.id] ?? 0) * 0.9 + (performance.now() - c0) * 0.1; }
@@ -122,5 +134,5 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-(window as unknown as { __art: unknown }).__art = { fps, cost, get ready() { return !!assets; }, sha: SHA };
+(window as unknown as { __art: unknown }).__art = { fps, cost, get ready() { return !!assets; }, sha: SHA, loadLog };
 if ('serviceWorker' in navigator && window.isSecureContext) void navigator.serviceWorker.register('./sw.js', { scope: './' });

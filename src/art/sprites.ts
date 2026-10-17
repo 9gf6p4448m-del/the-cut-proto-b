@@ -22,9 +22,31 @@ class Cache<T> { private m = new Map<string, T>(); private max: number; construc
 // ---------------------------------------------------------------- 素材載入
 export type Img = HTMLImageElement | HTMLCanvasElement;
 const imgCache = new Map<string, Promise<HTMLImageElement>>();
+/** 載入紀錄（[DEBUG-artkit]）：每次嘗試的結果，失敗時顯示給使用者／回報用。 */
+export const loadLog: { url: string; attempt: number; ok: boolean; ms: number; w?: number; h?: number; online?: boolean; sw?: boolean }[] = [];
+const RETRY_DELAYS = [0, 400, 1200]; // 共 3 次；第 2 次起加查詢參數繞過快取（2026-10-18 iOS 4G 單次失敗即整頁空白的修正）
+function tryOnce(url: string, attempt: number): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => {
+    const im = new Image(), t0 = performance.now(), src = attempt === 0 ? url : `${url}${url.includes('?') ? '&' : '?'}r=${attempt}`;
+    const rec = (ok: boolean) => loadLog.push({ url, attempt: attempt + 1, ok, ms: Math.round(performance.now() - t0), w: im.naturalWidth, h: im.naturalHeight, online: typeof navigator !== 'undefined' ? navigator.onLine : undefined, sw: typeof navigator !== 'undefined' && 'serviceWorker' in navigator ? !!navigator.serviceWorker.controller : undefined });
+    im.onload = () => { if (im.naturalWidth > 0) { rec(true); res(im); } else { rec(false); rej(new Error('naturalWidth=0')); } };
+    im.onerror = () => { rec(false); rej(new Error('onerror')); };
+    im.src = src;
+  });
+}
 export function loadImage(url: string): Promise<HTMLImageElement> {
   let p = imgCache.get(url);
-  if (!p) { p = new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error(`素材載入失敗：${url}`)); im.src = url; }); imgCache.set(url, p); }
+  if (!p) {
+    p = (async () => {
+      for (let a = 0; a < RETRY_DELAYS.length; a++) {
+        if (RETRY_DELAYS[a]) await new Promise((r) => setTimeout(r, RETRY_DELAYS[a]));
+        try { return await tryOnce(url, a); } catch { /* 下一次 */ }
+      }
+      imgCache.delete(url); // 失敗不快取，重新呼叫會再試
+      throw new Error(`素材載入失敗（已試 ${RETRY_DELAYS.length} 次）：${url}`);
+    })();
+    imgCache.set(url, p);
+  }
   return p;
 }
 export interface Assets { body: HTMLImageElement; organs: Record<Kind, HTMLImageElement> }
