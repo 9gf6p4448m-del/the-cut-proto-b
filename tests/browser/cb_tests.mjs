@@ -31,7 +31,12 @@ async function playCut(page, passive = false) {
   }
 }
 const waitUi = (page, ui, timeout = 40000) => page.waitForFunction((u) => window.__cb.ui === u || (Array.isArray(u) && u.includes(window.__cb.ui)), ui, { timeout });
-function legalSpot(camp) { for (let y = 470; y < 960; y += 10) for (let x = 60; x < 660; x += 10) if (!placeCheck(camp, [x, y])) return [x, y]; return null; }
+/** 合法擺放點：本身與周圍 8px 一圈都合法（點擊經過螢幕座標換算會有小誤差，不挑壓邊的點）。 */
+function legalSpot(camp) {
+  const ok = (x, y) => !placeCheck(camp, [x, y]) && [0, 1, 2, 3, 4, 5, 6, 7].every((i) => !placeCheck(camp, [x + 8 * Math.cos(i * Math.PI / 4), y + 8 * Math.sin(i * Math.PI / 4)]));
+  for (let y = 480; y < 950; y += 10) for (let x = 70; x < 650; x += 10) if (ok(x, y)) return [x, y];
+  return null;
+}
 
 export async function runCbTests({ bname, btype, devices, url, check }) {
   const browser = await btype.launch();
@@ -58,6 +63,8 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
     // 這場刻意不出刀（只讓 AI 切），讓雙方都留有 5 種器官進戰鬥，才能檢查每種器官都有視覺事件
     await playCut(page, true);
     await waitUi(page, 'contrib');
+    const tipsShown = await page.evaluate(() => window.__cb.tipsShown);
+    for (const k of ['open', 'kinds', 'claw', 'heart', 'eye', 'poison', 'bone']) if (!tipsShown.includes(k)) bad.push(`沒有出現一次性說明 ${k}`);
     const r = await page.evaluate(() => ({ vis: window.__cb.vis, battle: window.__cb.battle, rows: [...document.querySelectorAll('#contribBody tr[data-k]')].map((tr) => ({ k: tr.dataset.k, me: Number(tr.querySelector('.me').textContent), foe: Number(tr.querySelector('.foe').textContent) })) }));
     const kinds = new Set(r.vis.map((v) => v.kind));
     for (const k of ['claw', 'heart', 'eye', 'poison', 'bone']) if (!kinds.has(k)) bad.push(`沒有 ${k} 的視覺事件`);
@@ -69,7 +76,10 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
     const val = (side, path) => Math.round(path.length === 2 ? c[side][path[0]][path[1]] : c[side][path[0]]);
     for (const row of r.rows) { const p = want[row.k]; if (row.me !== val('blue', p) || row.foe !== val('red', p)) bad.push(`貢獻表 ${row.k} 畫面 ${row.me}/${row.foe}≠事件加總 ${val('blue', p)}/${val('red', p)}`); }
     if (r.rows.length !== 5) bad.push(`貢獻表 ${r.rows.length} 列`);
-    check(`${tag} CB-04 可讀性：5 種器官都有視覺事件、貢獻表＝模擬事件加總、點器官有說明`, bad.length === 0, `${[...kinds].join(',')}｜${bad.slice(0, 3).join('；')}`);
+    // 骨的視覺事件只在護盾真的擋下傷害時記錄：要和模擬事件的 shieldHit 對得上
+    const shieldHits = r.battle.events.filter((e) => (e.t === 'claw' || e.t === 'poisonTick') && e.shieldHit > 0).length;
+    if (r.vis.filter((v) => v.kind === 'bone').length !== shieldHits) bad.push(`骨視覺事件 ${r.vis.filter((v) => v.kind === 'bone').length}≠護盾擋下次數 ${shieldHits}`);
+    check(`${tag} CB-04 可讀性：5 種器官都有視覺事件、貢獻表＝模擬事件加總、點器官有說明、一次性說明都出現過`, bad.length === 0, `${[...kinds].join(',')}｜${bad.slice(0, 3).join('；')}`);
   }
 
   // ===== CB-05 縫合擺放＋CB-06 征途勝（3 場）=====
@@ -101,7 +111,9 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
         if (r3.ui !== 'cut' || r3.camp.stage !== stage + 1) { bad.push(`擺放後沒進下一場：${r3.ui}`); break; }
         const st = r3.camp.stitches.at(-1), org = r3.game.organs.find((x) => x.id.startsWith('藍縫') && x.p[0] === st.p[0] && x.p[1] === st.p[1]);
         if (!org || org.kind !== offer[0]) bad.push(`下一場沒有縫上的 ${offer[0]}（位置 ${st?.p}）`);
-        if (Math.hypot(st.p[0] - spot[0], st.p[1] - spot[1]) > 1.5) bad.push(`位置 ${st.p}≠點擊 ${spot}`);
+        // 點擊會落在整數 CSS 像素上（WebKit），換回世界座標有最多約 1 個 CSS 像素的誤差：容許 1.5 個 CSS 像素換算成的世界距離，再加整數化的 0.71
+        const px = await page.evaluate(() => { const a = window.__cb.toScreen(0, 0), b = window.__cb.toScreen(700, 0); return 700 / (b.x - a.x); });
+        if (Math.hypot(st.p[0] - spot[0], st.p[1] - spot[1]) > 1.5 * px * Math.SQRT2 + 0.71) bad.push(`位置 ${st.p}≠點擊 ${spot}（容許 ${(1.5 * px * Math.SQRT2 + 0.71).toFixed(2)}）`);
         if (stage === 0) placed = { kind: offer[0], p: st.p };
       }
     }

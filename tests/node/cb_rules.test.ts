@@ -116,6 +116,43 @@ test('CB-01 器官組成：每方 爪4 心2 眼1 毒1 骨1；對手依序多 0�
   assert.ok(bone >= 40 && poison >= 80, `bone ${bone}/100 poison ${poison}/200`);   // 權重 5/9≈56%
 });
 
+test('CB-01 本版設定下：冷卻內出刀被拒、刀長 <120 被拒、起點不在自己獸身被拒（與 rt-cut2 相同）', () => {
+  const s = cb([BX, RY, RZ]);
+  assert.equal(resolveStrike({ ...s, cdUntil: { blue: 50, red: 0 } }, 'blue', ROW).reject, 'cooldown');
+  assert.equal(resolveStrike(s, 'blue', L([100, 900], [100, 800])).reject, 'short');
+  assert.equal(resolveStrike(s, 'blue', L([200, 300], [200, 700])).reject, 'start');
+  const o = step(s, { blue: ROW }).state;                                       // 冷卻從生效那一步起算 1.5 秒
+  assert.equal(resolveStrike({ ...o, step: COOLDOWN_STEPS - 1 }, 'blue', ROW).reject, 'cooldown');
+  assert.equal(resolveStrike({ ...o, step: COOLDOWN_STEPS }, 'blue', ROW).reject, undefined);
+});
+test('CB-01 本版設定下：萌芽中的器官不能切、不能鎖、不擋刀；萌芽結束後正常（rt-cut2 R2-03）', () => {
+  const s0 = cb([BX, RY, RZ]);
+  const s = { ...s0, readyAt: [30, 30, 0] };                                  // 藍眼、紅毒都在萌芽
+  const r = resolveStrike(s, 'blue', ROW);
+  assert.deepEqual([r.locks, r.severed, r.blocked], [[], 2, null]);           // 穿過兩個萌芽器官，切到紅骨
+  const r2 = resolveStrike({ ...s, step: 30 }, 'blue', ROW);
+  assert.deepEqual([r2.locks, r2.severed], [[0], 1]);
+});
+test('CB-01 本版設定下：AI 只出有目標的刀；對手（你）只剩萌芽器官時不出攻擊刀（rt-cut2 R2-05）', () => {
+  const s0 = cb([O('藍爪', 'blue', 'claw', [350, 700]), O('紅心', 'red', 'heart', [350, 200])]);
+  const s = { ...s0, readyAt: [9999, 0] };
+  for (let i = 0; i < 50; i++) {
+    const pick = aiChoose({ ...s, rng: (i * 2654435761) >>> 0 || 1 });
+    if (!pick.line) continue;
+    const r = resolveStrike({ ...s, cdUntil: { blue: 0, red: 0 } }, 'red', pick.line);
+    assert.equal(r.severed, null, '不能是攻擊刀');
+    assert.ok(r.locks.length > 0, '只能是保護刀');
+  }
+});
+test('補述的位置規則：對方刀碰不到的點會被判不合法（直接測 reachableBy）；這張身體幾何下藍方「整個圓在身體內」的點全都碰得到', () => {
+  assert.equal(reachableBy([350, 1600], 'red'), false);
+  assert.equal(reachableBy([350, 700], 'red'), true);
+  assert.equal(reachableBy([350, 980 + 420 + 40], 'red'), false);
+  let n = 0;
+  for (let y = 430; y <= 980; y += 5) for (let x = 20; x <= 680; x += 5) if (circleInside([x, y], 'blue')) { n++; assert.ok(reachableBy([x, y], 'red'), `${x},${y}`); }
+  assert.ok(n > 5000);   // 所以擺放的「打不到」理由在這張盤面不會觸發（空條件成立；見作者證據）
+});
+
 // ---------------------------------------------------------------- CB-02 戰鬥數值
 const F = (side: Side, kind: Kind, n = 1): Fighter[] => Array.from({ length: n }, (_, i) => ({ side, id: `${side}${kind}${i}`, kind }));
 const of = <T extends BattleEvent['t']>(ev: BattleEvent[], t: T) => ev.filter((e): e is Extract<BattleEvent, { t: T }> => e.t === t);
@@ -157,6 +194,48 @@ test('CB-02 毒：每 1.5 秒疊 1 層；每 1 秒結算，每層 1 傷害', () 
     assert.equal(t.raw, stacks * (t.ms >= 10000 ? 2 : 1), `ms ${t.ms}`);
     assert.equal(t.ms % 1000, 0);
   }
+});
+test('CB-02 骨：毒也先被護盾吸收', () => {
+  const b = simulateBattle([...F('blue', 'poison'), ...F('red', 'bone')], 2);
+  const tk = of(b.events, 'poisonTick');
+  assert.ok(tk.length >= 3);
+  assert.deepEqual([tk[0].shieldHit, tk[0].hpHit], [tk[0].raw, 0]);
+  let shield = 15; for (const t of tk) { const sh = Math.min(shield, t.raw); assert.deepEqual([t.shieldHit, t.hpHit], [sh, t.raw - sh]); shield -= sh; }
+});
+test('CB-02 起點錯開：各器官第一次行動在 0～0.3 秒的錯開範圍內，而且不會全部同一刻', () => {
+  const offs = new Set<number>(); let notAllSame = 0;
+  for (let seed = 1; seed <= 50; seed++) {
+    const c = of(simulateBattle([...F('blue', 'claw', 4), ...F('red', 'heart', 4)], seed).events, 'claw');
+    const first = new Map<string, number>(); for (const e of c) if (!first.has(e.id)) first.set(e.id, e.ms);
+    assert.equal(first.size, 4);
+    for (const ms of first.values()) { assert.ok(ms >= 1000 && ms <= 1300 && ms % 10 === 0, `${ms}`); offs.add(ms); }
+    if (new Set(first.values()).size > 1) notAllSame++;
+  }
+  assert.ok(offs.size >= 20 && notAllSame >= 45, `${offs.size} ${notAllSame}`);
+});
+test('CB-02 血量歸零就輸：同一毫秒排在後面的心不能把歸零的一方救回來（審查 H1）', () => {
+  // 固定案例：藍 6 爪對紅 2 心，這些種子在「歸零後同毫秒還能回血」的錯誤實作下會拖到更晚才結束（以突變版離線找出）
+  for (const [seed, endMs] of [[41, 6210], [50, 6220], [61, 6090], [63, 6090], [142, 6070], [152, 6060]]) {
+    const b = simulateBattle([...F('blue', 'claw', 6), ...F('red', 'heart', 2)], seed);
+    assert.deepEqual([b.winner, b.how, b.endMs], ['blue', 'ko', endMs], `seed ${seed}`);
+    const z = b.events.find((e) => e.t === 'claw' && e.hpAfter <= 0)!;
+    assert.equal(z.ms, endMs);
+    assert.ok(!b.events.some((e, i) => e.t === 'heal' && e.side === 'red' && e.ms === z.ms && e.amount > 0 && i > b.events.indexOf(z)));
+  }
+  let checked = 0;
+  for (let seed = 1; seed <= 3000; seed++) {
+    const pick = (k: number) => (['claw', 'heart', 'eye', 'poison', 'bone'] as Kind[])[k % 5];
+    const fighters = [...Array.from({ length: 3 + (seed % 4) }, (_, i) => ({ side: 'blue' as Side, id: `b${i}`, kind: pick(seed * 7 + i * 3) })), ...Array.from({ length: 3 + ((seed >> 2) % 4) }, (_, i) => ({ side: 'red' as Side, id: `r${i}`, kind: pick(seed * 13 + i * 5) }))];
+    const b = simulateBattle(fighters, seed);
+    const firstZero = b.events.find((e) => (e.t === 'claw' || e.t === 'poisonTick') && e.hpAfter <= 0);
+    if (!firstZero) continue;
+    checked++;
+    assert.equal(b.endMs, firstZero.ms, `seed ${seed}：${firstZero.ms} 歸零卻到 ${b.endMs} 才結束`);
+    const victim: Side = firstZero.t === 'claw' ? (firstZero.side === 'blue' ? 'red' : 'blue') : firstZero.side;
+    assert.ok(!b.events.some((e) => e.t === 'heal' && e.side === victim && e.ms === firstZero.ms && e.amount > 0 && b.events.indexOf(e) > b.events.indexOf(firstZero)), `seed ${seed} 歸零後回血`);
+    assert.notEqual(b.winner, victim);
+  }
+  assert.ok(checked > 1500, `${checked}`);
 });
 test('CB-02 骨：開戰護盾 15、先吸收傷害', () => {
   const b = simulateBattle([...F('blue', 'claw'), ...F('red', 'bone')], 2);

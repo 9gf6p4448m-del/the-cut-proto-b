@@ -43,12 +43,12 @@ const G = {
   manual: false, acc: 0, lastT: null as number | null, speed: 1,
   drag: null as { id: number; a: V; b: V; moved: number } | null, release: null as Line | null,
   preview: null as StrikeResult | null, cutByMe: [] as Kind[], lastStrike: null as StrikeResult | null,
-  battle: null as BattleResult | null, bT0: 0, bClock: 0, bIdx: 0, battleScale: 1,
+  battle: null as BattleResult | null, bT0: 0, bBase: 0, bClock: 0, bIdx: 0, battleScale: 1,
   disp: { blue: { hp: 0, max: 1, shield: 0, poison: 0 }, red: { hp: 0, max: 1, shield: 0, poison: 0 } },
   vis: [] as { kind: Kind | 'overtime'; ev: BattleEvent['t'] }[], tipsShown: new Set<string>(),
   pops: [] as Pop[], particles: [] as Particle[], shots: [] as Shot[], slashes: [] as { a: V; b: V; t0: number; side: Side }[],
   shakeUntil: 0, flashUntil: 0, banner: null as null | { text: string; sub: string; t0: number; life: number },
-  sound: true, ghost: null as V | null, ghostOk: false, aimFirst: 0,
+  sound: true, ghost: null as V | null, ghostOk: false, placing: null as number | null, aimFirst: 0,
 };
 try { G.sound = localStorage.getItem('duel-cb-sound') !== '0'; } catch { /* 無痕或封鎖儲存 */ }
 
@@ -98,19 +98,29 @@ function vibrate(p: number | number[]): void { const nav = navigator as Navigato
 
 // ---------------------------------------------------------------- 提示
 let tipTimer = 0 as unknown as ReturnType<typeof setTimeout>;
+const tipQueue: { text: string; ms: number }[] = [];
+let tipBusyUntil = 0;
 function tip(text: string, ms = 2600): void {
-  els.tip.textContent = text; els.tip.hidden = false;
-  clearTimeout(tipTimer); tipTimer = setTimeout(() => { els.tip.hidden = true; }, ms);
+  tipQueue.length = 0; showTip(text, ms);
 }
-function onceTip(key: string, text: string): void { if (G.tipsShown.has(key)) return; G.tipsShown.add(key); tip(text, 3200); }
+function showTip(text: string, ms: number): void {
+  els.tip.textContent = text; els.tip.hidden = false; tipBusyUntil = performance.now() + ms;
+  clearTimeout(tipTimer); tipTimer = setTimeout(() => { els.tip.hidden = true; const n = tipQueue.shift(); if (n) showTip(n.text, n.ms); }, ms);
+}
+/** 一次性說明：排隊依序顯示，不互相覆蓋（審查 M5）。 */
+function onceTip(key: string, text: string, ms = 2400): void {
+  if (G.tipsShown.has(key)) return; G.tipsShown.add(key);
+  if (performance.now() < tipBusyUntil || tipQueue.length) tipQueue.push({ text, ms }); else showTip(text, ms);
+}
 
 // ---------------------------------------------------------------- 流程
 function newRun(seed?: number): void {
   G.token++;
   G.camp = newCampaign(seed ?? G.seedSource());
-  G.tipsShown = new Set();
+  G.tipsShown = new Set(); tipQueue.length = 0;
   startCut();
-  onceTip('open', '切割期 30 秒：從你的獸身拖一條線切對方器官（穿過自己的器官會鎖住保護它）。時間到，雙方剩下的器官自動開打。');
+  onceTip('open', '切割期 30 秒：從你的獸身拖一條線切對方器官（穿過自己的器官會鎖住保護它）。時間到，雙方剩下的器官自動開打。', 3600);
+  onceTip('kinds', '五種器官：爪＝攻擊、心＝血量與回血、眼＝暴擊、毒＝持續傷害、骨＝護盾。點器官看說明。', 3200);
 }
 function startCut(): void {
   G.game = matchFor(G.camp); G.ui = 'cut'; G.cutByMe = []; G.drag = null; G.release = null; G.preview = null; G.battle = null; G.vis = [];
@@ -145,11 +155,10 @@ function onCutEvent(e: GameEvent, s0: GameState): void {
 function startBattle(): void {
   const f = fightersOf(G.game);
   G.battle = simulateBattle(f, battleSeed(G.camp));
-  G.ui = 'battle'; G.bT0 = performance.now(); G.bClock = 0; G.bIdx = 0; G.vis = []; G.release = null; G.drag = null; G.preview = null;
+  G.ui = 'battle'; G.bT0 = performance.now(); G.bBase = 0; G.bClock = 0; G.bIdx = 0; G.speed = 1; els.fast.textContent = '快轉'; G.vis = []; G.release = null; G.drag = null; G.preview = null;
   const st = (G.battle.events[0] as Extract<BattleEvent, { t: 'start' }>).stats;
   G.disp = { blue: { hp: st.blue.hp, max: st.blue.maxHp, shield: st.blue.shield, poison: 0 }, red: { hp: st.red.hp, max: st.red.maxHp, shield: st.red.shield, poison: 0 } };
-  if (st.blue.shield) G.vis.push({ kind: 'bone', ev: 'start' });
-  if (st.red.shield) G.vis.push({ kind: 'bone', ev: 'start' });
+  if (st.blue.shield || st.red.shield) onceTip('bone', DESC.bone.line);
   G.banner = { text: '戰鬥！', sub: '剩下的器官自動開打', t0: performance.now(), life: 1100 };
   onceTip('battle', '戰鬥期：每個器官自己行動。爪攻擊、心回血、眼讓爪暴擊、毒疊層、骨給護盾。點器官可看說明。');
   hud();
@@ -167,7 +176,7 @@ function playBattleEvent(e: BattleEvent): void {
     if (o) { G.shots.push({ from: o.p, to, t0: now, dur: 220 * G.battleScale, color: e.crit ? '#ffd166' : kindColor('claw', e.side), crit: e.crit, side: e.side }); glow(o.id); }
     d[foe].shield -= e.shieldHit; d[foe].hp = e.hpAfter;
     pop([to[0] + 20, to[1] - 24], e.crit ? `暴擊 ${e.raw}` : `${e.raw}`, e.crit ? '#ffd166' : foe === 'red' ? '#ffffff' : '#ff8a8a', e.crit ? 26 : 20);
-    if (e.shieldHit) { pop([to[0] - 26, to[1] + 12], `護盾 −${e.shieldHit}`, '#e8e1d0', 14); G.vis.push({ kind: 'bone', ev: 'claw' }); }
+    if (e.shieldHit) { pop([to[0] - 26, to[1] + 12], `骨盾 擋 ${e.shieldHit}`, '#e8e1d0', 15); G.vis.push({ kind: 'bone', ev: 'claw' }); }
     G.vis.push({ kind: 'claw', ev: 'claw' }); if (e.crit) { G.vis.push({ kind: 'eye', ev: 'claw' }); sfx('crit'); onceTip('eye', DESC.eye.line); } else sfx('claw');
     onceTip('claw', DESC.claw.line);
     if (foe === 'blue') { G.shakeUntil = now + 120; }
@@ -181,7 +190,7 @@ function playBattleEvent(e: BattleEvent): void {
     G.vis.push({ kind: 'poison', ev: 'poisonStack' }); sfx('poison'); onceTip('poison', DESC.poison.line);
   } else if (e.t === 'poisonTick') {
     d[e.side].shield -= e.shieldHit; d[e.side].hp = e.hpAfter;
-    const c = bodyCenter(e.side); pop([c[0] + 90, c[1]], `毒 ${e.raw}`, '#7CFF6B', 18);
+    const c = bodyCenter(e.side); pop([c[0] + 90, c[1]], `毒 ${e.raw}`, '#7CFF6B', 18); if (e.shieldHit) pop([c[0] - 90, c[1]], `骨盾 擋 ${e.shieldHit}`, '#e8e1d0', 15);
     G.vis.push({ kind: 'poison', ev: 'poisonTick' }); if (e.shieldHit) G.vis.push({ kind: 'bone', ev: 'poisonTick' });
   } else if (e.t === 'overtime') {
     G.banner = { text: '加時', sub: '所有傷害 ×2', t0: now, life: 1000 }; G.vis.push({ kind: 'overtime', ev: 'overtime' });
@@ -197,7 +206,7 @@ const glowUntil = new Map<string, number>();
 function glow(id: string): void { glowUntil.set(id, performance.now() + 260); }
 function battleTick(now: number): void {
   if (G.ui !== 'battle' || !G.battle) return;
-  G.bClock = ((now - G.bT0) / G.battleScale) * G.speed;
+  G.bClock = G.bBase + ((now - G.bT0) / G.battleScale) * G.speed;   // 快轉從當下時間接著加速，不會跳到結尾（審查 M6）
   const ev = G.battle.events;
   while (G.bIdx < ev.length && ev[G.bIdx].ms <= G.bClock) playBattleEvent(ev[G.bIdx++]);
   if (G.bIdx >= ev.length && G.bClock >= G.battle.endMs + 900) showContrib();
@@ -286,7 +295,7 @@ function organAt(p: V): { kind: Kind; side: Side } | null {
 els.canvas.addEventListener('pointerdown', (e) => {
   ac();
   const p = toWorld(e.clientX, e.clientY);
-  if (G.ui === 'place') { tryPlace(p); return; }
+  if (G.ui === 'place') { G.ghost = p; G.ghostOk = !placeCheck(G.camp, p); G.placing = e.pointerId; els.canvas.setPointerCapture(e.pointerId); return; }
   if (G.drag) return;
   G.drag = { id: e.pointerId, a: p, b: p, moved: 0 }; els.canvas.setPointerCapture(e.pointerId);
 });
@@ -298,6 +307,7 @@ els.canvas.addEventListener('pointermove', (e) => {
   if (G.ui === 'cut') { G.preview = resolveStrike({ ...G.game, cdUntil: { ...G.game.cdUntil } }, 'blue', { a: G.drag.a, b: G.drag.b }); previewText(); }
 });
 const endDrag = (e: PointerEvent, cancel: boolean) => {
+  if (G.ui === 'place' && G.placing === e.pointerId) { G.placing = null; const p = toWorld(e.clientX, e.clientY); G.ghost = p; G.ghostOk = !placeCheck(G.camp, p); if (!cancel) tryPlace(p); return; }
   if (!G.drag || e.pointerId !== G.drag.id) return;
   const d = G.drag; G.drag = null; d.b = toWorld(e.clientX, e.clientY);
   if (cancel) { G.preview = null; hud(); return; }
@@ -317,7 +327,7 @@ function previewText(): void {
   els.info.innerHTML = `${r.locks.length ? `鎖住 ${r.locks.map((i) => KIND_ZH[s.organs[i].kind]).join('、')}　` : ''}${r.severed !== null ? `<b>切下 ${KIND_ZH[s.organs[r.severed].kind]}</b>` : r.blocked !== null ? '<span class="warnc">被鎖住的器官擋下</span>' : '揮空'}`;
 }
 els.sound.onclick = () => { G.sound = !G.sound; try { localStorage.setItem('duel-cb-sound', G.sound ? '1' : '0'); } catch { /* 略過 */ } hud(); };
-els.fast.onclick = () => { if (G.ui === 'battle') { G.speed = G.speed === 1 ? 3 : 1; els.fast.textContent = G.speed === 1 ? '快轉' : '正常速度'; } };
+els.fast.onclick = () => { if (G.ui === 'battle') { const now = performance.now(); G.bBase = G.bClock; G.bT0 = now; G.speed = G.speed === 1 ? 3 : 1; els.fast.textContent = G.speed === 1 ? '快轉' : '正常速度'; } };
 els.restart.onclick = () => newRun();
 els.again.onclick = () => newRun();
 
@@ -414,7 +424,7 @@ function draw(now: number): void {
   }
   // 戰鬥：毒層數、護盾
   if (G.ui === 'battle' || G.ui === 'contrib') for (const side of ['blue', 'red'] as Side[]) {
-    const d = G.disp[side], c = bodyCenter(side);
+    const d = G.disp[side], c = bodyCenter(side);   // 護盾圈：開戰有骨就顯示，被打穿就消失
     if (d.poison) { ctx.save(); ctx.fillStyle = COL.poison; ctx.shadowColor = COL.poison; ctx.shadowBlur = 14; ctx.font = 'bold 20px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`☠ 毒 ×${d.poison}`, c[0] + 200, c[1] - 80); ctx.restore(); }
     if (d.shield > 0) { ctx.save(); ctx.strokeStyle = '#e8e1d0aa'; ctx.lineWidth = 4; ctx.setLineDash([10, 6]); ctx.beginPath(); ctx.ellipse(c[0], c[1], 300, 190, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
   }
@@ -453,7 +463,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
 (window as unknown as { __cb: unknown }).__cb = {
   get camp() { return G.camp; }, get game() { return G.game; }, get ui() { return G.ui; }, get preview() { return G.preview; }, get lastStrike() { return G.lastStrike; },
   get battle() { return G.battle; }, get vis() { return G.vis; }, get tip() { return els.tip.hidden ? null : els.tip.textContent; }, get cutByMe() { return G.cutByMe; },
-  get audio() { return audioLog; },
+  get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; },
   toScreen, newRun: (o?: { seed?: number }) => newRun(o?.seed),
   setManual: (v: boolean) => { G.manual = v; }, advance: (n: number) => { for (let i = 0; i < n && G.ui === 'cut'; i++) stepOnce(); hud(); },
   setTimings: (o: { battleScale?: number }) => { if (o.battleScale !== undefined) G.battleScale = o.battleScale; },

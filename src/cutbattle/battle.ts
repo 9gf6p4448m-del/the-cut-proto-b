@@ -71,7 +71,9 @@ export function simulateBattle(fighters: Fighter[], seed: number): BattleResult 
     const next = Math.min(...timers.map((t) => t.at));
     if (next > BT.MAX_MS) break;
     if (!overtime && next >= BT.OVERTIME_AT) { overtime = true; events.push({ t: 'overtime', ms: BT.OVERTIME_AT }); }
-    // 同一毫秒的行動依「器官序」處理，全部處理完才判勝負（同時歸零＝平手）
+    // 同一毫秒的行動依「器官序」處理；處理完才判勝負（同一毫秒雙方都歸零＝平手）。
+    // 已歸零的一方在同一毫秒內不能再回血（血量歸零就輸，不能被排在後面的心救回來；審查 H1）。
+    const down = new Set<Side>();
     for (const tm of timers.filter((t) => t.at === next).sort((a, b) => a.order - b.order)) {
       if (tm.f) {
         const f = tm.f, foe = other(f.side);
@@ -82,6 +84,7 @@ export function simulateBattle(fighters: Fighter[], seed: number): BattleResult 
           if (crit) contrib[f.side].critBonus += h.raw - h.raw / BT.CRIT_MULT;
           events.push({ t: 'claw', ms: next, side: f.side, id: f.id, crit, raw: h.raw, shieldHit: h.shieldHit, hpHit: h.hpHit, hpAfter: st[foe].hp });
         } else if (f.kind === 'heart') {
+          if (down.has(f.side)) { tm.at += tm.every; continue; }
           const me = st[f.side], amount = Math.min(BT.HEART_HEAL, me.maxHp - me.hp);
           me.hp += amount; contrib[f.side].heal += amount;
           events.push({ t: 'heal', ms: next, side: f.side, id: f.id, amount, hpAfter: me.hp });
@@ -95,6 +98,7 @@ export function simulateBattle(fighters: Fighter[], seed: number): BattleResult 
         events.push({ t: 'poisonTick', ms: next, side: victim, raw: h.raw, shieldHit: h.shieldHit, hpHit: h.hpHit, hpAfter: st[victim].hp });
       }
       tm.at += tm.every;
+      for (const s of sides) if (st[s].hp <= 0) down.add(s);
     }
     const dead = sides.filter((s) => st[s].hp <= 0);
     if (dead.length) return end(next, dead.length === 2 ? 'draw' : other(dead[0]), 'ko');
@@ -107,7 +111,7 @@ export function simulateBattle(fighters: Fighter[], seed: number): BattleResult 
 export function contributionFromEvents(events: BattleEvent[]): Record<Side, Contribution> {
   const c: Record<Side, Contribution> = { blue: { damage: zeroK(), heal: 0, blocked: 0, critBonus: 0 }, red: { damage: zeroK(), heal: 0, blocked: 0, critBonus: 0 } };
   for (const e of events) {
-    if (e.t === 'claw') { c[e.side].damage.claw += e.raw; if (e.crit) c[e.side].critBonus += e.raw / 2; c[other(e.side)].blocked += e.shieldHit; }
+    if (e.t === 'claw') { c[e.side].damage.claw += e.raw; if (e.crit) c[e.side].critBonus += e.raw - e.raw / BT.CRIT_MULT; c[other(e.side)].blocked += e.shieldHit; }
     else if (e.t === 'heal') c[e.side].heal += e.amount;
     else if (e.t === 'poisonTick') { c[other(e.side)].damage.poison += e.raw; c[e.side].blocked += e.shieldHit; }
   }
