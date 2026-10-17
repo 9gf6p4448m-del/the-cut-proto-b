@@ -128,7 +128,9 @@ test('X-12 實驗版建置輸出：manifest／service worker／註冊 scope／�
   assert.equal(html.includes('__BUILD_SHA__') || sw.includes('__BUILD_SHA__') || JSON.stringify(man).includes('__SUB__'), false, '佔位符沒被取代');
   // 根網址版本的建置來源與程式不受第二階段影響
   assert.equal(readFileSync(join(ROOT, 'dist/app.js'), 'utf8').includes('funexp01'), false, '根網址 app.js 不該含實驗版程式');
-  execSync(`git diff --quiet ${PHASE1_HEAD} -- public src/main.ts`, { cwd: ROOT });
+  // DL-069（製作人核准根 SW 相容性修復）：public/sw.js 是唯一獲准改動的根網址檔案，其餘 public/ 與 src/main.ts 仍須與第一階段逐位元相同
+  execSync(`git diff --quiet ${PHASE1_HEAD} -- public ":(exclude)public/sw.js" src/main.ts`, { cwd: ROOT });
+  assert.ok(readFileSync(join(ROOT, 'public/sw.js'), 'utf8').includes('相容性修復（DL-069）'), 'public/sw.js 的改動只能是 DL-069 的根 SW 相容性修復');
   // 引擎：Codex F-2 修正必須改 resolve.ts（撕裂獨立步驟），所以不能再要求 engine 與第一階段逐位元相同；
   // 改為「第一階段之後的引擎差異只能是已登記掛鉤或 fork 新增檔」：每個變動檔撤銷全部登記掛鉤後，逐位元等於 3e2b9b4 快照。
   // （BASELINE 行為不變另由 X-1 差分與 golden 200/200 證明。）

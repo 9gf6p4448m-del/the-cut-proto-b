@@ -85,8 +85,11 @@ export async function runRootSwTests({ check, root = process.cwd() }) {
     state.rootSw = NEW;
     await page.goto(via === '根網址' ? url : url + 'twin-slash/', { waitUntil: 'load' });
     if (via === '根網址') await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration('./'); await r.update(); });
-    const k = await waitKeys(page, (k) => k.some((x) => x.endsWith('-r2')) && !k.includes(`thecut-protob-${sha}`));
-    out[`RS3-${via}`] = { polluted, keys: k, offline: await offlineTitle(ctx, page, url) }; await ctx.close();
+    // 等新根 SW 接手（scriptURL 相同，以「作用中的 SW 內容含新版字樣」判斷），再讀所有根快取裡的 ./index.html
+    await page.evaluate(async () => { for (let i = 0; i < 80; i++) { const r = await navigator.serviceWorker.getRegistration('../'); const t = r && r.active ? await (await fetch(r.active.scriptURL, { cache: 'no-store' })).text() : ''; if (t.includes('DL-069') && r.active && !r.installing && !r.waiting) return; await new Promise((z) => setTimeout(z, 100)); } }).catch(() => {});
+    await page.waitForTimeout(800);
+    const idx = await page.evaluate(async () => { const out = {}; for (const k of await caches.keys()) if (k.startsWith('thecut-protob-')) { const c = await caches.open(k); const r = await c.match('./index.html') || await c.match(new URL('../index.html', location.href).href) || await c.match(new URL('/the-cut-proto-b/index.html', location.href).href); out[k] = r ? ((await r.text()).match(/<title>([^<]*)/) || [])[1] : null; } return out; });
+    out[`RS3-${via}`] = { polluted, rootCaches: idx, offline: await offlineTitle(ctx, page, url) }; await ctx.close();
   }
   // RS-4：新根 SW 下四頁都能離線開
   { state.rootSw = NEW; const { ctx, page } = await fresh();
@@ -104,7 +107,10 @@ export async function runRootSwTests({ check, root = process.cwd() }) {
   check('[chromium][rootsw] RS-2 新根 SW 換版：三個子頁快取全保留，只清 thecut-protob- 舊版', subKept(out['新-RS2']) && out['新-RS2'].after.filter((k) => k.startsWith('thecut-protob-')).length === 1 && out['新-RS2'].after.some((k) => k.includes('zzzzzzz')), JSON.stringify(out['新-RS2']));
   for (const via of ['根網址', '雙獸頁']) {
     const o = out[`RS3-${via}`];
-    check(`[chromium][rootsw] RS-3 已汙染→經${via}換上新 SW：汙染舊快取刪除、離線根網址＝根頁`, o.polluted === T['twin-slash/'] && o.offline === T.root && !o.keys.includes(`thecut-protob-${sha}`) && o.keys.includes(`thecut-protob-${sha}-r2`), JSON.stringify(o));
+    // §2.1 例外修正（原「汙染舊快取已刪除」與既有 X-12「根快取名稱＝thecut-protob-<sha>」在線上 SHA 不變時不可能同時成立）：
+    // 改判「所有根快取裡的首頁都不再是雙獸頁、且至少一份是根頁」——仍汙染的實作照樣紅
+    const vals = Object.values(o.rootCaches);
+    check(`[chromium][rootsw] RS-3 已汙染→經${via}換上新 SW：根快取不再含雙獸頁、離線根網址＝根頁`, o.polluted === T['twin-slash/'] && o.offline === T.root && vals.length >= 1 && vals.every((t) => t !== T['twin-slash/']) && vals.includes(T.root), JSON.stringify(o));
   }
   check('[chromium][rootsw] RS-4 新根 SW 下根頁與三個子頁都能離線開啟', out.RS4.root === T.root && Object.keys(SUBS).every((s) => out.RS4[s] === T[s]), JSON.stringify(out.RS4));
   return out;

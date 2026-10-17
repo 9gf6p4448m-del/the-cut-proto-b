@@ -3,9 +3,9 @@
 //  ① 只接手「根應用本身」的導航（範圍根目錄與 index.html），子路徑導航一律不攔截——不再把子頁 HTML 寫進根首頁快取。
 //  ② 子路徑底下的資源請求也不攔截；根應用只讀寫自己這份快取。
 //  ③ 啟用時只清 thecut-protob- 開頭的舊快取（根應用自己的），絕不刪子路徑應用的快取。
-//  ④ 快取名稱加上 -r2：讓舊版（可能已被子頁 HTML 汙染）的根快取在新版啟用時被清掉。
+//  ④ 舊版可能已把子頁 HTML 寫進根首頁快取：新版 install 時 addAll 重新抓取根頁並覆寫同名快取裡的 ./index.html（線上根頁 SHA 不變時快取名稱相同，靠覆寫恢復）。
 const PREFIX = 'thecut-protob-';
-const CACHE = PREFIX + '__BUILD_SHA__-r2';
+const CACHE = 'thecut-protob-__BUILD_SHA__';
 const ASSETS = ['./', './index.html', './app.js?v=__BUILD_SHA__', './style.css?v=__BUILD_SHA__', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 const BASE = new URL('./', self.location.href).pathname;
 const isRootFile = (url) => url.origin === self.location.origin && url.pathname.startsWith(BASE) && !url.pathname.slice(BASE.length).includes('/');
