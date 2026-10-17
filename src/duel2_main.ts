@@ -379,7 +379,7 @@ function draw(now: number): void {
   if (isolateId) {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, els.canvas.width, els.canvas.height); ctx.restore();
     const i = G.game.organs.findIndex((o) => o.id === isolateId);
-    if (i >= 0) drawOrganSprite(ctx, ASSETS.organs[G.game.organs[i].kind], { kind: G.game.organs[i].kind, side: G.game.organs[i].side, x: G.game.organs[i].p[0], y: G.game.organs[i].p[1], r: R * 0.95 }, { mode: 'normal' }, 0);
+    if (i >= 0) organ(G.game.organs[i], { mode: 'normal' }, 0);   // 和正式畫面同一個 organ()（覆審：不能另寫一份繪製）
     return;
   }
   drawDuelScene(ctx, { w: W, h: H, body: ASSETS.body, rects: RECTS }, t);
