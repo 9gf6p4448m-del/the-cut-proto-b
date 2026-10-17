@@ -1,4 +1,4 @@
-// rt-cut2 突變驗紅（對抗式檢查 H1～H6、M3＋覆審 H1b）：把 src/rtcut/rules.ts 改壞成凍結檔「會讓它變紅」的樣子，對應的 rtcut2 測試必須變紅；原版必須綠。
+// rt-cut2 突變驗紅（對抗式檢查 H1～H6、M3＋覆審 H1b、V6）：把 src/rtcut/rules.ts 改壞成凍結檔「會讓它變紅」的樣子，對應的 rtcut2 測試必須變紅；原版必須綠。
 // 用法：node tests/rtcut2_mutation.mjs（不改 src；突變版寫到 .tmp/rtcut2_mut/<名稱>/rules.ts）
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -12,6 +12,7 @@ const RG_END = "    ev.push({ t: 'spawn', i: s.organs.length - 1 });\n  }\n";
 const MUTS = {
   'H1 AI 不再只出有目標的刀': (t) => one(t, 'const usable = state.mode.knockout || state.mode.regen ? scored.filter((c) => c.v > 0) : scored;', 'const usable = scored;'),
   'H1b AI 只在完全沒目標時不出刀': (t) => one(t, 'const usable = state.mode.knockout || state.mode.regen ? scored.filter((c) => c.v > 0) : scored;', 'const usable = (state.mode.knockout || state.mode.regen) && best <= 0 ? [] : scored;'),
+  'V6 最高分 ≤1 才濾空刀': (t) => one(t, 'const usable = state.mode.knockout || state.mode.regen ? scored.filter((c) => c.v > 0) : scored;', 'const usable = (state.mode.knockout || state.mode.regen) && best <= 1 ? scored.filter((c) => c.v > 0) : scored;'),
   'H2 AI 不把再生器官當目標': (t) => one(t, '  let v = r.severed !== null ? VALUE[s.organs[r.severed].kind] : 0;', '  let v = r.severed !== null && r.severed < 16 ? VALUE[s.organs[r.severed].kind] : 0;'),
   'H3 後切先長': (t) => one(t, 'const kind = s.severedQ[side].shift()!;', 'const kind = s.severedQ[side].pop()!;'),
   'H4 藍方用紅身取樣再生位置': (t) => one(one(one(t, 'const xs = BODY[side].map', 'const xs = BODY.red.map'), 'ys = BODY[side].map', 'ys = BODY.red.map'), 'if (!inside(p, BODY[side])) continue;', 'if (!inside(p, BODY.red)) continue;'),
@@ -34,5 +35,5 @@ for (const [name, f] of Object.entries(MUTS)) {
   console.log(`${name}：${r.ok ? 'GREEN（未驗紅）' : 'red ← ' + uniq.join('｜')}`);
   if (r.ok) ok = false;
 }
-console.log(ok ? 'PASS 原版綠、8 個突變全部變紅' : 'FAIL');
+console.log(ok ? 'PASS 原版綠、9 個突變全部變紅' : 'FAIL');
 process.exit(ok ? 0 : 1);

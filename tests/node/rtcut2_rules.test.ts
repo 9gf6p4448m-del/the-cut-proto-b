@@ -180,16 +180,20 @@ test('R2-05 AI 不對空出刀（H1）：你只剩萌芽器官時，200 個亂�
   for (let r = 1; r <= 50; r++) assert.equal(aiChoose({ ...allLocked, rng: (r * 2654435761) >>> 0 }).line, null, `rng ${r}`);
   assert.notEqual(aiChoose({ ...allLocked, mode: MODE_RT1 }).line, null, '對照：原版模式會出無目標的刀');
   // 最高分 ≤ AI_NEAR（覆審 H1b）：牠只有 1 個器官沒鎖（交疊區的紅爪3，鎖住得 1 分），其餘全鎖 → 有 0 分候選落在「最高分 −2」窗內；每次選刀都必須得分 >0
-  for (const keep of [Y3, idx('紅爪1'), idx('紅心1')]) {
-    const one: GameState = { ...sp, lockUntil: sp.lockUntil.map((v, i) => (ORGANS[i].side === 'red' && i !== keep ? 10 ** 6 : v)) };
+  // 第 3 輪覆審 V6：再加「留 2 個器官」使最高分落在 (1, 2]（例：紅爪3＋紅心1 最高分 1.5）
+  const RED_I = ORGANS.map((o, i) => (o.side === 'red' ? i : -1)).filter((i) => i >= 0);
+  const pairs: number[][] = [[Y3], [idx('紅爪1')], [idx('紅心1')]];
+  for (let x = 0; x < RED_I.length; x++) for (let y = x + 1; y < RED_I.length; y++) pairs.push([RED_I[x], RED_I[y]]);
+  for (const keepSet of pairs) {
+    const one: GameState = { ...sp, lockUntil: sp.lockUntil.map((v, i) => (ORGANS[i].side === 'red' && !keepSet.includes(i) ? 10 ** 6 : v)) };
     const pr = { ...one, cdUntil: { blue: 0, red: 0 } };
     let n = 0;
     for (let r = 1; r <= 100; r++) {
       const p = aiChoose({ ...one, rng: (r * 2654435761) >>> 0 });
       if (!p.line) continue; n++;
-      assert.ok(aiScore(pr, 'red', resolveStrike(pr, 'red', p.line)) > 0, `留 ${ORGANS[keep].id} rng ${r}：揮出無目標的刀`);
+      assert.ok(aiScore(pr, 'red', resolveStrike(pr, 'red', p.line)) > 0, `留 ${keepSet.map((i) => ORGANS[i].id).join('＋')} rng ${r}：揮出無目標的刀`);
     }
-    assert.ok(n > 0, `留 ${ORGANS[keep].id}：活性（會出保護刀）`);
+    assert.ok(n > 0, `留 ${keepSet.map((i) => ORGANS[i].id).join('＋')}：活性（會出保護刀）`);
   }
   // 整步模擬：預告在萌芽期間開始 → 預告刀線也只能是保護刀
   for (let r = 1; r <= 50; r++) {
