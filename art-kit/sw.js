@@ -1,7 +1,7 @@
 // 幽光美術模組展示（子路徑 art-kit/）service worker：快取前綴與根網址及其他子路徑都不同；只清自己前綴的舊快取。
 const PREFIX = 'thecut-artkit-';
-const CACHE = PREFIX + 'b28172f';
-const ASSETS = ['./', './index.html', './app.js?v=b28172f', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const CACHE = PREFIX + '9f3caaa';
+const ASSETS = ['./', './index.html', './app.js?v=9f3caaa', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
