@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070D19">
+<meta name="build-sha" content="8bd2e00">
+<title>執刀者 幽光美術模組 展示</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<style>
+  html, body { margin: 0; background: #070D19; color: #AEEAFF; font-family: "PingFang TC", "Noto Sans TC", system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
+  body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow-x: hidden; }
+  header { padding: 10px 12px 6px; font-size: 12px; opacity: .9; display: flex; justify-content: space-between; gap: 8px; }
+  header b { color: #F0F7FF; font-size: 14px; }
+  .tag { background: #FFD27A; color: #070D19; padding: 1px 6px; border-radius: 6px; font-size: 11px; }
+  h2 { font-size: 13px; font-weight: 600; color: #F0F7FF; margin: 14px 12px 6px; letter-spacing: .08em; }
+  canvas { display: block; width: 100%; }
+  #scene { height: min(150vw, 600px); }
+  #organs { height: 340px; }
+  #fx { height: 560px; }
+  #front { height: 230px; }
+  p.note { font-size: 11px; opacity: .7; margin: 6px 12px 18px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header><span><span class="tag">研究片段</span> <b>幽光美術模組</b> · 版本 <span id="sha"></span></span><span>FPS <span id="fps">—</span></span></header>
+<h2>① 對戰場景（兩獸＋前線區＋器官＋特效輪播）</h2>
+<canvas id="scene"></canvas>
+<h2>② 5 種器官 × 狀態</h2>
+<canvas id="organs"></canvas>
+<h2>③ 7 種戰鬥特效</h2>
+<canvas id="fx"></canvas>
+<h2>④ 前線區</h2>
+<canvas id="front"></canvas>
+<p class="note">純繪圖模組：src/art/ghostlight.ts（drawScene／drawBeast／drawFrontline／drawOrgan／playFx）。不含遊戲規則。方向：DL-071 幽光。</p>
+<script src="./app.js?v=8bd2e00"></script>
+</body>
+</html>
