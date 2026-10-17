@@ -63,8 +63,11 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
     // 這場刻意不出刀（只讓 AI 切），讓雙方都留有 5 種器官進戰鬥，才能檢查每種器官都有視覺事件
     await playCut(page, true);
     await waitUi(page, 'contrib');
-    const tipsShown = await page.evaluate(() => window.__cb.tipsShown);
-    for (const k of ['open', 'kinds', 'claw', 'heart', 'eye', 'poison', 'bone']) if (!tipsShown.includes(k)) bad.push(`沒有出現一次性說明 ${k}`);
+    // 一次性說明：等排隊播完，檢查畫面上真的顯示過的文字（不是只看旗標；覆審 M5）
+    await page.waitForFunction(() => window.__cb.tipsShown.length >= 7, null, { timeout: 30000 }).catch(() => {});
+    const tipLog = await page.evaluate(() => window.__cb.tipLog);
+    const want = { open: '切割期 30 秒', kinds: '五種器官', claw: '爪：每 1 秒攻擊一次', heart: '心：血量上限 +30', eye: '眼：我方爪暴擊率', poison: '毒：每 1.5 秒', bone: '骨：開戰提供 15 護盾' };
+    for (const [k, txt] of Object.entries(want)) if (!tipLog.some((t) => t.startsWith(txt) || t.includes(txt))) bad.push(`一次性說明 ${k} 沒真的顯示`);
     const r = await page.evaluate(() => ({ vis: window.__cb.vis, battle: window.__cb.battle, rows: [...document.querySelectorAll('#contribBody tr[data-k]')].map((tr) => ({ k: tr.dataset.k, me: Number(tr.querySelector('.me').textContent), foe: Number(tr.querySelector('.foe').textContent) })) }));
     const kinds = new Set(r.vis.map((v) => v.kind));
     for (const k of ['claw', 'heart', 'eye', 'poison', 'bone']) if (!kinds.has(k)) bad.push(`沒有 ${k} 的視覺事件`);
@@ -111,9 +114,9 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
         if (r3.ui !== 'cut' || r3.camp.stage !== stage + 1) { bad.push(`擺放後沒進下一場：${r3.ui}`); break; }
         const st = r3.camp.stitches.at(-1), org = r3.game.organs.find((x) => x.id.startsWith('藍縫') && x.p[0] === st.p[0] && x.p[1] === st.p[1]);
         if (!org || org.kind !== offer[0]) bad.push(`下一場沒有縫上的 ${offer[0]}（位置 ${st?.p}）`);
-        // 點擊會落在整數 CSS 像素上（WebKit），換回世界座標有最多約 1 個 CSS 像素的誤差：容許 1.5 個 CSS 像素換算成的世界距離，再加整數化的 0.71
+        // 點擊會落在整數 CSS 像素上（WebKit）：每軸最多差約 0.5 CSS 像素（取 0.71 保守），兩軸合成 ×√2，換成世界距離；再加擺放時座標四捨五入的 0.71
         const px = await page.evaluate(() => { const a = window.__cb.toScreen(0, 0), b = window.__cb.toScreen(700, 0); return 700 / (b.x - a.x); });
-        if (Math.hypot(st.p[0] - spot[0], st.p[1] - spot[1]) > 1.5 * px * Math.SQRT2 + 0.71) bad.push(`位置 ${st.p}≠點擊 ${spot}（容許 ${(1.5 * px * Math.SQRT2 + 0.71).toFixed(2)}）`);
+        if (Math.hypot(st.p[0] - spot[0], st.p[1] - spot[1]) > 0.71 * px * Math.SQRT2 + 0.71) bad.push(`位置 ${st.p}≠點擊 ${spot}（容許 ${(0.71 * px * Math.SQRT2 + 0.71).toFixed(2)}）`);
         if (stage === 0) placed = { kind: offer[0], p: st.p };
       }
     }

@@ -98,26 +98,27 @@ function vibrate(p: number | number[]): void { const nav = navigator as Navigato
 
 // ---------------------------------------------------------------- 提示
 let tipTimer = 0 as unknown as ReturnType<typeof setTimeout>;
-const tipQueue: { text: string; ms: number }[] = [];
+const tipQueue: { text: string; ms: number; key?: string }[] = [];
+const tipLog: string[] = [];                 // 實際顯示過的說明文字（測試用）
 let tipBusyUntil = 0;
-function tip(text: string, ms = 2600): void {
-  tipQueue.length = 0; showTip(text, ms);
-}
-function showTip(text: string, ms: number): void {
-  els.tip.textContent = text; els.tip.hidden = false; tipBusyUntil = performance.now() + ms;
-  clearTimeout(tipTimer); tipTimer = setTimeout(() => { els.tip.hidden = true; const n = tipQueue.shift(); if (n) showTip(n.text, n.ms); }, ms);
+/** 即時提示（拒絕、點器官說明）：立刻顯示；排隊中的一次性說明保留，之後照樣播（覆審 M5）。 */
+function tip(text: string, ms = 2600): void { showTip(text, ms); }
+function showTip(text: string, ms: number, key?: string): void {
+  els.tip.textContent = text; els.tip.hidden = false; tipBusyUntil = performance.now() + ms; tipLog.push(text);
+  if (key) G.tipsShown.add(key);             // 真的顯示了才算「出現過」
+  clearTimeout(tipTimer); tipTimer = setTimeout(() => { els.tip.hidden = true; const n = tipQueue.shift(); if (n) showTip(n.text, n.ms, n.key); }, ms);
 }
 /** 一次性說明：排隊依序顯示，不互相覆蓋（審查 M5）。 */
 function onceTip(key: string, text: string, ms = 2400): void {
-  if (G.tipsShown.has(key)) return; G.tipsShown.add(key);
-  if (performance.now() < tipBusyUntil || tipQueue.length) tipQueue.push({ text, ms }); else showTip(text, ms);
+  if (G.tipsShown.has(key) || tipQueue.some((q) => q.key === key)) return;
+  if (performance.now() < tipBusyUntil || tipQueue.length) tipQueue.push({ text, ms, key }); else showTip(text, ms, key);
 }
 
 // ---------------------------------------------------------------- 流程
 function newRun(seed?: number): void {
   G.token++;
   G.camp = newCampaign(seed ?? G.seedSource());
-  G.tipsShown = new Set(); tipQueue.length = 0;
+  G.tipsShown = new Set(); tipQueue.length = 0; tipLog.length = 0;
   startCut();
   onceTip('open', '切割期 30 秒：從你的獸身拖一條線切對方器官（穿過自己的器官會鎖住保護它）。時間到，雙方剩下的器官自動開打。', 3600);
   onceTip('kinds', '五種器官：爪＝攻擊、心＝血量與回血、眼＝暴擊、毒＝持續傷害、骨＝護盾。點器官看說明。', 3200);
@@ -463,7 +464,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
 (window as unknown as { __cb: unknown }).__cb = {
   get camp() { return G.camp; }, get game() { return G.game; }, get ui() { return G.ui; }, get preview() { return G.preview; }, get lastStrike() { return G.lastStrike; },
   get battle() { return G.battle; }, get vis() { return G.vis; }, get tip() { return els.tip.hidden ? null : els.tip.textContent; }, get cutByMe() { return G.cutByMe; },
-  get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; },
+  get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; }, get tipLog() { return [...tipLog]; },
   toScreen, newRun: (o?: { seed?: number }) => newRun(o?.seed),
   setManual: (v: boolean) => { G.manual = v; }, advance: (n: number) => { for (let i = 0; i < n && G.ui === 'cut'; i++) stepOnce(); hud(); },
   setTimings: (o: { battleScale?: number }) => { if (o.battleScale !== undefined) G.battleScale = o.battleScale; },
