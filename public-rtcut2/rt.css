@@ -1,0 +1,28 @@
+
+/* ---- 即時亂切研究片段追加樣式（接在 public/style.css 之後） ---- */
+body.rt { height:100dvh; overflow:hidden; background:#0E1116; }
+.tag { background:var(--amber); color:#11151B; padding:1px 6px; border-radius:6px; font-size:11px; }
+.hudrow { display:flex; align-items:center; gap:10px; margin-top:4px; }
+.timer { font-size:30px; font-weight:bold; font-variant-numeric:tabular-nums; min-width:76px; text-align:center; color:#fff; }
+.timer.low { color:#ff8a8a; }
+.cds { flex:1; display:flex; flex-direction:column; gap:4px; }
+.cd { display:flex; align-items:center; gap:6px; font-size:12px; }
+.cd span { width:44px; } .cd b { width:38px; text-align:right; font-size:12px; }
+.cd .bar { flex:1; height:9px; background:#2a2f38; border-radius:5px; overflow:hidden; }
+.cd .bar i { display:block; height:100%; width:100%; }
+.cd.me .bar i { background:#58c4dd; } .cd.foe .bar i { background:#e05a5a; }
+.cd.wait b { color:#ffb36b; }
+.counts { display:flex; justify-content:space-between; font-size:13px; margin-top:4px; }
+.counts .me { color:#8fe3ff; } .counts .foe { color:#ff9a9a; }
+.info { height:38px; overflow:hidden; margin-top:3px; padding:3px 8px; background:#161b23; border-radius:8px; font-size:13px; line-height:1.4; }
+.info .bad { color:#ff7a7a; font-weight:bold; } .info .good { color:#9be29b; font-weight:bold; }
+.tools { display:flex; gap:6px; margin-top:2px; }
+.tools button { flex:1 1 0; font-size:14px; padding:0 4px; min-height:44px; }
+.tools button[aria-pressed="true"] { background:#3d4a5e; border-color:var(--bone); }
+.result { position:fixed; inset:0; background:#0E1116e6; display:flex; align-items:center; justify-content:center; z-index:20; padding:16px; }
+.result .box { background:#1b2029; border:1px solid #3a4150; border-radius:14px; padding:14px; width:100%; max-width:380px; text-align:center; }
+.result h2 { margin:4px 0 10px; font-size:24px; }
+.result table { width:100%; border-collapse:collapse; font-size:15px; margin-bottom:12px; }
+.result td, .result th { border-bottom:1px solid #3a4150; padding:6px 2px; }
+.result button { width:100%; min-height:52px; }
+body.rt footer { position:relative; z-index:30; background:#0E1116; } /* 重開鈕在任何階段（含結果畫面）都按得到 */

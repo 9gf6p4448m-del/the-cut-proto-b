@@ -79,9 +79,22 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-rt/${f}`, readFileSync(`public-rtcut/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', RT_SUB));
 }
 writeFileSync('dist-rt/.build-info.json', JSON.stringify({ sub: RT_SUB, sha: short }) + '\n');
+// ---- 即時亂切 v2（子路徑 rt-cut2/；擊倒＋再生）：同一份 src/rtcut_main.ts，以 __RT_MODE__="rt2" 建置到 dist-rt2/；快取前綴與其他子路徑都分開 ----
+// 部署：node tools/deploy.mjs --sub rt-cut2（只替換 gh-pages 的 rt-cut2/）。上面六份輸出不受這段影響（rt-cut/ 不帶 __RT_MODE__＝原版）。
+const RT2_SUB = 'rt-cut2';
+rmSync('dist-rt2', { recursive: true, force: true });
+mkdirSync('dist-rt2', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/rtcut_main.ts'], outfile: 'dist-rt2/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short), __RT_MODE__: JSON.stringify('rt2') } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-rt2/${f}`);
+writeFileSync('dist-rt2/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-rtcut2/rt.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-rt2/${f}`, readFileSync(`public-rtcut2/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', RT2_SUB));
+}
+writeFileSync('dist-rt2/.build-info.json', JSON.stringify({ sub: RT2_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
 console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);
 console.log(`build twin ok sub=${TWIN_SUB} sha=${short}`);
 console.log(`build sim ok sub=${SIM_SUB} sha=${short}`);
 console.log(`build rt ok sub=${RT_SUB} sha=${short}`);
+console.log(`build rt2 ok sub=${RT2_SUB} sha=${short}`);

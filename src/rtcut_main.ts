@@ -1,9 +1,13 @@
-// 「即時亂切」手機試玩（子路徑 rt-cut/）：雙方 40 秒內即時互切，最後對決。可丟棄原型，非正式規則。
+// 「即時亂切」手機試玩：rt-cut/（原版）與 rt-cut2/（＋擊倒＋再生）共用本檔，建置時以 __RT_MODE__ 切換；雙方 40 秒內即時互切。可丟棄原型，非正式規則。
 // 規則全部在 src/rtcut/rules.ts（純函式、固定步長）；本檔只負責輸入、即時迴圈、演出與結果畫面。
-import { BODY, CUT_SECONDS, COOLDOWN_STEPS, END_STEP, FPS, LOCK_STEPS, MIN_LEN, MAX_LEN, ORGANS, R, clampLine, duel, inside, isLocked, newGame, power, resolveStrike, step } from './rtcut/rules.ts';
+import { BODY, CUT_SECONDS, COOLDOWN_STEPS, END_STEP, FPS, LOCK_STEPS, MIN_LEN, MAX_LEN, MODE_RT1, MODE_RT2, R, SPROUT_STEPS, clampLine, countSide, duel, inside, isLocked, isReady, newGame, power, resolveStrike, step } from './rtcut/rules.ts';
 import type { DuelResult, GameEvent, GameState, Line, Side, StrikeResult, V } from './rtcut/rules.ts';
 
 declare const __BUILD_SHA__: string;
+declare const __RT_MODE__: string;
+const RT2 = typeof __RT_MODE__ === 'string' && __RT_MODE__ === 'rt2'; // rt-cut2：擊倒＋再生
+const MODE = RT2 ? MODE_RT2 : MODE_RT1;
+const KO_MS = 2600; // 擊倒演出長度（凍結上限 3 秒）【試玩數值】
 const BUILD_SHA = typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : 'dev';
 const W = 700, H = 1000, STEP_MS = 1000 / FPS;
 const DUEL_MS = 4200; // 對決演出長度（凍結上限 12 秒）【試玩數值】
@@ -16,7 +20,7 @@ const els = {
 };
 els.sha.textContent = BUILD_SHA;
 
-type UiPhase = 'cut' | 'duel' | 'end';
+type UiPhase = 'cut' | 'duel' | 'ko' | 'end';
 interface AimVis { aimStep: number; fireStep: number; firstDraw: number; fired: number | null }
 const G = {
   token: 0, state: null as unknown as GameState, ui: 'cut' as UiPhase,
@@ -65,7 +69,7 @@ const fx = {
   shakeUntil: 0,
 };
 const COLOR: Record<Side, string> = { blue: '#58c4dd', red: '#e05a5a' };
-const name = (i: number) => ORGANS[i].id.slice(1);
+const name = (i: number) => G.state.organs[i].id.slice(1);
 function say(text: string, cls = ''): void { G.msg = text; G.msgCls = cls; }
 function onEvents(evs: GameEvent[], now: number): void {
   for (const e of evs) {
@@ -75,24 +79,26 @@ function onEvents(evs: GameEvent[], now: number): void {
       say({ cooldown: '冷卻中，這刀沒出', short: `刀太短（至少 ${MIN_LEN}），沒出刀`, start: '要從你的獸身（下方藍色）起刀', phase: '時間到，不能再出刀' }[e.reason], 'bad');
     } else if (e.t === 'strike') strikeFx(e.r, now);
     else if (e.t === 'duel') startDuel(e.result, now);
+    else if (e.t === 'ko') startKo(e.result, now);
+    else if (e.t === 'spawn') { const o = G.state.organs[e.i]; fx.pops.push({ p: o.p, text: '再生', color: o.side === 'blue' ? '#8fe3ff' : '#ff9a9a', t0: now }); }
   }
 }
 function strikeFx(r: StrikeResult, now: number): void {
   fx.slashes.push({ side: r.side, a: r.line.a, b: r.end, t0: now });
   if (r.side === 'red') { const v = G.aimVis.find((x) => x.fireStep === G.state.step - 1 && x.fired === null); if (v) v.fired = now; }
-  for (const i of r.locks) fx.pops.push({ p: ORGANS[i].p, text: '鎖', color: '#ffe08a', t0: now });
+  for (const i of r.locks) fx.pops.push({ p: G.state.organs[i].p, text: '鎖', color: '#ffe08a', t0: now });
   const who = r.side === 'blue' ? '你' : '牠';
   const parts: string[] = [];
   if (r.locks.length) parts.push(`鎖住 ${r.locks.map(name).join('、')}`);
   if (r.severed !== null) {
-    const o = ORGANS[r.severed];
+    const o = G.state.organs[r.severed];
     parts.push(`切掉${r.side === 'blue' ? '牠的' : '你的'}${name(r.severed)}`);
     fx.pops.push({ p: o.p, text: '切除', color: '#fff', t0: now });
     if (!G.reduced) { for (let k = 0; k < 12; k++) { const ang = (k / 12) * Math.PI * 2; fx.bits.push({ p: [o.p[0], o.p[1]], v: [Math.cos(ang) * 180, Math.sin(ang) * 180 - 80], color: COLOR[o.side], t0: now }); } fx.shakeUntil = now + 200; }
     tone(120, 0.2, 0.25); vibrate([15, 25, 15]);
   } else if (r.blocked !== null) {
     parts.push(`被${name(r.blocked)}的護盾擋下`);
-    fx.pops.push({ p: ORGANS[r.blocked].p, text: '擋', color: '#ffe08a', t0: now }); tone(900, 0.08, 0.1, 'square');
+    fx.pops.push({ p: G.state.organs[r.blocked].p, text: '擋', color: '#ffe08a', t0: now }); tone(900, 0.08, 0.1, 'square');
   } else tone(500, 0.06, 0.06, 'triangle');
   say(`${who}${parts.length ? parts.join('，') : '揮空'}`, r.side === 'blue' ? (r.severed !== null ? 'good' : '') : (r.severed !== null ? 'bad' : ''));
 }
@@ -104,11 +110,21 @@ function startDuel(res: DuelResult, now: number): void {
   const tk = G.token;
   G.duelTimer = setTimeout(() => { if (tk === G.token) showResult(res); }, DUEL_MS);
 }
+function startKo(res: DuelResult, now: number): void {
+  G.ui = 'ko'; G.result = res; G.drag = null; G.release = null; G.duelT0 = now;
+  const w = G.state.end?.winner;
+  say(w === 'draw' ? '雙方同時倒下！' : w === 'blue' ? '擊倒！牠的器官被你切光了' : '你被擊倒了', w === 'blue' ? 'good' : 'bad');
+  tone(70, 0.6, 0.35); vibrate([30, 40, 60]);
+  const tk = G.token;
+  G.duelTimer = setTimeout(() => { if (tk === G.token) showResult(res); }, KO_MS);
+}
 function showResult(res: DuelResult): void {
   G.ui = 'end';
-  els.resTitle.textContent = res.winner === 'draw' ? '平手' : res.winner === 'blue' ? '你贏了' : '你輸了';
+  const end = G.state.end, w = end ? end.winner : res.winner;
+  els.resTitle.textContent = end && end.by === 'ko' ? (w === 'draw' ? '同時倒下・平手' : w === 'blue' ? '擊倒勝' : '被擊倒') : w === 'draw' ? '平手' : w === 'blue' ? '你贏了' : '你輸了';
   els.resTable.innerHTML = '';
   const rows: [string, string, string][] = [['', '你', '牠'], ['剩餘爪', `${res.claws.blue}`, `${res.claws.red}`], ['剩餘心', `${res.hearts.blue}`, `${res.hearts.red}`], ['戰力', `${res.power.blue}`, `${res.power.red}`]];
+  if (RT2) rows.push(['結束方式', end && end.by === 'ko' ? '擊倒' : '時間到', ''], ['總切除數', `${G.state.severedN.blue}`, `${G.state.severedN.red}`]);
   for (const [k, a, b] of rows) { const tr = document.createElement('tr'); for (const t of [k, a, b]) { const td = document.createElement(k ? 'td' : 'th'); td.textContent = t; tr.appendChild(td); } els.resTable.appendChild(tr); }
   const note = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 3; td.textContent = '戰力＝2 × 爪 × (1＋心)'; td.style.fontSize = '12px'; td.style.opacity = '.75'; note.appendChild(td); els.resTable.appendChild(note);
   els.result.hidden = false;
@@ -117,7 +133,7 @@ function showResult(res: DuelResult): void {
 // ---------------------------------------------------------------- 重開
 function restart(): void {
   G.token++; clearTimeout(G.duelTimer);
-  G.state = newGame(G.seedSource());
+  G.state = newGame(G.seedSource(), MODE);
   G.ui = 'cut'; G.acc = 0; G.lastT = null; G.drag = null; G.release = null; G.result = null;
   G.aimVis = []; G.events = [];
   fx.slashes = []; fx.pops = []; fx.bits = []; fx.shakeUntil = 0;
@@ -168,8 +184,15 @@ function frame(now: number): void {
 // ---------------------------------------------------------------- 繪製
 function poly(ctx: CanvasRenderingContext2D, pts: V[]): void { ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(sx(p[0]), sy(p[1])) : ctx.moveTo(sx(p[0]), sy(p[1])))); ctx.closePath(); }
 function organ(ctx: CanvasRenderingContext2D, i: number, now: number): void {
-  const o = ORGANS[i], x = sx(o.p[0]), y = sy(o.p[1]), r = R * scale;
+  const o = G.state.organs[i], x = sx(o.p[0]), y = sy(o.p[1]), r = R * scale;
   ctx.save();
+  if (!isReady(G.state, i)) {
+    const k = 1 - (G.state.readyAt[i] - G.state.step) / SPROUT_STEPS;
+    ctx.globalAlpha = 0.35 + 0.4 * k; ctx.strokeStyle = COLOR[o.side]; ctx.setLineDash([4, 4]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r * (0.3 + 0.7 * k), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = COLOR[o.side]; ctx.font = `bold ${Math.max(11, Math.round(r * 0.6))}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('萌', x, y);
+    ctx.restore(); return;
+  }
   ctx.fillStyle = o.side === 'blue' ? '#2f7f95' : '#a8323f'; ctx.strokeStyle = COLOR[o.side]; ctx.lineWidth = 2;
   if (o.kind === 'heart') {
     const beat = 1 + 0.06 * Math.sin(now / 160 + i);
@@ -188,7 +211,8 @@ function organ(ctx: CanvasRenderingContext2D, i: number, now: number): void {
   }
   ctx.restore();
 }
-function render(now: number): void {
+function render(realNow: number): void {
+  const now = G.ui === 'ko' ? G.duelT0 + (realNow - G.duelT0) * 0.25 : realNow; // 擊倒慢動作
   layout();
   const ctx = els.canvas.getContext('2d')!;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
@@ -199,7 +223,7 @@ function render(now: number): void {
   ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '12px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillText('牠的獸身', sx(30), sy(28)); ctx.textBaseline = 'bottom'; ctx.fillText('你的獸身（從這裡起刀）', sx(30), sy(972));
   const s = G.state;
-  ORGANS.forEach((_, i) => { if (s.alive[i]) organ(ctx, i, now); });
+  G.state.organs.forEach((_, i) => { if (s.alive[i]) organ(ctx, i, now); });
   // AI 預告：刀線在預告開始時固定
   if (s.aim && G.ui === 'cut') {
     const a = s.aim, prog = Math.min(1, (s.step - a.aimStep) / (a.fireStep - a.aimStep));
@@ -219,9 +243,9 @@ function render(now: number): void {
     ctx.beginPath(); ctx.moveTo(sx(l.a[0]), sy(l.a[1])); ctx.lineTo(sx(l.b[0]), sy(l.b[1])); ctx.stroke();
     if (okStart && !short) {
       const pv = resolveStrike({ ...s, cdUntil: { ...s.cdUntil, blue: 0 } }, 'blue', l);
-      for (const i of pv.locks) { ctx.strokeStyle = '#ffe08a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx(ORGANS[i].p[0]), sy(ORGANS[i].p[1]), R * scale + 9, 0, Math.PI * 2); ctx.stroke(); }
+      for (const i of pv.locks) { ctx.strokeStyle = '#ffe08a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx(G.state.organs[i].p[0]), sy(G.state.organs[i].p[1]), R * scale + 9, 0, Math.PI * 2); ctx.stroke(); }
       const tgt = pv.severed ?? pv.blocked;
-      if (tgt !== null) { ctx.strokeStyle = pv.severed !== null ? '#ffffff' : '#ffe08a'; ctx.lineWidth = 3; const p = ORGANS[tgt].p, d = R * scale; ctx.beginPath(); ctx.moveTo(sx(p[0]) - d, sy(p[1]) - d); ctx.lineTo(sx(p[0]) + d, sy(p[1]) + d); ctx.moveTo(sx(p[0]) + d, sy(p[1]) - d); ctx.lineTo(sx(p[0]) - d, sy(p[1]) + d); ctx.stroke(); }
+      if (tgt !== null) { ctx.strokeStyle = pv.severed !== null ? '#ffffff' : '#ffe08a'; ctx.lineWidth = 3; const p = G.state.organs[tgt].p, d = R * scale; ctx.beginPath(); ctx.moveTo(sx(p[0]) - d, sy(p[1]) - d); ctx.lineTo(sx(p[0]) + d, sy(p[1]) + d); ctx.moveTo(sx(p[0]) + d, sy(p[1]) - d); ctx.lineTo(sx(p[0]) - d, sy(p[1]) + d); ctx.stroke(); }
     }
     ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText(!okStart ? '要從藍色獸身起刀' : cd ? '冷卻中' : short ? '再長一點' : len > MAX_LEN ? '最長 420' : '', sx(l.b[0]), sy(l.b[1]) - 10);
@@ -234,15 +258,27 @@ function render(now: number): void {
   for (const b of fx.bits) { const t = (now - b.t0) / 1000; ctx.fillStyle = b.color; ctx.globalAlpha = 1 - t / 0.6; ctx.fillRect(sx(b.p[0] + b.v[0] * t) - 3, sy(b.p[1] + b.v[1] * t + 400 * t * t) - 3, 6, 6); ctx.globalAlpha = 1; }
   fx.pops = fx.pops.filter((p) => now - p.t0 < 800);
   for (const p of fx.pops) { const t = (now - p.t0) / 800; ctx.globalAlpha = 1 - t; ctx.fillStyle = p.color; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(p.text, sx(p.p[0]), sy(p.p[1]) - 30 - t * 30); ctx.globalAlpha = 1; }
-  if (G.ui !== 'cut' && G.result) duelFx(ctx, now);
+  if (G.ui === 'ko') koFx(ctx, realNow);
+  else if (G.ui !== 'cut' && G.result) duelFx(ctx, now);
   ctx.restore();
   hud();
+}
+function koFx(ctx: CanvasRenderingContext2D, now: number): void {
+  const t = Math.min(1, (now - G.duelT0) / KO_MS), w = G.state.end?.winner;
+  ctx.fillStyle = `rgba(14,17,22,${0.5 * Math.min(1, t * 3)})`; ctx.fillRect(0, 0, cw, ch);
+  const z = 1 + 0.6 * Math.max(0, 1 - t * 4);
+  ctx.save(); ctx.translate(cw / 2, ch / 2); ctx.scale(z, z);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `900 ${Math.round(Math.min(cw, ch) * 0.2)}px system-ui`;
+  ctx.fillStyle = w === 'blue' ? '#8fe3ff' : w === 'red' ? '#ff8a8a' : '#e6d7bf'; ctx.fillText('擊倒', 0, 0);
+  ctx.font = `bold ${Math.round(Math.min(cw, ch) * 0.05)}px system-ui`; ctx.fillStyle = '#fff';
+  ctx.fillText(w === 'draw' ? '同時倒下' : w === 'blue' ? '你贏了' : '你輸了', 0, Math.min(cw, ch) * 0.14);
+  ctx.restore();
 }
 function duelFx(ctx: CanvasRenderingContext2D, now: number): void {
   const t = Math.min(1, (now - G.duelT0) / DUEL_MS), res = G.result!;
   ctx.fillStyle = `rgba(14,17,22,${0.35 * t})`; ctx.fillRect(0, 0, cw, ch);
   // 雙方剩下的爪輪流朝對方中線出擊
-  ORGANS.forEach((o, i) => {
+  G.state.organs.forEach((o, i) => {
     if (!G.state.alive[i] || o.kind !== 'claw') return;
     const ph = ((now - G.duelT0) / 600 + i * 0.37) % 1, ty = o.side === 'blue' ? 300 : 700;
     const y = o.p[1] + (ty - o.p[1]) * Math.sin(ph * Math.PI) * 0.5;
@@ -273,7 +309,9 @@ function hud(): void {
 // ---------------------------------------------------------------- 測試掛鉤（只讀；可注入種子來源與時間推進，供自動測試）
 const hook = {
   get state() { return G.state; }, get ui() { return G.ui; }, get aimVis() { return G.aimVis; }, get events() { return G.events; }, get result() { return G.result; },
-  get drag() { return G.drag; }, toScreen, restart, CUT_SECONDS, DUEL_MS,
+  get drag() { return G.drag; }, toScreen, restart, CUT_SECONDS, DUEL_MS, KO_MS, RT2,
+  /** 測試用（rt-cut2）：直接把指定器官判為已切（照規則記入再生佇列與切除數），至少留 1 個給真實刀路觸發擊倒；正常遊玩不會呼叫。 */
+  testSever(ids: number[]) { const s = { ...G.state, alive: [...G.state.alive], lockUntil: [...G.state.lockUntil], severedQ: { blue: [...G.state.severedQ.blue], red: [...G.state.severedQ.red] } }; for (const i of ids) { if (!s.alive[i]) continue; s.alive[i] = false; s.lockUntil[i] = 0; s.severedQ[s.organs[i].side].push(s.organs[i].kind); } if (countSide(s, 'blue') === 0 || countSide(s, 'red') === 0) throw new Error('testSever 不得清空一方'); G.state = s; },
   setSeedSource(f: () => number) { G.seedSource = f; },
   /** 測試用：直接推進 n 步（不出刀），用來快轉到時間尾端；正常遊玩不會呼叫。 */
   advance(n: number) { for (let i = 0; i < n && G.ui === 'cut'; i++) { const out = step(G.state, { drag: dragLine() }); G.state = out.state; onEvents(out.events, performance.now()); } },
