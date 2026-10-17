@@ -426,7 +426,7 @@ export function organLayers(im: Img, kind: Kind, side: Side, r: number, dpr: num
     const rimOf = (rgb: string) => {
       const sil = silhouette(im, rgb), tmp = mk(size * dpr, size * dpr), tc = tmp.getContext('2d')!; tc.setTransform(dpr, 0, 0, dpr, 0, 0);
       // 剪影往 16 個方向位移疊印（外圈淡、內圈濃）＝沿素材輪廓膨脹的柔光，不是圓框；挖掉輪廓內；整層再乘上 RIM_MAX_ALPHA
-      for (const [d, a] of [[r * 0.3, 0.1], [r * 0.18, 0.22], [r * 0.09, 0.55]] as [number, number][]) { tc.globalAlpha = a; for (let i = 0; i < 16; i++) { const an = (i / 16) * Math.PI * 2; tc.drawImage(sil, pl.x + Math.cos(an) * d, pl.y + Math.sin(an) * d, pl.w, pl.h); } }
+      for (const [d, a] of [[r * 0.3, 0.3], [r * 0.18, 0.5], [r * 0.09, 0.8]] as [number, number][]) { tc.globalAlpha = a; for (let i = 0; i < 16; i++) { const an = (i / 16) * Math.PI * 2; tc.drawImage(sil, pl.x + Math.cos(an) * d, pl.y + Math.sin(an) * d, pl.w, pl.h); } }
       tc.globalAlpha = 1; tc.globalCompositeOperation = 'destination-out'; tc.drawImage(sil, pl.x, pl.y, pl.w, pl.h);
       const c = mk(size * dpr, size * dpr), x = c.getContext('2d')!; x.globalAlpha = RIM_MAX_ALPHA; x.drawImage(tmp, 0, 0); return c;
     };
@@ -449,8 +449,8 @@ const finitePos = (v: number, d: number) => (Number.isFinite(v) && v > 0 ? v : d
 export function drawOrganV3(ctx: Ctx, im: Img, o: Readonly<OrganView>, st: Readonly<OrganStateV3>, t: number): void {
   const { kind, side, x, y } = o, r = finitePos(o.r, ORGAN_R), lit = clamp01(Number.isFinite(st.lit) ? (st.lit as number) : 0), dpr = dprOf(ctx), L = organLayers(im, kind, side, r, dpr), half = r + L.pad;
   const base = st.mode === 'sprout' ? 0.4 : 1, litQ = Math.round(lit * 3) / 3;
-  // 可切：光邊強度 0.45～1 緩慢脈動（0.8Hz，量化 8 階）；按住加亮時固定最強；其他固定 0.85
-  const ph = Number.isFinite(t) ? 0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 0.8) : 1, rimA = litQ > 0 ? 1 : st.cuttable ? 0.45 + 0.55 * Math.round(ph * 7) / 7 : 0.85;
+  // 可切：光邊強度緩慢脈動（0.8Hz，量化 8 階；下限藍 0.45、紅 0.7——紅光邊疊在偏藍的前線帶上容易被蓋成中性色）；按住加亮時固定最強；其他固定 0.85
+  const ph = Number.isFinite(t) ? 0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 0.8) : 1, lo = side === 'red' ? 0.7 : 0.45, rimA = litQ > 0 ? 1 : st.cuttable ? lo + (1 - lo) * Math.round(ph * 7) / 7 : 0.85;
   ctx.save();
   ctx.globalAlpha = base; ctx.drawImage(organCombined(im, kind, side, r, dpr, rimA, litQ * 0.8), x - half, y - half, half * 2, half * 2);
   if (lit > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = base * lit * 0.4; ctx.drawImage(L.body, x - half, y - half, half * 2, half * 2); ctx.globalCompositeOperation = 'source-over'; } // 只提亮本體範圍內，不擴大顯示範圍
