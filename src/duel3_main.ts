@@ -177,6 +177,7 @@ function tutTick(now: number): void {
 }
 function tutOnFree(e: GameEvent): void {
   if (!G.tut || G.tut.phase !== 'hints' || !('side' in e) || e.side !== 'blue') return;
+  if (e.t === 'freeEnd' && e.why === 'tap') return;   // 點擊不算一刀
   if (e.t === 'freeEnd') { if (G.tut.hint === 0) tutHint(1); else if (G.tut.hint === 1) tutHint(2); else if (G.tut.hint === 2) tutEnd(); }
   else if (e.t === 'freeLock' && G.tut.hint === 1) tutHint(2);
 }

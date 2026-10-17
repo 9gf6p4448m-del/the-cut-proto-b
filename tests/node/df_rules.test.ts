@@ -140,6 +140,15 @@ test('DF-01 長度 420 截止；放開、cancel、第二指都會結束；冷卻
   const same = run(g, [{ t: 20, k: 'down', p: [100, 900] }, { t: 22, k: 'move', p: [140, 900] }, { t: 23, k: 'up', p: [140, 900] }, { t: 25, k: 'down', p: [350, 760] }, { t: 30, k: 'move', p: [350, 380] }, { t: 31, k: 'up', p: [350, 380] }], 40);
   assert.equal(stepOf(20), stepOf(31));
   assert.deepEqual(ofType(same, 'freeReject').map((x) => x.e.reason), ['cooldown']); assert.ok(same.s.alive[1]);
+  // 補述 1：輕點（總長 <10、沒有鎖定／切除）不算一刀、不進冷卻；超過 10 或有鎖定才進冷卻
+  const tapRun = run(g, [{ t: 20, k: 'down', p: [100, 900] }, { t: 40, k: 'move', p: [106, 904] }, { t: 60, k: 'up', p: [106, 904] }], 40);
+  assert.deepEqual(ofType(tapRun, 'freeEnd').map((x) => x.e.why), ['tap']); assert.equal(tapRun.s.cdUntil.blue, 0, '輕點不進冷卻');
+  const tapThenCut = run(g, [{ t: 20, k: 'down', p: [100, 900] }, { t: 30, k: 'up', p: [100, 900] }, ...swipe([350, 760], [350, 380], 100, 100, 8)], 40);
+  assert.equal(tapThenCut.s.alive[1], false, '輕點後馬上劃刀照樣能切');
+  const move11 = run(g, [{ t: 20, k: 'down', p: [100, 900] }, { t: 40, k: 'move', p: [111, 900] }, { t: 60, k: 'up', p: [111, 900] }], 40);
+  assert.equal(ofType(move11, 'freeEnd')[0].e.why, 'up'); assert.equal(move11.s.cdUntil.blue, stepOf(60) + COOLDOWN_STEPS, '移動超過 10 進冷卻');
+  const tapLock = run(game([org('B5', 'blue', [100, 900]), R1]), [{ t: 20, k: 'down', p: [100, 900] }, { t: 22, k: 'move', p: [104, 900] }, { t: 23, k: 'up', p: [104, 900] }], 40);
+  assert.equal(ofType(tapLock, 'freeLock').length, 1); assert.equal(ofType(tapLock, 'freeEnd')[0].e.why, 'up'); assert.ok(tapLock.s.cdUntil.blue > 0, '短但有鎖定＝一刀，進冷卻');
   // 切割期結束：進行中的刀作廢
   const shortGame = game([B1, R1], { ...MODE, cutSteps: 10 });
   const pe = run(shortGame, swipe([100, 900], [300, 900], 100, 400, 8), 100);

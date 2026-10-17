@@ -351,7 +351,8 @@ export const anchorsOf = (mode: { body?: Record<Side, V[]> }, side: Side): V[] =
 // 每步在步開始狀態 s0 上判：起刀看 s0 的冷卻與獸身；鎖／切／撞鎖看 s0 的存活、萌芽、鎖定。
 export const FREE_MIN_SPEED = 0.6;           // px/ms：低於這個速度是鈍刀（不鎖不切，長度照算）【試玩數值】
 export type Piece = { k: 'down'; p: V } | { k: 'seg'; a: V; b: V; v: number } | { k: 'end'; why: 'up' | 'cancel' | 'multi' };
-export type FreeEndWhy = 'up' | 'cancel' | 'multi' | 'length' | 'sever' | 'blocked';
+export type FreeEndWhy = 'up' | 'cancel' | 'multi' | 'length' | 'sever' | 'blocked' | 'tap';
+export const TAP_LEN = 10;                  // 補述 1：放開時路徑總長 <10 且沒有鎖定／切除＝點擊，不算一刀、不進冷卻
 export interface Stroke { start: V; len: number; seen: number[]; locks: number[]; startStep: number }
 export interface FreeOut {
   side: Side; stroke: Stroke | null; locks: number[]; events: GameEvent[];
@@ -380,7 +381,10 @@ export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, piec
     }
     const cur: Stroke | null = st;
     if (!cur) continue;
-    if (pc.k === 'end') { finish(cur, pc.why, cur.start, [0, 0]); continue; }
+    if (pc.k === 'end') {
+      if (cur.len < TAP_LEN && cur.locks.length === 0) { events.push({ t: 'freeEnd', side, why: 'tap', locks: [], severed: null, blocked: null, end: cur.start, dir: [0, 0], len: cur.len }); st = null; continue; }   // 點擊：不進冷卻（ended 不設）
+      finish(cur, pc.why, cur.start, [0, 0]); continue;
+    }
     // 線段：先依剩餘長度截斷
     const a = pc.a;
     const L0 = Math.hypot(pc.b[0] - a[0], pc.b[1] - a[1]);

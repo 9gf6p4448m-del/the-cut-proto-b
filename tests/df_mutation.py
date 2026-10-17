@@ -9,10 +9,12 @@ MUTS = [
  ('src/rtcut/rules.ts', "const t = entryDist(a, b, o.p, rr); if (t !== null) hits.push({ i, t }); });\n      hits.sort", "const t = entryDist(a, b, o.p); if (t !== null) hits.push({ i, t }); });\n      hits.sort", '即時刀判定半徑用 28'),
  ('src/rtcut/rules.ts', "        if (isLocked(s0, h.i)) finish(cur, 'blocked'", "        if (false) finish(cur, 'blocked'", '撞鎖不停刀（照切）'),
  ('src/rtcut/rules.ts', "        : ended || s0.cdUntil[side] > k ? 'cooldown'", "        : s0.cdUntil[side] > k ? 'cooldown'", '同一步內剛結束又起刀'),
- ('src/rtcut/rules.ts', "    if (pc.k === 'end') { finish(cur, pc.why, cur.start, [0, 0]); continue; }", "    if (pc.k === 'end' && pc.why === 'up') { finish(cur, pc.why, cur.start, [0, 0]); continue; }", 'cancel／第二指不結束'),
+ ('src/rtcut/rules.ts', "      finish(cur, pc.why, cur.start, [0, 0]); continue;", "      if (pc.why === 'up') finish(cur, pc.why, cur.start, [0, 0]); continue;", 'cancel／第二指不結束'),
  ('src/rtcut/rules.ts', "        : !inside(pc.p, bodyOf(s0.mode, side)) ? 'start' : null;", "        : null;", '起刀不檢查獸身'),
  ('src/rtcut/rules.ts', "  if (red) { const r = resolveStrike(s0, 'red', red);", "  if (red) { const r = resolveStrike({ ...s0, lockUntil: s0.lockUntil.map((x, i) => (input.free?.blue ?? []).length && s0.organs[i].side === 'blue' ? s0.step + 999 : x) }, 'red', red);", 'AI 刀看到同一步藍方即時刀的鎖（不是步開始狀態）'),
  ('src/cutbattle/campaign.ts', "    if (validSpot(p, side, body, r) && taken.every((q) => dist(p, q) >= 2 * r + 4)) return p;", "    if (validSpot(p, side, body) && taken.every((q) => dist(p, q) >= 2 * R + 4)) return p;", '生成仍用半徑 28'),
+ ('src/rtcut/rules.ts', 'export const TAP_LEN = 10;', 'export const TAP_LEN = 0;', '沒有輕點例外（點擊也進冷卻）'),
+ ('src/rtcut/rules.ts', 'if (cur.len < TAP_LEN && cur.locks.length === 0)', 'if (cur.len < TAP_LEN)', '輕點有鎖定也不進冷卻'),
 ]
 res = []
 for f, a, b, name in MUTS:
