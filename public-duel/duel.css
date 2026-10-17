@@ -1,0 +1,45 @@
+/* ---- 刀譜對決研究片段追加樣式（接在 public/style.css 之後） ---- */
+body.duel { height:100dvh; overflow:hidden; background:radial-gradient(120% 70% at 50% 45%, #1d1028 0%, #07090D 65%); }
+.tag { background:var(--amber); color:#11151B; padding:1px 6px; border-radius:6px; font-size:11px; }
+.duel header { padding:6px 10px 0; }
+.duel .warn { font-size:11px; opacity:.8; }
+.hpRow { display:flex; gap:8px; align-items:center; margin-top:4px; }
+.hp { flex:1; display:flex; align-items:center; gap:6px; background:#12151d; border:1px solid #262c38; border-radius:8px; padding:3px 8px; min-width:0; }
+.hp span { font-size:12px; white-space:nowrap; }
+.hp .bar { flex:1; height:10px; background:#262c38; border-radius:5px; overflow:hidden; }
+.hp .bar i { display:block; height:100%; width:100%; transition:width .25s; }
+.hp.foe .bar i { background:linear-gradient(90deg,#ff3d5a,#ff9a6b); }
+.hp.me .bar i { background:linear-gradient(90deg,#3dc3ff,#8fe3ff); }
+.hp b { font-size:15px; font-variant-numeric:tabular-nums; min-width:34px; text-align:right; }
+.hp.hit { animation:hphit .32s ease-out; }
+@keyframes hphit { 0%{ transform:translateX(0); background:#5a1414; } 25%{ transform:translateX(-6px); } 50%{ transform:translateX(5px); } 75%{ transform:translateX(-2px); } 100%{ transform:translateX(0); background:#12151d; } }
+.clock { width:56px; text-align:center; background:#12151d; border:1px solid #262c38; border-radius:8px; padding:2px 0; }
+.clock b { font-size:18px; font-variant-numeric:tabular-nums; }
+.clock.sudden { background:#5a1414; border-color:#ff5a5a; }
+.cd { width:56px; height:10px; background:#262c38; border-radius:5px; overflow:hidden; }
+.cd i { display:block; height:100%; width:100%; background:#8fe3ff; }
+.cd.cool i { background:#55606f; }
+.preview { height:38px; margin-top:4px; padding:3px 8px; background:#12151d; border-radius:8px; font-size:12px; line-height:1.3; overflow:hidden; }
+.preview .seq { font-weight:bold; letter-spacing:1px; }
+.preview .pat { color:#ffd166; }
+.preview .sc { color:#fff; font-weight:bold; font-size:14px; }
+.preview .warnc { color:#ff7a7a; }
+.duel main { flex:1; min-height:0; position:relative; }
+.duel canvas { width:100%; height:100%; display:block; touch-action:none; }
+.tools { display:flex; gap:6px; margin-top:4px; }
+.tools button { flex:1 1 0; font-size:13px; padding:0 4px; min-height:44px; }
+.modal { position:fixed; inset:0; background:#000c; display:flex; align-items:center; justify-content:center; z-index:20; padding:16px; }
+.modal[hidden] { display:none; }
+.modal .box { background:#151923; border:1px solid #3a4150; border-radius:14px; padding:14px; width:100%; max-width:420px; }
+.modal h2 { margin:0 0 10px; font-size:20px; }
+.opts { display:flex; flex-direction:column; gap:8px; }
+.opts button { min-height:56px; text-align:left; display:flex; flex-direction:column; justify-content:center; padding:6px 12px; }
+.opts button b { font-size:16px; color:#ffd166; }
+.opts button small { font-size:12px; opacity:.85; }
+.opts button.sel { outline:2px solid #ffd166; }
+.slots { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+.slots button { min-height:48px; font-size:13px; }
+.hint { font-size:12px; opacity:.8; margin:8px 0 0; }
+.end #endBody { font-size:14px; line-height:1.6; margin-bottom:12px; }
+.end #endBody .big { font-size:30px; font-weight:bold; color:#ffd166; }
+.end button { width:100%; min-height:52px; }
