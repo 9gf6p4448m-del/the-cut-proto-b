@@ -49,6 +49,38 @@ async function offlineTitle(ctx, page, url) {
   return t;
 }
 
+/** RS-8（DL-070）：照搬 Codex R2 的重現腳本 sw_race_probe.mjs——同 SHA 升級時，舊根 SW 正在處理的子頁導航在新 SW 裝好之後才寫入。
+ *  回傳離線開根網址的標題（ROOT＝正確、TWIN＝被汙染）。control＝舊導航在升級前就完成（對照組）。 */
+async function raceProbe(browser, oldSw, nextSw, control) {
+  let sw = oldSw, hold, started; const pending = new Promise((r) => { started = r; });
+  const server = createServer((req, res) => {
+    const p = req.url.split('?')[0];
+    if (p === '/the-cut-proto-b/sw.js') { res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-store' }); return res.end(sw); }
+    if (p === '/the-cut-proto-b/twin-slash/') { started(); hold = () => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<title>TWIN</title>'); }; return; }
+    res.writeHead(200, { 'content-type': p.endsWith('.js') ? 'text/javascript' : 'text/html' }); res.end('<title>ROOT</title>');
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}/the-cut-proto-b/`;
+  const ctx = await browser.newContext(); const p = await ctx.newPage();
+  try {
+    await p.goto(base);
+    await p.evaluate(async () => { await navigator.serviceWorker.register('./sw.js'); await navigator.serviceWorker.ready; });
+    await p.reload();
+    const q = await ctx.newPage(); await q.goto(base);
+    await p.goto(base + 'twin-slash/index.html');
+    const nav = q.goto(base + 'twin-slash/'); await pending;
+    if (control) { hold(); await nav; }
+    sw = nextSw;
+    await p.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration('../'); r.addEventListener('updatefound', () => { window.__probeExpected = r.installing; }, { once: true }); await r.update(); await new Promise((z) => setTimeout(z, 1000)); });
+    if (!control) { hold(); await nav; }
+    await p.waitForTimeout(500);
+    await p.evaluate(async () => { for (let i = 0; i < 100; i++) { const r = await navigator.serviceWorker.getRegistration('../'); if (r.active === window.__probeExpected && r.active?.state === 'activated' && !r.waiting && !r.installing) return; await new Promise((z) => setTimeout(z, 100)); } throw Error('new worker did not activate'); });
+    await ctx.setOffline(true); await p.goto(base);
+    return await p.title();
+  } catch (e) { return `（探針失敗：${String(e).split('\n')[0].slice(0, 80)}）`; }
+  finally { await ctx.close(); await new Promise((r) => server.close(r)); }
+}
+
 export async function runRootSwTests({ check, root = process.cwd() }) {
   const sha = readFileSync(join(root, 'dist/index.html'), 'utf8').match(/name="build-sha" content="([^"]+)"/)[1];
   const OLD = execSync('git show fcfd1d2:public/sw.js', { cwd: root }).toString().replaceAll('__BUILD_SHA__', sha);
@@ -98,6 +130,12 @@ export async function runRootSwTests({ check, root = process.cwd() }) {
     const r = {};
     for (const s of ['', ...Object.keys(SUBS)]) r[s || 'root'] = await offlineTitle(ctx, page, url + s);
     out.RS4 = r; await ctx.close(); }
+  // RS-8：同 SHA 升級競態（ffec4fa 的 sw.js 應重現 R2 HIGH；新版應為 ROOT；對照組兩版都 ROOT）
+  const live = (t) => t.replaceAll('__BUILD_SHA__', '42fdb21');
+  const OLDSRC = live(execSync('git show fcfd1d2:public/sw.js', { cwd: root }).toString());
+  const PREV = live(execSync('git show ffec4fa:public/sw.js', { cwd: root }).toString());
+  const CUR = live(readFileSync(join(root, 'public/sw.js'), 'utf8'));
+  for (const [lab, nx] of [['ffec4fa', PREV], ['新', CUR]]) for (const control of [false, true]) out[`RS8-${lab}-${control ? '對照' : '競態'}`] = await raceProbe(browser, OLDSRC, nx, control);
   await browser.close(); srv.close();
 
   const subKept = (o) => Object.values(SUBS).every((p) => o.after.some((k) => k.startsWith(p)));
@@ -112,6 +150,8 @@ export async function runRootSwTests({ check, root = process.cwd() }) {
     const vals = Object.values(o.rootCaches);
     check(`[chromium][rootsw] RS-3 已汙染→經${via}換上新 SW：根快取不再含雙獸頁、離線根網址＝根頁`, o.polluted === T['twin-slash/'] && o.offline === T.root && vals.length >= 1 && vals.every((t) => t !== T['twin-slash/']) && vals.includes(T.root), JSON.stringify(o));
   }
+  check('[chromium][rootsw] RS-8 ffec4fa 的根 SW 重現 R2 HIGH（競態下離線根網址＝雙獸頁）', out['RS8-ffec4fa-競態'] === 'TWIN', out['RS8-ffec4fa-競態']);
+  check('[chromium][rootsw] RS-8 新根 SW：同 SHA 升級競態下離線根網址＝根頁；對照組兩版皆根頁', out['RS8-新-競態'] === 'ROOT' && out['RS8-新-對照'] === 'ROOT' && out['RS8-ffec4fa-對照'] === 'ROOT', JSON.stringify(Object.fromEntries(Object.entries(out).filter(([k]) => k.startsWith('RS8')))));
   check('[chromium][rootsw] RS-4 新根 SW 下根頁與三個子頁都能離線開啟', out.RS4.root === T.root && Object.keys(SUBS).every((s) => out.RS4[s] === T[s]), JSON.stringify(out.RS4));
   return out;
 }

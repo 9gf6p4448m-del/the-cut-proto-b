@@ -3,16 +3,23 @@
 //  ① 只接手「根應用本身」的導航（範圍根目錄與 index.html），子路徑導航一律不攔截——不再把子頁 HTML 寫進根首頁快取。
 //  ② 子路徑底下的資源請求也不攔截；根應用只讀寫自己這份快取。
 //  ③ 啟用時只清 thecut-protob- 開頭的舊快取（根應用自己的），絕不刪子路徑應用的快取。
-//  ④ 舊版可能已把子頁 HTML 寫進根首頁快取：新版 install 時 addAll 重新抓取根頁並覆寫同名快取裡的 ./index.html（線上根頁 SHA 不變時快取名稱相同，靠覆寫恢復）。
+//  ④ 舊版（同一個快取名稱）會把子頁 HTML 寫進 ./index.html，而且可能在新版裝好之後才寫（DL-070，Codex R2 HIGH）。
+//     所以根頁另存一份「根殼」（SHELL 鍵，只有新版會寫），離線時只從根殼或 ./ 取，絕不讀 ./index.html；啟用時再用根殼把 ./index.html 覆寫乾淨。
 const PREFIX = 'thecut-protob-';
 const CACHE = 'thecut-protob-__BUILD_SHA__';
 const ASSETS = ['./', './index.html', './app.js?v=__BUILD_SHA__', './style.css?v=__BUILD_SHA__', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 const BASE = new URL('./', self.location.href).pathname;
+const SHELL = './__root_shell__';                       // 根頁副本的快取鍵（不是真的網址；舊版 SW 不知道它，不會寫入）
 const isRootFile = (url) => url.origin === self.location.origin && url.pathname.startsWith(BASE) && !url.pathname.slice(BASE.length).includes('/');
 const isRootPage = (url) => isRootFile(url) && (url.pathname === BASE || url.pathname === BASE + 'index.html');
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then(async (c) => { await c.addAll(ASSETS); const r = await c.match('./'); if (r) await c.put(SHELL, r); }).then(() => self.skipWaiting()));
+});
+const offlineRoot = () => caches.open(CACHE).then(async (c) => (await c.match(SHELL)) || (await c.match('./')));
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k))))
+    .then(() => caches.open(CACHE)).then(async (c) => { const r = await c.match(SHELL); if (r) await c.put('./index.html', r); })   // 用根殼蓋掉可能被汙染的 ./index.html
+    .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
   const req = e.request;
@@ -20,7 +27,10 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (req.mode === 'navigate') {
     if (!isRootPage(url)) return;                       // 子路徑或其他頁面：交給瀏覽器（子頁自己的 SW 或網路）
-    e.respondWith(fetch(req).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(CACHE).then((c) => c.put('./index.html', cp)); } return r; }).catch(() => caches.open(CACHE).then((c) => c.match('./index.html'))));
+    e.respondWith(fetch(req).then((r) => {
+      if (r.ok) { const a = r.clone(), b = r.clone(); caches.open(CACHE).then((c) => Promise.all([c.put('./index.html', a), c.put(SHELL, b)])); }
+      return r;
+    }).catch(() => offlineRoot()));
     return;
   }
   if (!isRootFile(url)) return;                         // 子路徑與跨來源資源：不攔截
