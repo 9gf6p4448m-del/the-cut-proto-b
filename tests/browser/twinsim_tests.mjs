@@ -17,6 +17,8 @@ async function drag(page, a, b, release = true) {
 }
 const sim = (page) => page.evaluate(() => window.__sim.sim);
 const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+/** 資訊框裡每一行的底邊都在框內（overflow:hidden 會把超出的行裁掉；innerText 量不到裁切）。 */
+const infoFits = (page) => page.evaluate(() => { const box = document.getElementById('info').getBoundingClientRect(); return [...document.getElementById('info').children].every((c) => c.getBoundingClientRect().bottom <= box.bottom + 0.5); });
 const near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1.5;
 
 export async function runTwinSimTests({ bname, btype, devices, url, check }) {
@@ -33,7 +35,13 @@ export async function runTwinSimTests({ bname, btype, devices, url, check }) {
   // ===== TSIM-08 鎖刀不受玩家影響（同局 2 回合＋同種子換一種玩法） =====
   {
     const bad = [];
-    await page.evaluate(() => window.__sim.newMatch({ seed: 4242 })); await waitPlayer(page);
+    await page.evaluate(() => window.__sim.setTimings({ lockDelay: 4000 }));         // 夠長：整段拖曳都落在等 AI 階段
+    await page.evaluate(() => window.__sim.newMatch({ seed: 4242 }));
+    if ((await S(page)).phase !== 'lock') bad.push('沒有等 AI 階段');
+    await drag(page, [100, 620], [420, 620]);                                         // 等 AI 時拖曳：不得出刀
+    { const s = await S(page); if (s.phase !== 'lock') bad.push('拖曳結束時已離開等 AI 階段（測試時序無效）'); if (s.rounds !== 0 || s.round !== 0) bad.push('等 AI 時出了刀'); }
+    await page.evaluate(() => window.__sim.setTimings({ lockDelay: 0 }));
+    await waitPlayer(page);
     const lock1 = (await S(page)).locked, st0 = await sim(page);
     // 誤操作：拉出去再拉回（取消）
     const A = await scr(page, [120, 700]), B = await scr(page, [120, 980]);
@@ -84,6 +92,7 @@ export async function runTwinSimTests({ bname, btype, devices, url, check }) {
         if (last.blue.cancelled.length || last.red.cancelled.length) { if (info.includes('本回合被切除，未能發動')) sawCancelText = true; else bad.push(`#${n} 有截斷但沒說明：${info}`); }
         if (ev.some((e) => e.side === 'blue') && ev.some((e) => e.side === 'red')) bothSides = true;
         if (/先出手|搶先/.test(info)) bad.push(`#${n} 速度字眼`);
+        if (!(await infoFits(page))) bad.push(`#${n} 資訊框裁掉文字：${info}`);
         n++;
       }
     }
@@ -137,6 +146,7 @@ export async function runTwinSimTests({ bname, btype, devices, url, check }) {
     if ((await S(page)).phase !== 'end') bad.push('沒打到終局');
     const endInfo = await page.evaluate(() => window.__sim.infoText);
     if (!/(你贏了|你輸了|平手)（/.test(endInfo)) bad.push(`終局沒顯示原因：${endInfo}`);
+    if (!(await infoFits(page))) bad.push(`終局資訊框裁掉文字：${endInfo}`);
     await page.click('#restart');
     await fresh('終局', seed);
     check(`${tag} TSIM-12 四個階段重開都回到乾淨的第 1 回合並重新鎖刀；舊局計時器不寫入新局`, bad.length === 0, bad.join('；'));

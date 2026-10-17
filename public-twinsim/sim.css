@@ -8,7 +8,7 @@ body.twin { height:100dvh; overflow:hidden; background:#0E1116; }
 .seg button[aria-pressed="true"] { background:#3d4a5e; border-color:var(--bone); font-weight:bold; }
 .hud { margin:5px 0 0; }
 .hp.me .bar i { background:#58c4dd; } .hp.foe .bar i { background:#e05a5a; }
-.info { height:74px; overflow:hidden; margin-top:4px; padding:4px 8px; background:#161b23; border-radius:8px; font-size:13px; line-height:1.35; }
+.info { height:92px; overflow:hidden; margin-top:4px; padding:4px 8px; background:#161b23; border-radius:8px; font-size:13px; line-height:1.35; }
 .info .bad { color:#ff7a7a; font-weight:bold; } .info .good { color:#9be29b; font-weight:bold; } .info .hint { opacity:.75; font-size:12px; }
 .tools { display:flex; gap:6px; margin-top:5px; }
 .tools button { flex:1 1 0; font-size:13px; padding:0 4px; min-height:44px; }

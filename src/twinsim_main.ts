@@ -132,7 +132,7 @@ function triggerHits(a: Anim, now: number): void {
 // ---------------------------------------------------------------- 流程
 function newMatch(force?: { seed?: number }): void {
   G.match++; G.token++;
-  G.sim = newSim(force?.seed ?? 1000 + G.match);
+  G.sim = newSim(force?.seed ?? ((Math.random() * 1e9) >>> 0) + 1);   // 每局（含每次載入）隨機種子；種子寫進紀錄，可重現
   G.drag = null; G.preview = null; G.last = null; G.lastBefore = null; G.ghost = false; G.anim = null; G.plan = null; G.planCalls = 0; G.summary = '';
   fx.trail = []; fx.splits = []; fx.blood = []; fx.pops = [];
   G.logs.push({ seed: G.sim.seed, rounds: [], result: null, cancels: 0, lockMs: [] });
@@ -159,7 +159,7 @@ function commit(blue: Line): void {
   const ml = G.logs[G.logs.length - 1];
   ml.rounds.push({ n: before.round + 1, blue: sideLog(rr.blue), red: sideLog(rr.red), redSig: G.plan.sig, hpAfter: { ...rr.after.hp } });
   ml.result = rr.after.result;
-  G.last = rr; G.lastBefore = before; G.phase = 'reveal'; G.preview = null; G.ghost = false;
+  G.last = rr; G.lastBefore = before; G.phase = 'reveal'; G.preview = null; G.ghost = false; G.msgUntil = 0;   // 出刀後不再顯示開局提示，揭曉摘要才看得到
   const tok = G.token;
   sfx('slash'); vibrate(12);
   G.anim = { rr, before, t0: performance.now(), dur: animDur(rr), fired: new Set(), token: tok, done: () => {
@@ -240,10 +240,10 @@ function refresh(): void {
   else if (G.phase === 'end' && G.sim.result) {
     const r = G.sim.result, who = r.winner === 'draw' ? '平手' : r.winner === 'blue' ? '你贏了' : '你輸了';
     const why = r.reason === 'kill' ? '血量歸零' : r.reason === 'mutual' ? '雙方同回合歸零' : `${ROUNDS} 回合打完比血`;
-    html = `${G.summary}<div class="${r.winner === 'blue' ? 'good' : r.winner === 'red' ? 'bad' : ''}">${who}（${why}）血 你 ${G.sim.hp.blue}／他 ${G.sim.hp.red}　按「重開」再來一局</div>`;
-  } else if (G.phase === 'lock') html = `${G.summary}<div class="hint">他正在暗中出刀…</div>`;
+    html = `<div class="${r.winner === 'blue' ? 'good' : r.winner === 'red' ? 'bad' : ''}">${who}（${why}）血 你 ${G.sim.hp.blue}／他 ${G.sim.hp.red}　按「重開」再來一局</div>${G.summary}`;   // 結果行放最前面，不被裁掉
+  } else if (G.phase === 'lock') html = `<div class="hint">他正在暗中出刀…</div>${G.summary}`;
   else if (G.phase === 'reveal') html = '<div>同時揭曉！</div>';
-  else html = `${G.summary}<div><b>他已暗中出刀。</b>從<b>你的獸（下方藍）</b>起刀，放開＝出刀；拉回起點＝取消。</div>`;
+  else html = `<div><b>他已暗中出刀。</b>從下方藍獸起刀，放開＝出刀。</div>${G.summary}`;
   els.info.innerHTML = html;
   kick();
 }
