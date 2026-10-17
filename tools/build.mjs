@@ -1,7 +1,7 @@
 // B 軌建置：esbuild 打包，node:crypto／node:fs 以相容層替換（研究引擎檔案不修改）。
 import * as esbuild from 'esbuild';
 import { execSync } from 'node:child_process';
-import { mkdirSync, copyFileSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, copyFileSync, cpSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
 
 const sha = process.env.GITHUB_SHA || (() => { try { return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'local'; } })();
 const short = sha.slice(0, 7);
@@ -103,6 +103,18 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-duel/${f}`, readFileSync(`public-duel/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', DUEL_SUB));
 }
 writeFileSync('dist-duel/.build-info.json', JSON.stringify({ sub: DUEL_SUB, sha: short }) + '\n');
+// ---- 幽光美術模組展示（子路徑 art-kit/）：src/art/showcase.ts → dist-art/；快取前綴與其他子路徑都分開 ----
+// 部署：node tools/deploy.mjs --sub art-kit（只替換 gh-pages 的 art-kit/）。上面的輸出不受這段影響。
+const ART_SUB = 'art-kit';
+rmSync('dist-art', { recursive: true, force: true });
+mkdirSync('dist-art', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/art/showcase.ts'], outfile: 'dist-art/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-art/${f}`);
+cpSync('public-artkit/assets', 'dist-art/assets', { recursive: true }); // 暫代／正式素材與縮小的目標圖
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-art/${f}`, readFileSync(`public-artkit/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', ART_SUB));
+}
+writeFileSync('dist-art/.build-info.json', JSON.stringify({ sub: ART_SUB, sha: short }) + '\n');
 console.log(`build ok sha=${short}`);
 console.log(`build exp ok sub=${sub} sha=${short}`);
 console.log(`build skewer ok sub=${SKEWER_SUB} sha=${short}`);
@@ -111,3 +123,4 @@ console.log(`build sim ok sub=${SIM_SUB} sha=${short}`);
 console.log(`build rt ok sub=${RT_SUB} sha=${short}`);
 console.log(`build rt2 ok sub=${RT2_SUB} sha=${short}`);
 console.log(`build duel ok sub=${DUEL_SUB} sha=${short}`);
+console.log(`build art ok sub=${ART_SUB} sha=${short}`);
