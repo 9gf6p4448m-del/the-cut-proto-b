@@ -36,6 +36,12 @@ export class Slicer {
   }
   /** 取出第 k 步的片段（取出後刪除）。 */
   take(k: number): Piece[] { const a = this.q.get(k) ?? []; this.q.delete(k); return a; }
+  /** 取出第 k 步以前（含）所有還沒處理的片段，依步序串起來：事件晚到（所屬步已經跑過）時併到第 k 步，不丟掉。 */
+  takeUpTo(k: number): Piece[] {
+    const ks = [...this.q.keys()].filter((x) => x <= k).sort((x, y) => x - y);
+    const out: Piece[] = []; for (const x of ks) { out.push(...this.q.get(x)!); this.q.delete(x); }
+    return out;
+  }
 }
 /** 事件序列 → 每步的片段（依時間順序）。 */
 export function toPieces(evs: readonly PtrEv[]): Map<number, Piece[]> {

@@ -38,11 +38,12 @@ function legalSpot(camp) {
   return null;
 }
 
-export async function runCbTests({ bname, btype, devices, url, check, sub = 'duel', ver = 'v0.1 切割→戰鬥', winSeed = 1 }) {
+export async function runCbTests({ bname, btype, devices, url, check, sub = 'duel', ver = 'v0.1 切割→戰鬥', winSeed = 1, init = null }) {   // init：載入前執行的腳本（duel3 DF-03 用來切到直線預覽）
   const browser = await btype.launch();
   const tag = `[${bname}][${sub}]`;
   const ready = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady !== false && !!window.__cb.camp, null, { timeout: 30000 });
   const { ctx, page } = await newPage(browser, bname, devices, ...SIZES.iPhone14Pro);
+  if (init) await ctx.addInitScript(init);
   await page.goto(url + `/${sub}/`);
   await ready(page);
   await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 0.05 }); });
@@ -145,6 +146,7 @@ export async function runCbTests({ bname, btype, devices, url, check, sub = 'due
   // ===== CB-07 手機版面（兩種尺寸；切割、戰鬥貢獻、縫合選項、結果） =====
   for (const [label, [w, h]] of Object.entries(SIZES)) {
     const { ctx: c2, page: p } = await newPage(browser, bname, devices, w, h);
+    if (init) await c2.addInitScript(init);
     await p.goto(url + `/${sub}/`); await ready(p);
     await p.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 0.05 }); window.__cb.newRun({ seed: 1 }); });
     const bad = [];

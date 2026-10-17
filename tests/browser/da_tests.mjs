@@ -15,11 +15,12 @@ async function dragTo(page, a, b, release = true) {
 }
 const ready = (page) => page.waitForFunction(() => !!window.__cb && window.__cb.assetsReady && !!window.__cb.camp, null, { timeout: 40000 });
 
-export async function runDaTests({ bname, btype, devices, url, check, shotDir }) {
+export async function runDaTests({ bname, btype, devices, url, check, shotDir, sub = 'duel2', init = null }) {   // duel3 的 DF-03 用 sub='duel3'＋init（切到直線預覽）重跑
   const browser = await btype.launch();
-  const tag = `[${bname}][duel2]`;
+  const tag = `[${bname}][${sub}]`;
   const { ctx, page } = await newPage(browser, bname, devices, 393, 852);
-  await page.goto(url + '/duel2/'); await ready(page);
+  if (init) await ctx.addInitScript(init);
+  await page.goto(url + `/${sub}/`); await ready(page);
   await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 0.05 }); window.__cb.newRun({ seed: 4 }); });
   await page.waitForTimeout(400);
 
@@ -31,9 +32,10 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
     // 失敗路徑：攔截 body.png（含重試）→ 錯誤提示可見、畫面不空白；放行後按「重試載入」成功
     // service worker 會讓第 2 次以後的請求繞過 page.route，所以這個情境封鎖 SW，確保 3 次都失敗
     const c2 = await browser.newContext({ ...(bname === 'webkit' ? devices['iPhone 14 Pro'] : { viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true }), viewport: { width: 393, height: 852 }, serviceWorkers: 'block' });
+    if (init) await c2.addInitScript(init);
     const p2 = await c2.newPage();
     await p2.route('**/assets/final/body.png*', (r) => r.abort());
-    await p2.goto(url + '/duel2/');
+    await p2.goto(url + `/${sub}/`);
     await p2.waitForFunction(() => !document.getElementById('loadErr').hidden, null, { timeout: 20000 });
     const err = await p2.evaluate(() => ({ msg: document.getElementById('loadMsg').textContent, retryVisible: (() => { const r = document.getElementById('retry').getBoundingClientRect(); return r.width >= 44 && r.height >= 44 && r.bottom <= innerHeight; })(), top: document.getElementById('top').innerText.length, attempts: window.__cb.loadLog.filter((x) => x.url.endsWith('body.png')).length }));
     const debugShown = await p2.evaluate(() => document.getElementById('loadLog').textContent.includes('[DEBUG-artkit]'));
@@ -44,9 +46,10 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
     await c2.close();
     // 只有第一次失敗（iOS 4G 單次失敗的情境）：重試後照常載入、body.png 請求 ≥2 次、不出現錯誤提示
     const c5 = await browser.newContext({ viewport: { width: 393, height: 852 }, serviceWorkers: 'block' });
+    if (init) await c5.addInitScript(init);
     const p5 = await c5.newPage(); let bodyReq = 0;
     await p5.route('**/assets/final/body.png*', (r) => (++bodyReq === 1 ? r.abort() : r.continue()));
-    await p5.goto(url + '/duel2/');
+    await p5.goto(url + `/${sub}/`);
     await p5.waitForFunction(() => window.__cb && window.__cb.assetsReady && !!window.__cb.camp, null, { timeout: 20000 });
     const once = { req: bodyReq, errHidden: await p5.evaluate(() => document.getElementById('loadErr').hidden) };
     await c5.close();
@@ -141,7 +144,7 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
       const b64 = (f, mime) => `data:${mime};base64,${readFileSync(f).toString('base64')}`;
       await p3.setContent(`<html><body style="margin:0;background:#070D19;display:flex;gap:10px;padding:10px;font:14px system-ui;color:#AEEAFF">
         <figure style="margin:0"><img src="${b64(`public-artkit/assets/targets/TARGET_${k}.jpg`, 'image/jpeg')}" style="width:393px;height:852px;object-fit:contain;background:#000"><figcaption>目標 TARGET_${k}</figcaption></figure>
-        <figure style="margin:0"><img src="${b64(`${shotDir}/impl_${k}_393x852.png`, 'image/png')}" style="width:393px;height:852px"><figcaption>duel2 實作 393×852</figcaption></figure></body></html>`);
+        <figure style="margin:0"><img src="${b64(`${shotDir}/impl_${k}_393x852.png`, 'image/png')}" style="width:393px;height:852px"><figcaption>${sub} 實作 393×852</figcaption></figure></body></html>`);
       await p3.waitForTimeout(300);
       await p3.screenshot({ path: `${shotDir}/pair_${k}.png`, fullPage: true });
     }
@@ -153,7 +156,8 @@ export async function runDaTests({ bname, btype, devices, url, check, shotDir })
   // ===== DA-06 效能：Chromium 4 倍 CPU 節流，切割期 FPS（只回報） =====
   if (bname === 'chromium') {
     const { ctx: c4, page: p4 } = await newPage(browser, bname, devices, 393, 852);
-    await p4.goto(url + '/duel2/'); await ready(p4);
+    if (init) await c4.addInitScript(init);
+    await p4.goto(url + `/${sub}/`); await ready(p4);
     await p4.evaluate(() => window.__cb.newRun({ seed: 6 }));
     const cdp = await c4.newCDPSession(p4); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
     await p4.waitForTimeout(1500);
