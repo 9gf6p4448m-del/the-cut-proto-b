@@ -2,7 +2,7 @@
 // - 輸入：預設「即時劃刀」（規則 src/rtcut/rules.ts 的 freeStep；指標事件依時間戳切片 src/rtcut/freehand.ts），可切回「直線預覽」（duel2 原本的行為）。
 // - 可讀性：器官判定半徑＝顯示半徑＝34（Campaign.r）、器官無圓框加陣營色光邊、切割期本體調暗、按住加亮、第一場教學。
 // - 戰鬥期、縫合、征途、數值不變。規則：切割期 src/rtcut/rules.ts；戰鬥期 src/cutbattle/battle.ts；征途 src/cutbattle/campaign.ts。
-import { COOLDOWN_STEPS, FPS, FREE_MIN_SPEED, KIND_ZH, LOCK_STEPS, MAX_LEN, MIN_LEN, clampLine, countSide, endStep, isLocked, isReady, resolveStrike, step } from './rtcut/rules.ts';
+import { COOLDOWN_STEPS, FPS, FREE_MIN_SPEED, TAP_LEN, KIND_ZH, LOCK_STEPS, MAX_LEN, MIN_LEN, clampLine, countSide, endStep, inside, isLocked, isReady, resolveStrike, step } from './rtcut/rules.ts';
 import { Slicer } from './rtcut/freehand.ts';
 import type { PtrEv, PtrKind } from './rtcut/freehand.ts';
 import type { GameEvent, GameState, Kind, Line, Side, StrikeResult, V } from './rtcut/rules.ts';
@@ -65,9 +65,9 @@ const G = {
   sound: true, ghost: null as V | null, ghostOk: false, placing: null as number | null, aimFirst: 0,
   // ---- duel3 ----
   input: 'free' as 'free' | 'line', clock: 0, slicer: new Slicer(),
-  fp: null as null | { id: number; start: V; last: V; lastTs: number; moved: number; downAt: number },
+  fp: null as null | { id: number; start: V; last: V; lastTs: number; moved: number; len: number; valid: boolean; downAt: number },
   trail: [] as TrailPt[], splits: [] as SplitFx[], fxOn: true, slowUntil: 0, dispT: 0, lastFrame: null as number | null,
-  lastFree: null as Extract<GameEvent, { t: 'freeEnd' }> | null, freeLog: [] as string[], stepSig: [] as string[], slowLog: [] as { now: number; step: number }[],
+  lastFree: null as Extract<GameEvent, { t: 'freeEnd' }> | null, freeLog: [] as string[], stepSig: [] as string[], slowLog: [] as { now: number; step: number; clock: number }[],
   tut: null as null | { phase: 'demo' | 'hints'; t0: number; hint: number; path: V[] },
 };
 try { G.sound = localStorage.getItem('duel-cb-sound') !== '0'; } catch { /* 無痕或封鎖儲存 */ }
@@ -151,8 +151,9 @@ function newRun(seed?: number): void {
 // ---------------------------------------------------------------- 第一場教學（每台裝置一次、可跳過；DUEL_V03_FEEL 二）
 const TUT_KEY = 'duel3-tutorial';
 const TUT_HINTS = ['劃過紅色器官＝切下', '劃過自己的器官＝保護', '每刀之後要等冷卻'];
-function tutDone(): boolean { try { return localStorage.getItem(TUT_KEY) === 'done'; } catch { return false; } }
-function markTut(): void { try { localStorage.setItem(TUT_KEY, 'done'); } catch { /* 略過 */ } }
+let tutSeen = false;   // localStorage 被封鎖時的後備（同一次開頁不重複出現，審查 L-5）
+function tutDone(): boolean { if (tutSeen) return true; try { return localStorage.getItem(TUT_KEY) === 'done'; } catch { return false; } }
+function markTut(): void { tutSeen = true; try { localStorage.setItem(TUT_KEY, 'done'); } catch { /* 略過 */ } }
 function startTutorial(): void {
   markTut();   // 出現過就算（每台裝置只出現一次）
   // 示範路徑：從藍龍身內最靠近某個紅色器官的點出發，快速劃過那個器官
@@ -183,17 +184,19 @@ function tutOnFree(e: GameEvent): void {
 function startCut(): void {
   G.game = matchFor(G.camp); G.ui = 'cut'; G.cutByMe = []; G.drag = null; G.release = null; G.preview = null; G.battle = null; G.vis = [];
   G.acc = 0; G.lastT = null; G.pops = []; G.particles = []; G.shots = []; G.slashes = []; G.fx = []; G.bursts = [];
-  G.clock = 0; G.slicer = new Slicer(); G.fp = null; G.trail = []; G.splits = []; G.lastFree = null; G.freeLog = []; G.stepSig = []; G.slowLog = [];
+  G.clock = 0; lastEvT = 0; G.slicer = new Slicer(); G.fp = null; G.trail = []; G.splits = []; G.lastFree = null; G.freeLog = []; G.stepSig = []; G.slowLog = [];
   G.banner = { text: `對手 ${G.camp.stage + 1}／${CB.STAGES}`, sub: `切割 ${CB.CUT_SECONDS} 秒`, t0: performance.now(), life: 1500 };
   for (const m of [els.contrib, els.pick, els.end]) m.hidden = true;
   hud();
 }
 function stepOnce(): void {
   if (G.ui !== 'cut' || G.game.phase !== 'cut') return;
-  const s0 = G.game, blue = G.release; G.release = null;
-  // 直線預覽＝duel2 原本的輸入；即時劃刀＝取出第 k 步（含晚到）的片段一起結算
+  const s0 = G.game;
+  // 直線預覽＝duel2 原本的輸入（一字不改）；即時劃刀＝只吃第 k 步（含晚到）的片段，直線刀一律不送（審查 H-1：示範期間的拖線不能漏成直線刀）
+  const blue = G.release; G.release = null;
   const free = G.input === 'free' ? G.slicer.takeUpTo(s0.step) : [];
-  const out = step(s0, free.length ? { blue, drag: null, free: { blue: free } } : { blue, drag: G.drag ? { a: G.drag.a, b: G.drag.b } : null });
+  const out = G.input === 'free' ? step(s0, free.length ? { blue: null, drag: null, free: { blue: free } } : { blue: null, drag: null })
+    : step(s0, { blue, drag: G.drag ? { a: G.drag.a, b: G.drag.b } : null });
   G.game = out.state;
   G.stepSig.push(`${s0.step}|${G.game.alive.map(Number).join('')}|${G.game.lockUntil.join(',')}|${G.game.cdUntil.blue},${G.game.cdUntil.red}|${G.game.severedN.blue},${G.game.severedN.red}`);
   for (const e of out.events) onCutEvent(e, s0);
@@ -386,15 +389,19 @@ function organAt(p: V): { kind: Kind; side: Side } | null {
 }
 // 即時劃刀：事件時間戳換成本局的毫秒（規則時鐘 G.clock 在上一幀 G.lastT 的值＋事件距那一幀的時間）
 const matchMs = (ts: number): number => (G.lastT === null ? G.clock : G.clock + (ts - G.lastT));
-function pushEv(k: PtrKind, p: V, ts: number): void { if (G.ui === 'cut') { const ev: PtrEv = { t: Math.max(0, matchMs(ts)), k, p }; G.slicer.push(ev); } }
+let lastEvT = 0;
+/** 時間戳一律單調不減（審查 M-1：一幀卡超過 250ms 或切到背景回來時，換算可能倒退或重複）。 */
+function pushEv(k: PtrKind, p: V, ts: number): void { if (G.ui === 'cut') { lastEvT = Math.max(lastEvT, matchMs(ts), 0); const ev: PtrEv = { t: lastEvT, k, p }; G.slicer.push(ev); } }
 const freeActive = () => G.input === 'free' && G.ui === 'cut' && !(G.tut && G.tut.phase === 'demo');
 els.canvas.addEventListener('pointerdown', (e) => {
   ac();
   const p = toWorld(e.clientX, e.clientY);
   if (G.ui === 'place') { G.ghost = p; G.ghostOk = !placeCheck(G.camp, p); G.placing = e.pointerId; els.canvas.setPointerCapture(e.pointerId); return; }
+  if (G.input === 'free' && G.ui === 'cut' && G.tut && G.tut.phase === 'demo') return;   // 示範期間不接受切割輸入（只能按「跳過教學」）
   if (freeActive()) {
     if (G.fp) { if (e.pointerId !== G.fp.id) { pushEv('multi', G.fp.last, e.timeStamp); G.fp = null; } return; }   // 第二根手指：刀結束
-    G.fp = { id: e.pointerId, start: p, last: p, lastTs: e.timeStamp, moved: 0, downAt: performance.now() };
+    const g = G.game, valid = g.phase === 'cut' && g.cdUntil.blue <= g.step && inside(p, BODY2.blue);   // 這次按下能不能起刀（按住提示只在能起刀時顯示，審查 L-4）
+    G.fp = { id: e.pointerId, start: p, last: p, lastTs: e.timeStamp, moved: 0, len: 0, valid, downAt: performance.now() };
     pushEv('down', p, e.timeStamp); G.trail = [{ x: p[0], y: p[1], t: performance.now() / 1000 }];
     try { els.canvas.setPointerCapture(e.pointerId); } catch { /* 略過 */ }
     return;
@@ -412,7 +419,7 @@ els.canvas.addEventListener('pointermove', (e) => {
       if (d === 0) continue;
       pushEv('move', q, c.timeStamp);
       G.trail.push({ x: q[0], y: q[1], t: performance.now() / 1000, blunt: dt > 0 ? d / dt < FREE_MIN_SPEED : false });   // 畫面上的鈍刀判斷與規則同一門檻（只影響顏色）
-      fp.last = q; fp.lastTs = c.timeStamp; fp.moved = Math.max(fp.moved, Math.hypot(q[0] - fp.start[0], q[1] - fp.start[1]));
+      fp.len += d; fp.last = q; fp.lastTs = c.timeStamp; fp.moved = Math.max(fp.moved, Math.hypot(q[0] - fp.start[0], q[1] - fp.start[1]));
     }
     if (G.trail.length > 80) G.trail.splice(0, G.trail.length - 80);
     return;
@@ -427,7 +434,7 @@ const endDrag = (e: PointerEvent, cancel: boolean) => {
     const fp = G.fp; G.fp = null;
     if (cancel) { pushEv('cancel', fp.last, e.timeStamp); return; }
     pushEv('up', toWorld(e.clientX, e.clientY), e.timeStamp);
-    if (fp.moved < 12) { const o = organAt(fp.start); if (o) tip(`${o.side === 'blue' ? '你的' : '對手的'}${DESC[o.kind].line}`); }
+    if (fp.len < TAP_LEN) { const o = organAt(fp.start); if (o) tip(`${o.side === 'blue' ? '你的' : '對手的'}${DESC[o.kind].line}`); }
     hud(); return;
   }
   if (!G.drag || e.pointerId !== G.drag.id) return;
@@ -452,7 +459,7 @@ els.sound.onclick = () => { G.sound = !G.sound; try { localStorage.setItem('duel
 els.fast.onclick = () => { if (G.ui === 'battle') { const now = performance.now(); G.bBase = G.bClock; G.bT0 = now; G.speed = G.speed === 1 ? 3 : 1; els.fast.textContent = G.speed === 1 ? '快轉' : '正常速度'; } };
 els.restart.onclick = () => newRun();
 els.inputMode.onclick = () => {
-  if (G.fp || G.drag) return;
+  if (G.fp || G.drag || G.slicer.q.size || (G.game && G.game.stroke?.blue)) return;   // 刀還沒結算完不能切換（審查 L-6）
   G.input = G.input === 'free' ? 'line' : 'free'; G.slicer = new Slicer(); G.trail = [];
   try { localStorage.setItem('duel3-input', G.input); } catch { /* 略過 */ }
   hud();
@@ -482,7 +489,7 @@ let isolateId: string | null = null, sceneOnly = false, isoOpt: { clear?: boolea
 /** 按住提示：手指按住、還沒移動時，按下點 420 內的對方器官（DUEL_V03_FEEL 二）。 */
 function holdLit(): Set<number> {
   const out = new Set<number>(), fp = G.fp;
-  if (!fp || fp.moved >= 8 || G.ui !== 'cut') return out;
+  if (!fp || !fp.valid || fp.moved >= 8 || G.ui !== 'cut') return out;
   G.game.organs.forEach((o, i) => { if (o.side === 'red' && G.game.alive[i] && Math.hypot(o.p[0] - fp.start[0], o.p[1] - fp.start[1]) <= MAX_LEN) out.add(i); });
   return out;
 }
@@ -490,7 +497,7 @@ function draw(now: number): void {
   // 畫面時鐘：切除瞬間放慢（只影響畫面；規則時鐘在 frame() 用真實時間推進）
   if (G.lastFrame !== null) G.dispT += (Math.min(250, now - G.lastFrame) / 1000) * (now < G.slowUntil ? SLOW_RATE : 1);
   G.lastFrame = now;
-  if (now < G.slowUntil) G.slowLog.push({ now, step: G.game ? G.game.step : 0 });
+  if (now < G.slowUntil) G.slowLog.push({ now, step: G.game ? G.game.step : 0, clock: G.clock });
   const t = G.dispT;
   // 畫布的 CSS 尺寸會因上方文字換行等版面變動而改變（不一定觸發 resize）；尺寸一變就重算換算與緩衝區，否則畫面和觸控會錯位（DA-04，WebKit 實測 4px）
   { const r = els.canvas.getBoundingClientRect(); if (Math.abs(r.width - cw) > 0.5 || Math.abs(r.height - ch) > 0.5) layout(); }

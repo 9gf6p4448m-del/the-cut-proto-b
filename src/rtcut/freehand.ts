@@ -16,12 +16,14 @@ export const stepOfMs = (t: number): number => Math.floor((t * FPS) / 1000 + 1e-
 export class Slicer {
   readonly q = new Map<number, Piece[]>();
   private last: { t: number; p: V } | null = null;
+  private lastV = 0;
   private put(k: number, pc: Piece): void { const a = this.q.get(k); if (a) a.push(pc); else this.q.set(k, [pc]); }
   private segTo(t: number, p: V): void {
     const a = this.last!; this.last = { t, p };
     const L = Math.hypot(p[0] - a.p[0], p[1] - a.p[1]);
     if (L === 0) return;
-    const dt = t - a.t, v = dt > 0 ? L / dt : Infinity;
+    const dt = t - a.t, v = dt > 0 ? L / dt : this.lastV;   // 時間戳相同（同一刻的兩個點）：沿用上一段速度；第一段就沒有時間差＝當鈍刀（審查 M-1：不能當成無限快）
+    this.lastV = v;
     const at = (tt: number): V => [a.p[0] + ((p[0] - a.p[0]) * (tt - a.t)) / dt, a.p[1] + ((p[1] - a.p[1]) * (tt - a.t)) / dt];
     const k0 = stepOfMs(a.t), k1 = stepOfMs(t);
     let from = a.p;
@@ -29,7 +31,7 @@ export class Slicer {
     this.put(k1, { k: 'seg', a: from, b: p, v });
   }
   push(e: PtrEv): void {
-    if (e.k === 'down') { this.last = { t: e.t, p: e.p }; this.put(stepOfMs(e.t), { k: 'down', p: e.p }); return; }
+    if (e.k === 'down') { this.last = { t: e.t, p: e.p }; this.lastV = 0; this.put(stepOfMs(e.t), { k: 'down', p: e.p }); return; }
     if (!this.last) return;
     if (e.k === 'move' || e.k === 'up') this.segTo(e.t, e.p);
     if (e.k !== 'move') { this.put(stepOfMs(e.t), { k: 'end', why: e.k }); this.last = null; }

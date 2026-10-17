@@ -85,6 +85,9 @@ test('DF-01 速度門檻：同一路徑快切會切、慢描不會切（鈍刀�
   // 同一刀前段慢、後段快：只有快段有效（慢段經過 B1 不鎖，快段經過 R1 切）
   const mix = run(g, poly([{ p: [350, 760], t: 0 }, { p: [350, 560], t: 600 }, { p: [350, 400], t: 680 }], 8), 200);
   assert.equal(mix.s.lockUntil[0], 0); assert.equal(mix.s.alive[1], false);
+  // 審查 M-1：慢描到 R1 圓邊外，放開事件和最後一點同時間戳（dt=0）卻跳一段：不能當成無限快
+  const jump = run(g, [{ t: 0, k: 'down', p: [350, 760] }, ...Array.from({ length: 20 }, (_, i) => ({ t: 40 * (i + 1), k: 'move' as const, p: [350, 760 - 12 * (i + 1)] as V })), { t: 800, k: 'move', p: [350, 470] }, { t: 800, k: 'up', p: [350, 470] }], 200);
+  assert.equal(jump.s.alive[1], true, '同時間戳的跳點沿用上一段（慢）速度＝鈍刀');
 });
 test('DF-01 鎖定（含刷新、同一刀同一器官只處理一次）、切除即結束、撞到已鎖的對方器官停刀', () => {
   const g = game([B1, R1, R2]);

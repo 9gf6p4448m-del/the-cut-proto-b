@@ -95,10 +95,55 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await ctx.close();
   }
 
+  // ===== DF-02（瀏覽器鏈路）：真實指標事件經「時間戳換算→切片→晚 2 步結算」：CPU 1 倍與 4 倍節流下，同一條快刀都切下目標、同一條慢描都是鈍刀（審查 M-3） =====
+  {
+    const res = [];
+    for (const rate of [1, 4]) {
+      const { ctx, page } = await open();
+      let cdp = null;
+      if (bname === 'chromium') { cdp = await page.context().newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate }); }
+      await page.evaluate(() => window.__cb.newRun({ seed: 5 }));
+      await page.waitForTimeout(300);
+      const plan = await page.evaluate(PLAN);
+      const A = await scr(page, plan.S), B = await scr(page, plan.E);
+      await swipe(page, bname, A, B);
+      await page.waitForFunction(() => !!window.__cb.lastFree, null, { timeout: 8000 }).catch(() => {});
+      const fast = await page.evaluate(() => { const f = window.__cb.lastFree; return f && { why: f.why, sev: f.severed === null ? null : window.__cb.game.organs[f.severed].id }; });
+      // 冷卻後慢描：同一條路徑，8 段、每段停 120ms（約 0.1～0.3 世界單位／毫秒，低於 0.6）
+      await page.waitForTimeout(1800);
+      const p2 = await page.evaluate(PLAN);
+      const A2 = await scr(page, p2.S), B2 = await scr(page, p2.E);
+      await page.mouse.move(A2.x, A2.y); await page.mouse.down();
+      for (let k = 1; k <= 8; k++) { await page.mouse.move(A2.x + ((B2.x - A2.x) * k) / 8, A2.y + ((B2.y - A2.y) * k) / 8); await page.waitForTimeout(120); }
+      await page.mouse.up();
+      await page.waitForTimeout(400);
+      const slow = await page.evaluate(() => { const f = window.__cb.lastFree; return f && { why: f.why, sev: f.severed }; });
+      res.push({ rate, plan: plan.id, fast, slow });
+      if (cdp) await cdp.detach();
+      await ctx.close();
+    }
+    const ok = res.every((r) => r.fast && r.fast.sev === r.plan && r.slow && r.slow.why === 'up' && r.slow.sev === null);
+    check(`${tag} DF-02 瀏覽器鏈路：真實指標事件在 CPU 1 倍／4 倍${bname === 'chromium' ? '' : '（WebKit 無節流 API，兩次都是 1 倍）'}下，快刀都切下目標、慢描都是鈍刀`, ok, JSON.stringify(res));
+  }
+  // ===== 審查 H-1：教學示範期間拖線不出刀（不漏成直線刀），示範結束後盤面、冷卻不變 =====
+  {
+    const { ctx, page } = await open(393, 852, []);
+    await page.waitForTimeout(300);
+    const plan = await page.evaluate(PLAN);
+    const A = await scr(page, plan.S), B = await scr(page, plan.E);
+    await page.mouse.move(A.x, A.y); await page.mouse.down();
+    for (let k = 1; k <= 8; k++) await page.mouse.move(A.x + ((B.x - A.x) * k) / 8, A.y + ((B.y - A.y) * k) / 8);
+    await page.mouse.up();
+    await page.waitForFunction(() => window.__cb.tut && window.__cb.tut.phase === 'hints', null, { timeout: 6000 });
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => ({ last: window.__cb.lastStrike, free: window.__cb.freeLog, cd: window.__cb.game.cdUntil.blue, cut: window.__cb.cutByMe.length }));
+    check(`${tag} 審查 H-1 教學示範期間拖線：不出刀（沒有直線刀、沒有即時刀、冷卻 0）`, r.last === null && r.free.length === 0 && r.cd === 0 && r.cut === 0, JSON.stringify(r));
+    await ctx.close();
+  }
   // ===== DF-06 手感演出：切除時產生裂成兩半的演出事件；放慢只影響畫面時鐘，規則步照真實時間；同一輸入序列，演出開／關，規則結果相同 =====
   {
     const sigs = [];
-    let splitOk = null, rate = null;
+    let splitOk = null, rate = null, clockRatio = null;
     for (const fxOn of [true, false]) {
       const { ctx, page } = await open();
       await page.evaluate(() => window.__cb.newRun({ seed: 11 }));
@@ -114,12 +159,12 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
       if (fxOn) {
         splitOk = st.log.some((x) => x.includes(':freeEnd:sever:'));
         // 放慢期間：規則步數÷真實時間 ≈ 60 步／秒（畫面時鐘才放慢）
-        const sl = st.slow; if (sl.length >= 2) { const dt = sl[sl.length - 1].now - sl[0].now; rate = dt > 0 ? ((sl[sl.length - 1].step - sl[0].step) * 1000) / dt : null; }
+        const sl = st.slow; if (sl.length >= 2) { const dt = sl[sl.length - 1].now - sl[0].now; rate = dt > 0 ? ((sl[sl.length - 1].step - sl[0].step) * 1000) / dt : null; clockRatio = dt > 0 ? (sl[sl.length - 1].clock - sl[0].clock) / dt : null; }   // 規則時鐘增量÷真實時間（審查 L-1：比步數更直接）
       } else splitOk = splitOk && st.slow.length === 0;
       await ctx.close();
     }
     const same = JSON.stringify(sigs[0].sig) === JSON.stringify(sigs[1].sig) && sigs[0].sig.length >= 290;
-    check(`${tag} DF-06 切除產生裂開演出、放慢 ${80}ms 期間規則步照 60 步／秒（只放慢畫面）；演出開／關同一輸入，前 300 步規則結果逐步相同`, splitOk && rate !== null && rate > 40 && rate < 80 && same, JSON.stringify({ splitOk, rate, same, n: sigs.map((s) => s.sig.length), log: sigs[0].log }));
+    check(`${tag} DF-06 切除產生裂開演出、放慢 80ms 期間規則時鐘照真實時間走（增量比 0.9～1.1）、步數 40～80／秒（只放慢畫面）；演出開／關同一輸入，前 300 步規則結果逐步相同`, splitOk && rate !== null && rate > 40 && rate < 80 && clockRatio !== null && Math.abs(clockRatio - 1) < 0.1 && same, JSON.stringify({ splitOk, rate, clockRatio, same, n: sigs.map((s) => s.sig.length), log: sigs[0].log }));
   }
   // ===== DF-06 切除當下產生裂開演出（手動推進，直接數 split 物件） =====
   {
@@ -181,24 +226,48 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     check(`${tag} DF-05 切割期本體調暗：切割期場景平均亮度 < 戰鬥期（比值 < 0.85）`, cut < battle * 0.85, JSON.stringify({ cut: cut.toFixed(1), battle: battle.toFixed(1), ratio: (cut / battle).toFixed(3) }));
     await ctx.close();
   }
-  // ===== DF-05 按住提示：手指按住不動時，420 內的對方器官加亮（像素差）；移動後取消 =====
+  // ===== DF-05 按住提示：手指按住不動時，420 內的對方器官加亮（像素差）、420 外的不變（像素對照，排除全場同步脈動）；加亮集合＝幾何算出的集合；移動後取消；起點不能起刀時不亮 =====
   {
     const { ctx, page } = await open();
-    await page.evaluate(() => { window.__cb.setManual(true); window.__cb.newRun({ seed: 5 }); });
-    const plan = await page.evaluate(PLAN);
-    const info = await page.evaluate(([S, id]) => { const g = window.__cb.game, o = g.organs.find((q) => q.id === id), far = g.organs.find((q, i) => q.side === 'red' && g.alive[i] && Math.hypot(q.p[0] - S[0], q.p[1] - S[1]) > 470); return { o: o.p, far: far && far.p, R: window.__cb.R }; }, [plan.S, plan.id]);
-    const boxOf = async (p) => { const c = await scr(page, p), e = await scr(page, [p[0] + info.R, p[1]]), r = e.x - c.x; return { x: c.x - r, y: c.y - r, w: 2 * r, h: 2 * r }; };
-    await frames(page, 3);
-    const before = await regionLum(page, await boxOf(info.o)), farBefore = info.far ? await regionLum(page, await boxOf(info.far)) : null;
-    const A = await scr(page, plan.S);
-    await page.mouse.move(A.x, A.y); await page.mouse.down(); await frames(page, 3);
-    const held = await page.evaluate(() => window.__cb.held);
-    const during = await regionLum(page, await boxOf(info.o)), farDuring = info.far ? await regionLum(page, await boxOf(info.far)) : null;
-    await page.mouse.move(A.x + 40, A.y); await frames(page, 2);
-    const afterMove = await page.evaluate(() => window.__cb.held.length);
-    await page.mouse.up();
-    const ok = during > before * 1.08 && afterMove === 0 && (farBefore === null || Math.abs(farDuring - farBefore) < farBefore * 0.05);
-    check(`${tag} DF-05 按住提示：按住未移動時 420 內的對方器官變亮（像素平均 +8% 以上）、420 外的不變、移動後取消`, ok, JSON.stringify({ before: before.toFixed(1), during: during.toFixed(1), farBefore, farDuring, held: held.length, afterMove }));
+    await page.evaluate(() => window.__cb.setManual(true));
+    // 找一個起點：藍龍身內、不在器官圓內，420 內至少一個、470 外至少一個存活紅色器官（審查 M-2：沒有遠處器官就沒驗到「420 外不變」）
+    let pick = null;
+    for (let seed = 1; seed <= 60 && !pick; seed++) {
+      await page.evaluate((sd) => window.__cb.newRun({ seed: sd }), seed);
+      pick = await page.evaluate(() => {
+        const g = window.__cb.game, R = window.__cb.R, body = g.mode.body.blue;
+        const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c; } return c; };
+        for (let y = 990; y > 380; y -= 10) for (let x = 40; x < 680; x += 10) {
+          const S = [x, y]; if (!inside(S, body) || g.organs.some((q, j) => g.alive[j] && Math.hypot(q.p[0] - x, q.p[1] - y) < R + 6)) continue;
+          const d = g.organs.map((q, i) => (q.side === 'red' && g.alive[i] ? Math.hypot(q.p[0] - x, q.p[1] - y) : null));
+          const near = d.findIndex((v) => v !== null && v <= 400), far = d.findIndex((v) => v !== null && v > 470);
+          if (near >= 0 && far >= 0) return { S, near, far, expect: d.map((v, i) => (v !== null && v <= 420 ? i : -1)).filter((i) => i >= 0), np: g.organs[near].p, fp: g.organs[far].p, R };
+        }
+        return null;
+      });
+    }
+    let ok = false, info = { pick: !!pick };
+    if (pick) {
+      const boxOf = async (p) => { const c = await scr(page, p), e = await scr(page, [p[0] + pick.R, p[1]]), r = e.x - c.x; return { x: c.x - r, y: c.y - r, w: 2 * r, h: 2 * r }; };
+      await frames(page, 3);
+      const nb = await regionLum(page, await boxOf(pick.np)), fb = await regionLum(page, await boxOf(pick.fp));
+      const A = await scr(page, pick.S);
+      await page.mouse.move(A.x, A.y); await page.mouse.down(); await frames(page, 3);
+      const held = await page.evaluate(() => window.__cb.held);
+      const nd = await regionLum(page, await boxOf(pick.np)), fd = await regionLum(page, await boxOf(pick.fp));
+      await page.mouse.move(A.x + 40, A.y); await frames(page, 2);
+      const afterMove = await page.evaluate(() => window.__cb.held.length);
+      await page.mouse.up();
+      // 起點在藍龍身外按住：不能起刀 → 不亮
+      const out = await scr(page, [pick.S[0], 120]);
+      await page.mouse.move(out.x, out.y); await page.mouse.down(); await frames(page, 2);
+      const heldOutside = await page.evaluate(() => window.__cb.held.length);
+      await page.mouse.up();
+      const nearGain = nd / nb, farGain = fd / fb;
+      ok = JSON.stringify([...held].sort((a, b) => a - b)) === JSON.stringify(pick.expect) && nearGain > 1.08 && nearGain - farGain > 0.06 && Math.abs(farGain - 1) < 0.05 && afterMove === 0 && heldOutside === 0;
+      info = { S: pick.S, held, expect: pick.expect, nearGain: nearGain.toFixed(3), farGain: farGain.toFixed(3), afterMove, heldOutside };
+    }
+    check(`${tag} DF-05 按住提示：加亮集合＝起點 420 內的存活紅色器官、近處像素 +8% 以上且比遠處（470 外）多 6% 以上、遠處變化 <5%、移動後取消、獸身外按住不亮`, ok, JSON.stringify(info));
     await ctx.close();
   }
   // ===== DF-05 第一場教學：只出現一次、可以跳過；示範後依事件逐條出現三句提示 =====
