@@ -64,10 +64,10 @@ export async function runCbTests({ bname, btype, devices, url, check }) {
     await playCut(page, true);
     await waitUi(page, 'contrib');
     // 一次性說明：等排隊播完，檢查畫面上真的顯示過的文字（不是只看旗標；覆審 M5）
-    await page.waitForFunction(() => window.__cb.tipsShown.length >= 7, null, { timeout: 30000 }).catch(() => {});
+    await page.waitForFunction(() => ['open', 'kinds', 'claw', 'heart', 'eye', 'poison', 'bone'].every((k) => window.__cb.tipsShown.includes(k)), null, { timeout: 45000 }).catch(() => {});
     const tipLog = await page.evaluate(() => window.__cb.tipLog);
-    const want = { open: '切割期 30 秒', kinds: '五種器官', claw: '爪：每 1 秒攻擊一次', heart: '心：血量上限 +30', eye: '眼：我方爪暴擊率', poison: '毒：每 1.5 秒', bone: '骨：開戰提供 15 護盾' };
-    for (const [k, txt] of Object.entries(want)) if (!tipLog.some((t) => t.startsWith(txt) || t.includes(txt))) bad.push(`一次性說明 ${k} 沒真的顯示`);
+    const wantTip = { open: '切割期 30 秒', kinds: '五種器官', claw: '爪：每 1 秒攻擊一次', heart: '心：血量上限 +30', eye: '眼：我方爪暴擊率', poison: '毒：每 1.5 秒', bone: '骨：開戰提供 15 護盾' };
+    for (const [k, txt] of Object.entries(wantTip)) if (!tipLog.some((t) => t.startsWith(txt) || t.includes(txt))) bad.push(`一次性說明 ${k} 沒真的顯示`);
     const r = await page.evaluate(() => ({ vis: window.__cb.vis, battle: window.__cb.battle, rows: [...document.querySelectorAll('#contribBody tr[data-k]')].map((tr) => ({ k: tr.dataset.k, me: Number(tr.querySelector('.me').textContent), foe: Number(tr.querySelector('.foe').textContent) })) }));
     const kinds = new Set(r.vis.map((v) => v.kind));
     for (const k of ['claw', 'heart', 'eye', 'poison', 'bone']) if (!kinds.has(k)) bad.push(`沒有 ${k} 的視覺事件`);
