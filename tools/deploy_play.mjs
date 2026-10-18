@@ -20,6 +20,7 @@ const origin = sh('git remote get-url origin');
 if (rehearsal && (!remoteOpt || remoteOpt === origin)) throw new Error('--rehearsal 必須搭配不是 origin 的 --remote');
 if (remoteOpt && !rehearsal) throw new Error('--remote 只能和 --rehearsal 一起用');
 if (sabotage && !rehearsal) throw new Error('--sabotage 只能在演練用');
+if (rehearsal && !existsSync(remoteOpt)) throw new Error(`--rehearsal 的 --remote 必須是本機目錄（避免網址寫法不同而誤推正式 gh-pages）：${remoteOpt}`);
 const url = rehearsal ? remoteOpt : origin;
 const head = sh('git rev-parse --short=7 HEAD'), branch = sh('git rev-parse --abbrev-ref HEAD');
 
@@ -29,7 +30,9 @@ if (!rehearsal) {
   if (remote !== head) throw new Error(`HEAD ${head} 尚未推送（遠端 ${remote}）`);
 }
 const latest = JSON.parse(readFileSync(join(SRC, 'latest.json'), 'utf8'));   // 格式錯就在這裡中止
-if (!/^[a-z0-9][a-z0-9-]*$/.test(latest.sub)) throw new Error(`latest.json 的 sub 不合法：${latest.sub}`);
+const SUB_RE = /^(?!play$)[a-z0-9][a-z0-9-]*$/;
+const subs = [latest.sub, ...(latest.history || []).map((h) => h && h.sub)];
+for (const s of subs) if (typeof s !== 'string' || !SUB_RE.test(s)) throw new Error(`latest.json 的 sub 不合法（含 history）：${s}`);
 
 /** gh-pages 工作樹裡每個子路徑 index.html 的 build-sha（play/ 除外）。 */
 const buildShas = (dir) => Object.fromEntries(readdirSync(dir, { withFileTypes: true })
@@ -38,7 +41,7 @@ const buildShas = (dir) => Object.fromEntries(readdirSync(dir, { withFileTypes: 
 
 const dir = mkdtempSync(join(tmpdir(), 'protob-play-'));
 sh(`git clone -q -c core.autocrlf=false --depth 1 --branch gh-pages "${url}" .`, { cwd: dir });
-if (!existsSync(join(dir, latest.sub, 'index.html'))) throw new Error(`gh-pages 上沒有 ${latest.sub}/，latest.json 會指到不存在的版本`);
+for (const s of subs) if (!existsSync(join(dir, s, 'index.html'))) throw new Error(`gh-pages 上沒有 ${s}/，latest.json（latest 或 history）會指到不存在的版本`);
 const an = sh('git log -1 --format=%an', { cwd: dir }), ae = sh('git log -1 --format=%ae', { cwd: dir }), ghBefore = sh('git rev-parse --short=7 HEAD', { cwd: dir });
 const shaBefore = buildShas(dir), before = rootSnapshot(dir, SUB), beforeTree = treeSnapshot(dir, 'HEAD', SUB);
 replaceSubdir(dir, SUB, SRC);

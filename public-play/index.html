@@ -17,6 +17,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#070D19;color:#e8e4d4;
 /* iOS 的 iframe 內 env(safe-area-inset-*) 取不到值，安全區由外殼讓出 */
 #game{position:fixed;border:0;display:block;background:#070D19;
   top:env(safe-area-inset-top,0px);left:env(safe-area-inset-left,0px);
+  width:calc(100vw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));   /* 不支援 dvh 時的後備 */
   width:calc(100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));
   height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 /* 更新條：樣式取自妖市 #updBar */
@@ -24,10 +25,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#070D19;color:#e8e4d4;
   border:1px solid #e8c872;border-radius:20px;padding:10px 16px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.6);cursor:pointer;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
 #updBar.on{display:block;animation:pop .25s ease-out}
 @keyframes pop{from{transform:translateX(-50%) scale(.8);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
-/* 版本鈕：放在遊戲頁首（0～126px，duel2～4 相同）正下方的右緣，避開頁首與底部操作列 */
+/* 版本鈕：右緣、頁首（0～126px，duel2～4 相同）下方；避開頁首、底部操作列與教學「跳過」鈕（duel3/4 教學期間佔 143～187px，對抗審查 H2） */
 #verBtn{position:fixed;z-index:50;width:44px;height:44px;padding:0;border:1px solid rgba(232,200,114,.45);border-radius:22px;background:rgba(7,13,25,.55);color:#e8c872;font-size:13px;cursor:pointer;
-  right:calc(env(safe-area-inset-right,0px) + 4px);top:calc(env(safe-area-inset-top,0px) + 132px)}
-#verMenu{display:none;position:fixed;z-index:70;right:calc(env(safe-area-inset-right,0px) + 4px);top:calc(env(safe-area-inset-top,0px) + 182px);
+  right:calc(env(safe-area-inset-right,0px) + 4px);top:calc(env(safe-area-inset-top,0px) + 196px)}
+#verMenu{display:none;position:fixed;z-index:70;right:calc(env(safe-area-inset-right,0px) + 4px);top:calc(env(safe-area-inset-top,0px) + 246px);
   min-width:200px;max-width:calc(100vw - 24px);max-height:60vh;overflow:auto;background:#141b2e;border:1px solid #e8c872;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.7)}
 #verMenu.on{display:block}
 #verMenu button{display:block;width:100%;min-height:44px;padding:8px 14px;border:0;border-bottom:1px solid #2a3350;background:none;color:#e8e4d4;font-size:14px;text-align:left;cursor:pointer}
@@ -43,12 +44,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:#070D19;color:#e8e4d4;
 <div id="verMenu" role="menu"></div>
 <script>
 (() => {
-  const SUB_RE = /^[a-z0-9][a-z0-9-]*$/;
+  const SUB_RE = /^(?!play$)[a-z0-9][a-z0-9-]*$/;   // 本站子路徑名稱；不得是 play（外殼自己，對抗審查 M3）
   const DEFAULT = { version: '0.4', label: 'v0.4 前線推進', sub: 'duel4', sha: '', history: [] };
   const KEY = 'thecut-play';
   const BASE = new URL('../', location.href);           // play/ 的上一層＝各版本子路徑所在
   const $ = (id) => document.getElementById(id);
-  const frame = $('game'), bar = $('updBar'), btn = $('verBtn'), menu = $('verMenu');
+  let frame = $('game'); const bar = $('updBar'), btn = $('verBtn'), menu = $('verMenu');
   const store = {
     get() { try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } },
     set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { /* 無痕或停用 storage：只是不記住 */ } },
@@ -65,7 +66,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#070D19;color:#e8e4d4;
   let pending = null;    // 偵測到但還沒套用的新 latest
   let cur = null;        // iframe 目前載入的 sub
   const urlOf = (sub) => new URL(sub + '/', BASE).href;
-  function load(sub) { cur = sub; frame.src = urlOf(sub); renderMenu(); }
+  // 換版重建 iframe：對已載入的 iframe 設 src 會多推一筆瀏覽紀錄，Android 返回鍵會讓 iframe 默默退回舊版而外殼不知道（對抗審查 H1）。
+  // 新 iframe 的第一次載入不新增紀錄，舊 iframe 的紀錄隨它移除。
+  function load(sub) {
+    cur = sub;
+    if (frame.getAttribute('src')) { const f = frame.cloneNode(false); f.removeAttribute('src'); frame.replaceWith(f); frame = f; }
+    frame.src = urlOf(sub); renderMenu();
+  }
   function entries() { return latest ? [{ label: latest.label, sub: latest.sub, tag: '最新' }, ...latest.history.filter((h) => h.sub !== latest.sub)] : []; }
   function renderMenu() {
     menu.textContent = '';
@@ -100,6 +107,22 @@ html,body{margin:0;height:100%;overflow:hidden;background:#070D19;color:#e8e4d4;
     else { latest = n; renderMenu(); }                                   // 同版，只更新 label／history
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  // 遊戲彈窗（結算、縫合、結局）裡的字或按鈕與版本鈕重疊時暫時藏起版本鈕：彈窗置中，375×667 時表頭正好落在版本鈕位置（修補覆審 N1）。
+  // 只在真的重疊時藏（開場就是彈窗的版本照樣看得到版本鈕，第 2 輪覆審）；用 display:none 關的彈窗（duel2～5 都是 [hidden]）框為 0、不算。iframe 看不到（跨源、還沒載入）就照常顯示。
+  setInterval(() => {
+    let m = false;
+    try {
+      const fr = frame.getBoundingClientRect(), b = btn.getBoundingClientRect();
+      for (const el of frame.contentDocument.querySelectorAll('.modal *')) {
+        if (!(el.tagName === 'BUTTON' || (el.children.length === 0 && el.textContent.trim()))) continue;
+        const r = el.getBoundingClientRect(); if (!r.width || !r.height) continue;
+        const x = r.left + fr.left, y = r.top + fr.top;
+        if (x < b.right && b.left < x + r.width && y < b.bottom && b.top < y + r.height) { m = true; break; }
+      }
+    } catch (e) { /* 跨源或還沒載入 */ }
+    const v = m ? 'hidden' : '';
+    if (btn.style.visibility !== v) { btn.style.visibility = v; if (m) closeMenu(); }
+  }, 250);
   (async () => {
     const s = store.get();
     latest = (await fetchLatest()) || clean(s.last) || DEFAULT;

@@ -73,6 +73,9 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
     const src = await srcOf(page);
     const box = await page.evaluate(() => { const r = document.getElementById('game').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, iw: innerWidth, ih: innerHeight }; });
     await fr.waitForFunction(() => !!window.__cb.camp, null, { timeout: 30000 });
+    // duel4 自己在冷啟動瀏覽器時有約 0.6～1.1 秒畫布空白（緩衝 786×1348、0 亮像素，之後自行重設為 786×1332 有內容；不經外殼直開 duel4 也 6/10 重現）。
+    // 等畫布出現內容最多 5 秒再量；外殼若讓遊戲一直畫不出來，照樣紅。
+    await fr.waitForFunction(() => { const c = document.getElementById('scene'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 64) if (d[i] + d[i + 1] + d[i + 2] > 120) n++; return n > (d.length / 64) * 0.02; }, null, { timeout: 5000, polling: 100 }).catch(() => {});
     await page.waitForTimeout(500);
     const px = await fr.evaluate(() => { const c = document.getElementById('scene'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 64) if (d[i] + d[i + 1] + d[i + 2] > 120) n++; return { n, of: d.length / 64 }; });
     await page.screenshot({ path: `${shotDir}/${bname}_load_393x852.png` });
@@ -105,26 +108,56 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   });
 
   // ===== PL-03 版本選單 =====
-  for (const [w, h] of [[393, 852], [375, 667]]) await guard(`${tag} PL-03(a) ${w}×${h}`, async () => {
+  // 教學開／關都量（對抗審查 H2：教學期間的「跳過」鈕曾與版本鈕相交）；HUD 前 4 秒每 0.5 秒取樣一次取聯集（示範字、提示會變）
+  for (const [w, h, tut] of [[393, 852, false], [375, 667, false], [393, 852, true], [375, 667, true]]) await guard(`${tag} PL-03(a) ${w}×${h}${tut ? " 教學中" : ""}`, async () => {
+    setLatest(L4);
+    const { ctx, page } = await open(w, h, tut ? [] : [NO_TUT]);
+    const fr = await ready(page, "duel4");
+    await fr.waitForFunction(() => !!window.__cb.camp, null, { timeout: 30000 });
+    const btn = await page.evaluate(() => { const r = document.getElementById("verBtn").getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    const hud = [];
+    for (let t = 0; t < 8; t++) {
+      await page.waitForTimeout(500);
+      hud.push(...await fr.evaluate(() => {
+        const out = [];
+        for (const el of document.querySelectorAll("body *")) {
+          if (el.tagName === "CANVAS" || el.tagName === "MAIN" || el.tagName === "SCRIPT") continue;
+          const cs = getComputedStyle(el); if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0) continue;
+          const isHud = el.id === "top" || el.tagName === "BUTTON" || (el.children.length === 0 && el.textContent.trim());
+          if (!isHud) continue;
+          const r = el.getBoundingClientRect(); if (r.width > 0 && r.height > 0) out.push({ id: el.id || el.tagName, x: r.x, y: r.y, w: r.width, h: r.height });
+        }
+        return out;
+      }));
+    }
+    const ids = new Set(hud.map((r) => r.id));
+    const hit = hud.filter((r) => r.x < btn.x + btn.w && btn.x < r.x + r.w && r.y < btn.y + btn.h && btn.y < r.y + r.h);
+    await page.screenshot({ path: `${shotDir}/${bname}_verbtn_${w}x${h}${tut ? "_tut" : ""}.png` });
+    check(`${tag} PL-03(a) ${w}×${h}${tut ? " 教學中（有量到 tutSkip）" : ""} 版本鈕 ${btn.w}×${btn.h}、不蓋 HUD（比對 ${ids.size} 種 HUD 元素）`, btn.w >= 44 && btn.h >= 44 && ids.size > 5 && (!tut || ids.has("tutSkip")) && hit.length === 0, JSON.stringify({ hit: hit.slice(0, 4), tut: tut ? ids.has("tutSkip") : undefined }));
+    await ctx.close();
+  });
+  // 結算／結局彈窗（修補覆審 N1：彈窗置中，375×667 時表頭落在版本鈕位置）：彈窗開著時版本鈕不得蓋到彈窗內的字與按鈕；393×852 沒重疊不得藏（第 2 輪覆審：過度隱藏）；彈窗關了要回來
+  for (const [w, h] of [[375, 667], [393, 852]]) await guard(`${tag} PL-03(a) ${w}×${h} 結算畫面`, async () => {
     setLatest(L4);
     const { ctx, page } = await open(w, h);
     const fr = await ready(page, 'duel4');
     await fr.waitForFunction(() => !!window.__cb.camp, null, { timeout: 30000 });
-    const btn = await page.evaluate(() => { const r = document.getElementById('verBtn').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
-    const hud = await fr.evaluate(() => {
-      const out = [];
-      for (const el of document.querySelectorAll('body *')) {
-        if (el.tagName === 'CANVAS' || el.tagName === 'MAIN' || el.tagName === 'SCRIPT') continue;
-        const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) continue;
-        const isHud = el.id === 'top' || el.tagName === 'BUTTON' || (el.children.length === 0 && el.textContent.trim());
-        if (!isHud) continue;
-        const r = el.getBoundingClientRect(); if (r.width > 0 && r.height > 0) out.push({ id: el.id || el.tagName, x: r.x, y: r.y, w: r.width, h: r.height });
-      }
-      return out;
-    });
-    const hit = hud.filter((r) => r.x < btn.x + btn.w && btn.x < r.x + r.w && r.y < btn.y + btn.h && btn.y < r.y + r.h);
-    await page.screenshot({ path: `${shotDir}/${bname}_verbtn_${w}x${h}.png` });
-    check(`${tag} PL-03(a) ${w}×${h} 版本鈕 ${btn.w}×${btn.h}、不蓋 HUD（比對 ${hud.length} 個 HUD 元素）`, btn.w >= 44 && btn.h >= 44 && hud.length > 5 && hit.length === 0, JSON.stringify(hit.slice(0, 4)));
+    await fr.evaluate(() => { const c = window.__cb; c.skipCountdown(); c.setTimings({ battleScale: 0.02 }); c.advance(4000); });
+    await fr.waitForFunction(() => !document.getElementById('contrib').hidden, null, { timeout: 20000 });
+    await page.waitForTimeout(600);
+    const meas = () => page.evaluate(() => { const b = document.getElementById('verBtn'); const r = b.getBoundingClientRect(); return { shown: getComputedStyle(b).display !== 'none' && getComputedStyle(b).visibility !== 'hidden', x: r.x, y: r.y, w: r.width, h: r.height }; });
+    const inModal = () => fr.evaluate(() => [...document.querySelectorAll('.modal:not([hidden]) *')].filter((el) => el.tagName === 'BUTTON' || (el.children.length === 0 && el.textContent.trim())).map((el) => { const r = el.getBoundingClientRect(); return { id: el.id || el.tagName + ':' + el.textContent.trim().slice(0, 6), x: r.x, y: r.y, w: r.width, h: r.height }; }).filter((r) => r.w > 0 && r.h > 0));
+    const hitOf = (btn, rs) => btn.shown ? rs.filter((r) => r.x < btn.x + btn.w && btn.x < r.x + r.w && r.y < btn.y + btn.h && btn.y < r.y + r.h) : [];
+    const b1 = await meas(), m1 = await inModal();
+    await fr.click('#contribNext'); await fr.waitForFunction(() => !document.getElementById('end').hidden || !document.getElementById('pick').hidden, null, { timeout: 10000 });
+    await page.waitForTimeout(600);
+    const b2 = await meas(), m2 = await inModal();
+    const hit = [...hitOf(b1, m1), ...hitOf(b2, m2)];
+    if (await fr.evaluate(() => !document.getElementById('end').hidden)) await fr.click('#again'); else await fr.evaluate(() => window.__cb.newRun());
+    await page.waitForTimeout(800);
+    const b3 = await meas();
+    check(`${tag} PL-03(a) ${w}×${h} 結算／結局彈窗：版本鈕不蓋彈窗內 ${m1.length + m2.length} 個字與按鈕；${w === 375 ? '' : '沒重疊時不藏；'}彈窗關閉後版本鈕回來 44×44`,
+      m1.length > 3 && m2.length > 1 && hit.length === 0 && (w === 375 || (b1.shown && b2.shown)) && b3.shown && b3.w >= 44 && b3.h >= 44, JSON.stringify({ hit: hit.slice(0, 4), b1: b1.shown, b2: b2.shown, b3 }));
     await ctx.close();
   });
   await guard(`${tag} PL-03(b)`, async () => {
@@ -144,6 +177,26 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
     const want = [L4.sub, ...L4.history.map((x) => x.sub)];
     check(`${tag} PL-03(b) 選單列出 ${items.map((x) => x.t).join('／')}；切 duel2、重開仍 duel2；latest 換版後重開載新 latest`,
       JSON.stringify(items.map((x) => x.sub)) === JSON.stringify(want) && s1.endsWith('/duel2/') && s2.endsWith('/duel2/') && s3.endsWith('/duel3/') && page.__errs.length === 0, JSON.stringify({ items, s1, s2, s3, errs: page.__errs }));
+    await ctx.close();
+  });
+  // 返回鍵（對抗審查 H1）：選單換版、點更新條換版後按返回，iframe 實際所在版本要與外殼記的一致（不得默默退回舊版）
+  await guard(`${tag} PL-03(b) 返回鍵`, async () => {
+    setLatest(L4);
+    const { ctx, page } = await open();
+    await ready(page, 'duel4');
+    const h0 = await page.evaluate(() => history.length);
+    await page.click('#verBtn'); await page.click('#verMenu button[data-sub="duel2"]');
+    await ready(page, 'duel2');
+    setLatest(L3); const n0 = latestHits; await vis(page); await settleFetch(page, n0);
+    await page.click('#updBar', { timeout: 5000 }); await ready(page, 'duel3');
+    const h1 = await page.evaluate(() => history.length);
+    const r = await page.evaluate(() => { const f = document.getElementById('game'); let at = null; try { at = f.contentWindow.location.pathname; } catch (e) { at = 'cross'; } return { src: f.src, at, cur: document.querySelector('#verMenu button.cur')?.dataset.sub ?? null }; });
+    // 換版不新增瀏覽紀錄 ⇒ 返回鍵直接離開外殼（回到開外殼前的頁），不會停在外殼裡讓 iframe 默默退回舊版
+    await page.goBack({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    const top = await page.evaluate(() => ({ path: location.href, game: !!document.getElementById('game') }));
+    check(`${tag} PL-03(b) 返回鍵：換版兩次不新增瀏覽紀錄（history ${h0}→${h1}），返回即離開外殼、不會停在退回舊版的 iframe`,
+      h1 === h0 && r.at && r.at.endsWith('/duel3/') && r.src.endsWith('/duel3/') && r.cur === 'duel3' && !top.game, JSON.stringify({ h0, h1, ...r, top }));
     await ctx.close();
   });
   await guard(`${tag} PL-03(c)`, async () => {

@@ -8,7 +8,7 @@ const F = 'public-play/latest.json';
 const argv = process.argv.slice(2);
 const opt = (name) => { const k = argv.findIndex((a) => a === name || a.startsWith(`${name}=`)); if (k < 0) return null; return argv[k].includes('=') ? argv[k].split('=').slice(1).join('=') : argv[k + 1]; };
 const sub = opt('--sub'), label = opt('--label');
-if (!sub || !/^[a-z0-9][a-z0-9-]*$/.test(sub)) throw new Error(`--sub 必填，且只能是小寫英數與連字號：${sub}`);
+if (!sub || !/^(?!play$)[a-z0-9][a-z0-9-]*$/.test(sub)) throw new Error(`--sub 必填，只能是小寫英數與連字號，且不得是 play（外殼自己）：${sub}`);
 if (!label) throw new Error('--label 必填');
 const old = JSON.parse(readFileSync(F, 'utf8'));
 const version = opt('--version') ?? (label.match(/v(\d+(?:\.\d+)*)/) || [])[1] ?? '';
