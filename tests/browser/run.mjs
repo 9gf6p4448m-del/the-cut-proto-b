@@ -15,6 +15,7 @@ import { runDaTests } from './da_tests.mjs';
 import { runArtKitTests } from './artkit_tests.mjs';
 import { runDfTests, LINE_INIT, lineInit } from './df_tests.mjs';
 import { runFvTests } from './fv_tests.mjs';
+import { runFsTests, autoBeast } from './fs_tests.mjs';
 import { runRootSwTests } from './root_sw_tests.mjs';
 
 const GOLDEN_SHA = '112d879b4a6bbaabf48bfee7fd8425f9301445ff4e00832533200362e727be74';
@@ -277,6 +278,16 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runDfTests({ bname, btype, devices, url, check, sub: 'duel4', ver: 'v0.4 前線推進', shotDir: bname === 'chromium' ? 'test-output/fv_shots/df' : 'test-output/fv_shots/df/webkit' });
   await runCbTests({ bname, btype, devices, url, check, sub: 'duel4', ver: 'v0.4 前線推進', winSeed: 3, init: lineInit('duel4') });
   await runDaTests({ bname, btype, devices, url, check, sub: 'duel4', init: lineInit('duel4') });
+}
+
+// ---- 對決 v0.5 千節蛇（duel5/）：FS-05～07（fs_tests）；FS-07＝v0.4 的 FV、v0.3 的 DF、直線預覽下的 cb／da 測試在 duel5 選龍照跑 ----
+for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
+  const DRAGON = autoBeast('dragon');
+  await runFsTests({ bname, btype, devices, url, check, shotDir: bname === 'chromium' ? 'test-output/fs_shots' : 'test-output/fs_shots/webkit' });
+  await runFvTests({ bname, btype, devices, url, check, sub: 'duel5', extraInit: [DRAGON], shotDir: bname === 'chromium' ? 'test-output/fs_shots/fv' : 'test-output/fs_shots/fv/webkit' });
+  await runDfTests({ bname, btype, devices, url, check, sub: 'duel5', ver: 'v0.5 千節蛇', extraInit: [DRAGON], shotDir: bname === 'chromium' ? 'test-output/fs_shots/df' : 'test-output/fs_shots/df/webkit' });
+  await runCbTests({ bname, btype, devices, url, check, sub: 'duel5', ver: 'v0.5 千節蛇', winSeed: 3, init: `${lineInit('duel5')}; ${DRAGON}` });
+  await runDaTests({ bname, btype, devices, url, check, sub: 'duel5', init: `${lineInit('duel5')}; ${DRAGON}` });
 }
 
 // ---- 幽光美術展示頁（art-kit/）：素材載入重試與失敗提示（2026-10-18 iOS 回報） ----
