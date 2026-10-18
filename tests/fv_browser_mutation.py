@@ -21,8 +21,7 @@ MUTS = [
  ('慢幀時演出進度沒夾（負半徑丟例外，迴圈停住）', [("  for (const h of G.hurts) { const k = Math.max(0, (now - h.t0) / 350),", "  for (const h of G.hurts) { const k = (now - h.t0) / 350,"), ("  for (const g of G.grows) { const k = Math.max(0, (now - g.t0) / 600);", "  for (const g of G.grows) { const k = (now - g.t0) / 600;")], '回歸（慢幀當掉）'),
  ('調暗沒真的畫出來（直接設 globalAlpha，被 art-kit 蓋掉）', [("  if (alpha < 1) {", "  if (alpha < 0) {"), ("  } else drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);", "  } else { ctx.save(); ctx.globalAlpha = alpha; drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t); ctx.restore(); }")], 'C 範圍顯示'),
  ('即時劃刀也調暗（違反 DL-087 A）', [("inR = hold && G.input === 'line' ? reachNow() : null;", "inR = hold ? reachNow() : null;")], 'DF-05 按住提示（duel4'),
- ('戰鬥結束同時出現兩個結果字（加回 KO 大字）', [("    // 不再疊 art-kit 的 KO 大字", "    G.fx.push({ type: 'ko', t0: dispNow(), w: W, h: H, winner: e.winner });
-    // 不再疊 art-kit 的 KO 大字")], 'FV-05 縫合'),
+ ('戰鬥結束同時出現兩個結果字（加回 KO 大字）', [("    // 不再疊 art-kit 的 KO 大字", "    G.fx.push({ type: 'ko', t0: dispNow(), w: W, h: H, winner: e.winner });\n    // 不再疊 art-kit 的 KO 大字")], 'FV-05 縫合'),
  ('前線帶不跟著 push 移動', [("    G.front = { from: frontNow(now), to: frontEdge(e.push), t0: now, flash: now, flashSide: e.push > prev ? 'blue' : 'red', push: e.push };", "    G.front = { ...G.front, flash: now, flashSide: e.push > prev ? 'blue' : 'red', push: e.push };")], 'B 前線帶'),
 ]
 def run(cmd, **kw): return subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', **kw)
