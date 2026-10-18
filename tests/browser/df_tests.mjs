@@ -282,7 +282,8 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     if (sub === 'duel5') {
       // duel5（FS-07 調整案例）：戰鬥期本體刻意調得比切割期更暗（FS-06／補述 1 第 10a 條、補述 2：戰鬥時只看器官），所以「切割期比戰鬥期暗」不再成立。
       // 原意（切割期本體有調暗）改和不調暗的場景比：打完（輸）進結束畫面＝不調暗；條件同樣是比值 <0.85。另驗戰鬥期比切割期暗。
-      await page.waitForFunction(() => window.__cb.ui === 'contrib', null, { timeout: 20000 }); await page.click('#contribNext');
+      await page.evaluate(() => window.__cb.setTimings({ battleScale: 0.05 }));   // 前面量戰鬥期用了慢速回放；這裡加快到結算
+      await page.waitForFunction(() => window.__cb.ui === 'contrib', null, { timeout: 30000 }); await page.click('#contribNext');
       await page.waitForFunction(() => window.__cb.ui === 'end', null, { timeout: 5000 }); await page.evaluate(() => { document.getElementById('end').hidden = true; }); await frames(page, 3);
       const plain = await regionLum(page, box);
       check(`${tag} DF-05 切割期本體調暗（duel5：和不調暗的場景比 <0.85；戰鬥期比切割期更暗）`, cut < plain * 0.85 && battle < cut, JSON.stringify({ cut: cut.toFixed(1), battle: battle.toFixed(1), plain: plain.toFixed(1), ratio: (cut / plain).toFixed(3) }));

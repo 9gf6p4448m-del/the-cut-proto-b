@@ -345,7 +345,7 @@ function onFreeEvent(e: Extract<GameEvent, { t: 'freeStart' | 'freeReject' | 'fr
 function startBattle(): void {
   const f = fightersOf(G.game);
   G.battle = simulateBattle(f, battleSeed(G.camp));
-  G.pops = []; G.cutGlow = []; G.trail = [];   // 切割期殘留的跳字與刀痕不帶進戰鬥
+  G.pops = []; G.cutGlow = []; G.trail = []; G.hurts = []; hurtSplits.length = 0; G.splits = []; G.grows = []; G.fx = []; G.slashes = [];   // 切割期殘留的跳字、刀痕、被切紅光、裂開、長出動畫都不帶進戰鬥（會亮在前線器官旁）
   G.ui = 'battle'; G.bT0 = performance.now(); G.bBase = 0; G.bClock = 0; G.bIdx = 0; G.speed = 1; els.fast.textContent = '快轉'; G.vis = []; G.release = null; G.drag = null; G.preview = null;
   const st = (G.battle.events[0] as Extract<BattleEvent, { t: 'start' }>).stats;
   G.disp = { blue: { hp: st.blue.hp, max: st.blue.maxHp, shield: st.blue.shield, poison: 0 }, red: { hp: st.red.hp, max: st.red.maxHp, shield: st.red.shield, poison: 0 } };
