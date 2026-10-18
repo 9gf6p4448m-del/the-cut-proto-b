@@ -145,6 +145,20 @@ for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   writeFileSync(`dist-duel4/${f}`, readFileSync(`public-duel4/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', DUEL4_SUB));
 }
 writeFileSync('dist-duel4/.build-info.json', JSON.stringify({ sub: DUEL4_SUB, sha: short }) + '\n');
+// ---- 對決 v0.5 千節蛇（子路徑 duel5/；the-cut docs/fusion/DUEL_V05_SNAKE.md）：獨立輸出 dist-duel5/；快取前綴 thecut-duel5- ----
+// 部署：node tools/deploy.mjs --sub duel5（只替換 gh-pages 的 duel5/）。素材取自 public-artkit/assets/final，邊界取自 public-duel2/assets（與 duel2 同一份）。
+const DUEL5_SUB = 'duel5';
+rmSync('dist-duel5', { recursive: true, force: true });
+mkdirSync('dist-duel5/assets', { recursive: true });
+await esbuild.build({ ...common, entryPoints: ['src/duel5_main.ts'], outfile: 'dist-duel5/app.js', format: 'iife', minify: true, define: { ...common.define, __BUILD_SHA__: JSON.stringify(short) } });
+for (const f of readdirSync('public')) if (f.endsWith('.png')) copyFileSync(`public/${f}`, `dist-duel5/${f}`);
+cpSync('public-artkit/assets/final', 'dist-duel5/assets/final', { recursive: true });
+copyFileSync('public-duel2/assets/beast_boundary.json', 'dist-duel5/assets/beast_boundary.json');
+writeFileSync('dist-duel5/style.css', readFileSync('public/style.css', 'utf8') + readFileSync('public-duel5/cb.css', 'utf8'));
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
+  writeFileSync(`dist-duel5/${f}`, readFileSync(`public-duel5/${f}`, 'utf8').replaceAll('__BUILD_SHA__', short).replaceAll('__SUB__', DUEL5_SUB));
+}
+writeFileSync('dist-duel5/.build-info.json', JSON.stringify({ sub: DUEL5_SUB, sha: short }) + '\n');
 // ---- 幽光美術模組展示（子路徑 art-kit/）：src/art/showcase.ts → dist-art/；快取前綴與其他子路徑都分開 ----
 // 部署：node tools/deploy.mjs --sub art-kit（只替換 gh-pages 的 art-kit/）。上面的輸出不受這段影響。
 const ART_SUB = 'art-kit';
@@ -168,4 +182,5 @@ console.log(`build duel ok sub=${DUEL_SUB} sha=${short}`);
 console.log(`build duel2 ok sub=${DUEL2_SUB} sha=${short}`);
 console.log(`build duel3 ok sub=${DUEL3_SUB} sha=${short}`);
 console.log(`build duel4 ok sub=${DUEL4_SUB} sha=${short}`);
+console.log(`build duel5 ok sub=${DUEL5_SUB} sha=${short}`);
 console.log(`build art ok sub=${ART_SUB} sha=${short}`);

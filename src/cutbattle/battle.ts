@@ -28,7 +28,7 @@ export interface Contribution { damage: Record<Kind, number>; heal: number; bloc
 export interface BattleResult { events: BattleEvent[]; winner: Side | 'draw'; how: 'ko' | 'time' | 'empty'; endMs: number; contrib: Record<Side, Contribution> }
 
 const other = (s: Side): Side => (s === 'blue' ? 'red' : 'blue');
-const zeroK = (): Record<Kind, number> => ({ claw: 0, heart: 0, eye: 0, poison: 0, bone: 0 });
+const zeroK = (): Record<Kind, number> => ({ claw: 0, heart: 0, eye: 0, poison: 0, bone: 0, fang: 0 });
 
 /** 雙方存活器官 → 戰鬥事件。seed 決定各器官計時起點的錯開與暴擊。 */
 export function simulateBattle(fighters: Fighter[], seed: number): BattleResult {
@@ -89,7 +89,7 @@ export function simulateBattle(fighters: Fighter[], seed: number): BattleResult 
           me.hp += amount; contrib[f.side].heal += amount;
           events.push({ t: 'heal', ms: next, side: f.side, id: f.id, amount, hpAfter: me.hp });
         } else if (f.kind === 'poison') {
-          st[foe].poison++;
+          st[foe].poison += cnt(f.side, 'fang') > 0 ? 2 : 1;   // duel5 蛇牙：己方有蛇牙（1 顆以上都一樣）時每次多疊 1 層（DUEL_V05_SNAKE 二、補述 1 第 12 條）
           events.push({ t: 'poisonStack', ms: next, side: f.side, id: f.id, stacks: st[foe].poison });
         }
       } else if (tm.tick && st[tm.tick].poison > 0) {

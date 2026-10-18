@@ -2,6 +2,7 @@
 // - 輸入：預設「即時劃刀」（規則 src/rtcut/rules.ts 的 freeStep；指標事件依時間戳切片 src/rtcut/freehand.ts），可切回「直線預覽」（duel2 原本的行為）。
 // - 可讀性：器官判定半徑＝顯示半徑＝34（Campaign.r）、器官無圓框加陣營色光邊、切割期本體調暗、按住加亮、第一場教學。
 // - 戰鬥期、縫合、征途、數值不變。規則：切割期 src/rtcut/rules.ts；戰鬥期 src/cutbattle/battle.ts；征途 src/cutbattle/campaign.ts。
+import type { Kind as ArtKind } from './art/sprites.ts';   // 只用於型別斷言（duel5 加了蛇牙後，rules 的 Kind 比 art-kit 多一種）
 import { COOLDOWN_STEPS, FPS, FREE_MIN_SPEED, TAP_LEN, KIND_ZH, LOCK_STEPS, MAX_LEN, MIN_LEN, clampLine, countSide, endStep, inside, isLocked, isReady, resolveStrike, step } from './rtcut/rules.ts';
 import { Slicer } from './rtcut/freehand.ts';
 import type { PtrEv, PtrKind } from './rtcut/freehand.ts';
@@ -36,13 +37,13 @@ const els = {
 els.sha.textContent = BUILD_SHA;
 
 // ---------------------------------------------------------------- 說明文字（點器官、首次出現、選縫合共用）
-export const DESC: Record<Kind, { role: string; line: string }> = {
+export const DESC = {
   claw: { role: '攻擊手', line: `爪：每 ${BT.CLAW_EVERY / 1000} 秒攻擊一次，造成 ${BT.CLAW_DMG}` },
   heart: { role: '生命', line: `心：血量上限 +${BT.HEART_HP}，每 ${BT.HEART_EVERY / 1000} 秒回 ${BT.HEART_HEAL}` },
   eye: { role: '暴擊', line: `眼：我方爪暴擊率 +${BT.EYE_CRIT * 100}%（上限 ${BT.CRIT_CAP * 100}%），暴擊 ×${BT.CRIT_MULT}` },
   poison: { role: '持續傷害', line: `毒：每 ${BT.POISON_EVERY / 1000} 秒讓對手疊 1 層毒，每層每秒 1 傷害` },
   bone: { role: '護盾', line: `骨：開戰提供 ${BT.BONE_SHIELD} 護盾，先吸收傷害` },
-};
+} as Record<Kind, { role: string; line: string }>;   // 型別斷言：rules 的 Kind 含 duel5 的蛇牙，本版不會出現
 const REJECT_TEXT: Record<PlaceReject, string> = { outside: '這裡放不下：器官要整個在獸身裡', unreachable: '這裡放不下：對方的刀碰不到這裡（不能藏起來）', overlap: '這裡放不下：和其他器官重疊' };
 
 // ---------------------------------------------------------------- 狀態
@@ -204,7 +205,7 @@ function stepOnce(): void {
 }
 function severFx(o: { kind: Kind; side: Side; p: V }, ang: number, now: number): void {
   if (!ASSETS) return;
-  G.splits.push({ type: 'split', t0: dispNow(), im: ASSETS.organs[o.kind], x: o.p[0], y: o.p[1], r: R, angle: ang, side: o.side, kind: o.kind, body: ASSETS.body, rect: RECTS[o.side] });   // 傳 body／rect：被切的那一方本體一起閃白
+  G.splits.push({ type: 'split', t0: dispNow(), im: ASSETS.organs[o.kind as ArtKind], x: o.p[0], y: o.p[1], r: R, angle: ang, side: o.side, kind: o.kind as ArtKind, body: ASSETS.body, rect: RECTS[o.side] });   // 傳 body／rect：被切的那一方本體一起閃白
   if (G.fxOn) G.slowUntil = now + SLOW_MS;
 }
 function onCutEvent(e: GameEvent, s0: GameState): void {
@@ -384,7 +385,7 @@ function hud(): void {
 // ---------------------------------------------------------------- 輸入
 function organAt(p: V): { kind: Kind; side: Side } | null {
   const s = G.game;
-  for (let i = s.organs.length - 1; i >= 0; i--) { const o = s.organs[i]; if (s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) <= R + 6) return { kind: o.kind, side: o.side }; }
+  for (let i = s.organs.length - 1; i >= 0; i--) { const o = s.organs[i]; if (s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) <= R + 6) return { kind: o.kind as ArtKind, side: o.side }; }
   return null;
 }
 // 即時劃刀：事件時間戳換成本局的毫秒（規則時鐘 G.clock 在上一幀 G.lastT 的值＋事件距那一幀的時間）
@@ -487,7 +488,7 @@ void burst;
 const spriteCenters = new Map<string, { x: number; y: number }>();
 function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganStateV3, t: number): void {
   if (!ASSETS) return;
-  drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
+  drawOrganV3(ctx, ASSETS.organs[o.kind as ArtKind], { kind: o.kind as ArtKind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
   const m = ctx.getTransform(), r = els.canvas.getBoundingClientRect();
   spriteCenters.set(o.id, { x: r.left + (m.a * o.p[0] + m.c * o.p[1] + m.e) / dpr, y: r.top + (m.b * o.p[0] + m.d * o.p[1] + m.f) / dpr });
 }
@@ -574,7 +575,7 @@ function draw(now: number): void {
   // 縫合擺放：插槽（可放／不可放）＋已縫器官的縫線
   if (G.ui === 'place' || G.ui === 'pick') {
     for (const st of G.camp.stitches) drawSuture(ctx, st.p as [number, number], CENTER.blue as [number, number], t);
-    if (G.ghost && G.camp.picked) { drawSlot(ctx, G.ghost[0], G.ghost[1], R * 1.1, G.ghostOk ? 'ok' : 'bad', t); ctx.save(); ctx.globalAlpha = 0.75; drawOrganSprite(ctx, ASSETS.organs[G.camp.picked], { kind: G.camp.picked, side: 'blue', x: G.ghost[0], y: G.ghost[1], r: R * 0.85 }, { mode: 'normal' }, t); ctx.restore(); if (G.ghostOk) drawSuture(ctx, G.ghost as [number, number], CENTER.blue as [number, number], t); }
+    if (G.ghost && G.camp.picked) { drawSlot(ctx, G.ghost[0], G.ghost[1], R * 1.1, G.ghostOk ? 'ok' : 'bad', t); ctx.save(); ctx.globalAlpha = 0.75; drawOrganSprite(ctx, ASSETS.organs[G.camp.picked as ArtKind], { kind: G.camp.picked as ArtKind, side: 'blue', x: G.ghost[0], y: G.ghost[1], r: R * 0.85 }, { mode: 'normal' }, t); ctx.restore(); if (G.ghostOk) drawSuture(ctx, G.ghost as [number, number], CENTER.blue as [number, number], t); }
   }
   // 跳字
   G.pops = G.pops.filter((q) => now - q.t0 < q.life);

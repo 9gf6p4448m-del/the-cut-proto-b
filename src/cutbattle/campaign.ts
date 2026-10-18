@@ -1,7 +1,8 @@
 // 切割→戰鬥（duel/）的盤面生成、縫合擺放與征途流程。純函式，不碰 DOM。
 // 規格：the-cut 7c48d18 docs/fusion/CUT_BATTLE_V01.md「切割期」「征途與縫合」。切割期規則本身全在 src/rtcut/rules.ts（rt-cut2 2ba45fb）。
 import { BODY, R, KIND_ZH, MODE_RT2, circleInside, newGame, rand, reachableBy, validSpot } from '../rtcut/rules.ts';
-import type { GameState, Kind, Mode, OrganDef, Side, V } from '../rtcut/rules.ts';
+import type { Beast, GameState, Kind, Mode, OrganDef, Side, V } from '../rtcut/rules.ts';
+import { SNAKE_ARC, SNAKE_GAP_MAX, SNAKE_GAP_MIN, SNAKE_POLY, genSnakeBase, snakeAt } from './snake_board.ts';
 import { simulateBattle } from './battle.ts';
 import type { BattleResult, Fighter } from './battle.ts';
 
@@ -68,30 +69,45 @@ export interface Campaign {
   body?: Record<Side, V[]>;                         // duel2：獸身多邊形（不給＝BODY，duel v0.1）
   r?: number;                                       // duel3：器官判定半徑 34（不給＝R）
   front?: { unit: number; max: number };            // duel4：前線推進（不給＝沒有）
+  beast?: Beast;                                    // duel5：玩家選的怪獸（不給＝沒有技能、舊版行為）
+  cutSeconds?: number;                              // duel5：切割期秒數（?cut=，DL-091；不給＝CB.CUT_SECONDS）
   phase: 'cut' | 'battle' | 'pick' | 'place' | 'won' | 'lost';
   offer: Kind[]; picked: Kind | null; history: StageLog[];
 }
-export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number, front?: { unit: number; max: number }): Campaign {
-  const c: Campaign = { seed: seed >>> 0, stage: 0, blueBase: genBlueBase(seed, body, r ?? R), stitches: [], phase: 'cut', offer: [], picked: null, history: [] };
-  if (body) c.body = body;
+export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number, front?: { unit: number; max: number }, opts: { beast?: Beast; cutSeconds?: number } = {}): Campaign {
+  // duel5：選蛇＝藍方身體換成蛇身、初始器官沿中線排（DUEL_V05_SNAKE 二＋補述 1 第 1～4 條）；紅方仍是龍
+  const snake = opts.beast === 'snake', b = snake ? { blue: SNAKE_POLY, red: (body ?? BODY).red } : body;
+  const c: Campaign = { seed: seed >>> 0, stage: 0, blueBase: snake ? genSnakeBase(seed) : genBlueBase(seed, body, r ?? R), stitches: [], phase: 'cut', offer: [], picked: null, history: [] };
+  if (b) c.body = b;
   if (r !== undefined) c.r = r;
   if (front) c.front = front;
+  if (opts.beast) c.beast = opts.beast;
+  if (opts.cutSeconds !== undefined) c.cutSeconds = opts.cutSeconds;
   return c;
+}
+/** ?cut= 參數（DL-091）：20～60 的整數秒；其他（空、非整數、超出範圍）一律 30。 */
+export function parseCutSeconds(v: string | null | undefined): number {
+  if (v === null || v === undefined || !/^\d+$/.test(v.trim())) return CB.CUT_SECONDS;
+  const n = Number(v.trim());
+  return Number.isInteger(n) && n >= 20 && n <= 60 ? n : CB.CUT_SECONDS;
 }
 export const blueOrgans = (c: Campaign): OrganDef[] => [
   ...c.blueBase, ...c.stitches.map((s, i) => ({ id: `藍縫${KIND_ZH[s.kind]}${i + 1}`, side: 'blue' as Side, kind: s.kind, p: s.p })),
 ];
 export function modeFor(c: Campaign, nBlue: number, nRed: number): Mode {
-  const m: Mode = { ...MODE_RT2, cutSteps: CB.CUT_SECONDS * 60, maxPerSide: { blue: nBlue, red: nRed }, spawnRule: 'cb', aiJitter: CB.AI_JITTER[c.stage] };
+  const m: Mode = { ...MODE_RT2, cutSteps: (c.cutSeconds ?? CB.CUT_SECONDS) * 60, maxPerSide: { blue: nBlue, red: nRed }, spawnRule: 'cb', aiJitter: CB.AI_JITTER[c.stage] };
   if (c.body) m.body = c.body;
   if (c.r !== undefined) m.r = c.r;
   if (c.front) m.front = c.front;
+  if (c.beast) { m.beasts = { blue: c.beast, red: 'dragon' }; if (c.beast === 'snake') m.originRegen = ['blue']; }   // duel5：AI 只用龍
   return m;
 }
 /** 這一場的切割期起始狀態（rt-cut2 規則＋本版設定）。 */
 export function matchFor(c: Campaign): GameState {
   const blue = blueOrgans(c), red = genRed(c.seed, c.stage, blue, c.body, c.r ?? R);
-  return newGame((c.seed + 7919 * (c.stage + 1)) >>> 0, modeFor(c, blue.length, red.length), [...blue, ...red]);
+  const g = newGame((c.seed + 7919 * (c.stage + 1)) >>> 0, modeFor(c, blue.length, red.length), [...blue, ...red]);
+  if (c.beast) { g.startN = { blue: blue.length, red: red.length }; g.skillUsed = { blue: false, red: false }; g.severedP = { blue: [], red: [] }; }   // duel5 技能與長回原位
+  return g;
 }
 /** 切割期結束時雙方存活的器官（含萌芽中）→ 戰鬥參與者。 */
 export function fightersOf(s: GameState): Fighter[] {
@@ -130,6 +146,16 @@ export function placeCheck(c: Campaign, p: V): PlaceReject | null {
  * 和已選槽位都相距 >SLOT_GAP 的點就選為槽位。每個槽位都合法；每個 5 單位合法點到最近槽位 ≤SLOT_GAP（<SNAP_DIST）。畫面與吸附都用這份清單。 */
 export const SLOT_FINE = 5, SLOT_GAP = 30, SNAP_DIST = 40;
 export function stitchSlots(c: Campaign): V[] {
+  if (c.beast === 'snake') {
+    // duel5 蛇（補述 1 第 1 條）：槽位只取中線上、和最近的己方器官間距在 2R＋6～2R＋20、通過 placeCheck 的點（間隔 SLOT_GAP 取一個）
+    const own = blueOrgans(c), out: V[] = [];
+    for (let s = 0; s <= SNAKE_ARC; s += 2) {
+      const p = snakeAt(s); if (placeCheck(c, p)) continue;
+      const d = Math.min(...own.map((o) => dist(o.p, p)));
+      if (d >= SNAKE_GAP_MIN && d <= SNAKE_GAP_MAX && out.every((q) => dist(q, p) > SLOT_GAP)) out.push(p);
+    }
+    return out;
+  }
   const poly = c.body?.blue ?? BODY.blue, xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]), out: V[] = [];
   for (let y = Math.ceil(Math.min(...ys) / SLOT_FINE) * SLOT_FINE; y <= Math.max(...ys); y += SLOT_FINE)
     for (let x = Math.ceil(Math.min(...xs) / SLOT_FINE) * SLOT_FINE; x <= Math.max(...xs); x += SLOT_FINE)

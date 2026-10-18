@@ -4,7 +4,7 @@
 // 選填欄位不給時（MODE_RT1／MODE_RT2）行為與 rt-cut／rt-cut2 完全相同。
 export type V = [number, number];
 export type Side = 'blue' | 'red';
-export type Kind = 'claw' | 'heart' | 'eye' | 'poison' | 'bone';   // 眼／毒／骨只出現在切割→戰鬥；切割期它們只是普通器官
+export type Kind = 'claw' | 'heart' | 'eye' | 'poison' | 'bone' | 'fang';   // 眼／毒／骨只出現在切割→戰鬥；切割期它們只是普通器官
 export interface Line { a: V; b: V }
 export interface OrganDef { id: string; side: Side; kind: Kind; p: V }
 export const SIDES: Side[] = ['blue', 'red'];
@@ -20,7 +20,7 @@ export const AIM_STEPS = 36;                 // AI 預告 0.6 秒（凍結下限
 export const AI_JITTER_STEPS = 54;           // 出刀間隔＝冷卻＋0～0.9 秒
 export const AI_FIRST_FIRE_STEP = 60;        // 開場 1 秒後 AI 第一刀生效【試玩數值】
 export const MIN_LEN = 120, MAX_LEN = 420, R = 28;
-export const VALUE: Record<Kind, number> = { claw: 2, heart: 4, eye: 3, poison: 3, bone: 2 };   // 眼／毒／骨的 AI 切除價值是切割→戰鬥的試玩值
+export const VALUE: Record<Kind, number> = { claw: 2, heart: 4, eye: 3, poison: 3, bone: 2, fang: 3 };   // fang＝duel5 蛇牙（試玩值，DUEL_V05_SNAKE 補述 1 第 5 條：權重不改的明文例外）   // 眼／毒／骨的 AI 切除價值是切割→戰鬥的試玩值
 // rt-cut2（擊倒＋再生）：以模式參數開關；預設 MODE_RT1＝原版行為不變（R2-04）
 export interface Mode {
   knockout: boolean; regen: boolean;
@@ -32,7 +32,11 @@ export interface Mode {
   body?: Record<Side, V[]>;                  // 獸身多邊形（duel2：由已確認的 beast_boundary.json 換成世界座標）；不給＝BODY
   r?: number;                                // 器官判定半徑（duel3：34，DUEL_V03_FEEL 二）；不給＝R（28）
   front?: { unit: number; max: number };     // duel4 前線推進（DUEL_V04_FRONT 一）：每 1 推進值延伸 unit 世界單位、推進值上下限 ±max；不給＝沒有推進
+  beasts?: Record<Side, Beast>;              // duel5：雙方的怪獸（決定技能：龍＝蛻生、蛇＝穿刺）；不給＝沒有技能
+  originRegen?: Side[];                      // duel5：這些陣營再生時長回原位（蛇，DUEL_V05_SNAKE 補述 1 第 3 條）；其他陣營照 spawnPoint
 }
+export type Beast = 'dragon' | 'snake';
+export const PIERCE_STEPS = 300, PIERCE_MAX = 3;   // 穿刺：按下後 300 步（5 秒）內的下一刀，最多連切 3 個（DUEL_V05_SNAKE 二、補述 1 第 7／8 條）
 /** 這一局的器官判定半徑。 */
 export const radOf = (mode: { r?: number }): number => mode.r ?? R;
 /** 這一局的獸身多邊形（起刀、再生、位置規則都用它）。 */
@@ -178,6 +182,11 @@ export interface GameState {
   // ---- duel4 前線推進（只有 mode.front 的模式才出現） ----
   push?: number;                      // 推進值：玩家切除 +1、AI 切除 −1，同一步先算淨值再夾到 ±front.max；每場從 0 開始
   aiHold?: boolean;                   // 教學場：玩家第一次鎖定或切除之前 AI 不出刀（補述 1 第 4 條）
+  // ---- duel5 技能（只有 mode.beasts 的模式才出現） ----
+  skillUsed?: Record<Side, boolean>;  // 每場一次
+  pierce?: Partial<Record<Side, { until: number }>>;   // 穿刺生效中：until 之前按下的刀帶穿刺
+  startN?: Record<Side, number>;      // 這一場開局的器官數（AI 蛻生門檻：2×存活 ≤ 開局數）
+  severedP?: Record<Side, V[]>;       // 被切器官的原位（和 severedQ 同序；長回原位用）
 }
 export interface DuelResult { claws: Record<Side, number>; hearts: Record<Side, number>; power: Record<Side, number>; winner: Side | 'draw' }
 
@@ -194,6 +203,7 @@ function clone(s: GameState): GameState {
   const c: GameState = { ...s, alive: [...s.alive], lockUntil: [...s.lockUntil], cdUntil: { ...s.cdUntil }, drag: { ...s.drag }, aim: s.aim && { ...s.aim }, result: s.result,
     organs: s.organs, readyAt: [...s.readyAt], severedQ: { blue: [...s.severedQ.blue], red: [...s.severedQ.red] }, severedN: { ...s.severedN } };
   if (s.stroke) c.stroke = { ...s.stroke };
+  if (s.severedP) c.severedP = { blue: [...s.severedP.blue], red: [...s.severedP.red] };
   return c;
 }
 /** mulberry32：回傳 [0,1) 與新狀態。 */
@@ -215,6 +225,7 @@ export type Reject = 'phase' | 'cooldown' | 'short' | 'start';
 export interface StrikeResult {
   ok: boolean; reject?: Reject; side: Side; line: Line;
   locks: number[]; severed: number | null; blocked: number | null; end: V;
+  pierced?: number[];                 // duel5 穿刺：這一刀連切下的器官（依序；severed＝第一個）
 }
 export function resolveStrike(s: GameState, side: Side, raw: Line): StrikeResult {
   const base = { side, line: raw, locks: [] as number[], severed: null, blocked: null, end: raw.b };
@@ -230,12 +241,15 @@ export function resolveStrike(s: GameState, side: Side, raw: Line): StrikeResult
   const locks: number[] = [];
   const L = Math.hypot(line.b[0] - line.a[0], line.b[1] - line.a[1]);
   const at = (t: number): V => [line.a[0] + ((line.b[0] - line.a[0]) * t) / L, line.a[1] + ((line.b[1] - line.a[1]) * t) / L];
+  const pz = s.pierce?.[side], pierce = !!pz && s.step < pz.until, cut: number[] = [];   // duel5 穿刺：直線刀也連切（補述 1 第 7 條）
   for (const h of hits) {
     if (s.organs[h.i].side === side) { locks.push(h.i); continue; }
-    if (isLocked(s, h.i)) return { ok: true, side, line, locks, severed: null, blocked: h.i, end: at(h.t) };
-    return { ok: true, side, line, locks, severed: h.i, blocked: null, end: at(h.t) };
+    if (isLocked(s, h.i)) return { ok: true, side, line, locks, severed: cut[0] ?? null, blocked: h.i, end: at(h.t), ...(pierce ? { pierced: cut } : {}) };
+    if (!pierce) return { ok: true, side, line, locks, severed: h.i, blocked: null, end: at(h.t) };
+    cut.push(h.i);
+    if (cut.length >= PIERCE_MAX) return { ok: true, side, line, locks, severed: cut[0], blocked: null, end: at(h.t), pierced: cut };
   }
-  return { ok: true, side, line, locks, severed: null, blocked: null, end: line.b };
+  return { ok: true, side, line, locks, severed: cut[0] ?? null, blocked: null, end: line.b, ...(pierce ? { pierced: cut } : {}) };
 }
 
 // ---------------------------------------------------------------- 一步（雙方同步：都在步開始狀態上判，再一起套用）
@@ -251,8 +265,12 @@ export type GameEvent =
   | { t: 'freeLock'; side: Side; i: number }
   | { t: 'freeEnd'; side: Side; why: FreeEndWhy; locks: number[]; severed: number | null; blocked: number | null; end: V; dir: V; len: number }
   | { t: 'push'; push: number; d: number }     // duel4：推進值改變（d＝這一步的淨值，夾限前）
-  | { t: 'aiRelease' };                        // duel4 教學場：玩家第一次鎖定或切除，AI 開始出刀
-export interface StepInput { blue?: Line | null; drag?: Line | null; free?: Partial<Record<Side, Piece[]>> }
+  | { t: 'aiRelease' }                         // duel4 教學場：玩家第一次鎖定或切除，AI 開始出刀
+  | { t: 'freeCut'; side: Side; i: number }    // duel5 穿刺：連切中切下一個（當步生效）
+  | { t: 'skill'; side: Side; kind: 'pierce' | 'molt'; i?: number }   // duel5 技能生效（蛻生 i＝長回的器官）
+  | { t: 'skillReject'; side: Side; why: 'used' | 'phase' | 'none' }  // duel5 技能按了但不能用（none＝沒有可長回的器官；不算用掉）
+  | { t: 'pierceEnd'; side: Side; why: 'used' | 'expired' };          // duel5 穿刺結束（出刀用掉／5 秒內沒出刀失效）
+export interface StepInput { blue?: Line | null; drag?: Line | null; free?: Partial<Record<Side, Piece[]>>; skill?: Partial<Record<Side, boolean>> }   // skill＝duel5 這一步按下技能鈕
 export interface StepOut { state: GameState; events: GameEvent[] }
 
 /** 再生位置：獸身多邊形內、與所有現存器官（含萌芽中、含對方）中心距 ≥2R；用再生亂數流取樣，最多 400 次。改寫 s.regenRng。 */
@@ -271,7 +289,25 @@ function spawnPoint(s: GameState, side: Side): V | null {
   }
   return null;
 }
-export const KIND_ZH: Record<Kind, string> = { claw: '爪', heart: '心', eye: '眼', poison: '毒', bone: '骨' };
+/** 長回一個器官（FIFO 隊首的種類）：未達上限、隊列不空才長；位置＝spawnPoint，或 mode.originRegen 的陣營長回「該顆的原位」（蛇）。萌芽 0.5 秒。
+ * 長不出來回傳 null（隊列空、已滿、找不到位置、原位被佔）。改寫 s。 */
+export function regrowOne(s: GameState, side: Side, k: number): number | null {
+  if (countSide(s, side) >= (s.mode.maxPerSide?.[side] ?? MAX_PER_SIDE) || !s.severedQ[side].length) return null;
+  let p: V | null;
+  if (s.mode.originRegen?.includes(side) && s.severedP?.[side].length) {
+    p = s.severedP[side][0];
+    const rr = radOf(s.mode);
+    if (s.organs.some((o, i) => s.alive[i] && Math.hypot(o.p[0] - p![0], o.p[1] - p![1]) < 2 * rr)) return null;
+  } else p = spawnPoint(s, side);
+  if (!p) return null;
+  const kind = s.severedQ[side].shift()!;
+  if (s.severedP) s.severedP[side].shift();
+  const n = s.organs.filter((o) => o.side === side && o.kind === kind).length + 1;
+  s.organs = [...s.organs, { id: `${side === 'blue' ? '藍' : '紅'}${KIND_ZH[kind]}${n}`, side, kind, p: [p[0], p[1]] }];
+  s.alive.push(true); s.lockUntil.push(0); s.readyAt.push(k + SPROUT_STEPS);
+  return s.organs.length - 1;
+}
+export const KIND_ZH: Record<Kind, string> = { claw: '爪', heart: '心', eye: '眼', poison: '毒', bone: '骨', fang: '牙' };
 export function step(s0: GameState, input: StepInput = {}): StepOut {
   const ev: GameEvent[] = [];
   if (s0.phase !== 'cut') return { state: s0, events: ev };
@@ -286,6 +322,20 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
     return { state: s, events: ev };
   }
   s.drag.blue = input.drag ?? null;
+  // duel5 技能：按下的那一步處理（DUEL_V05_SNAKE 二）。蛇＝穿刺（設定有效期，刀在之後的步帶上）；龍＝蛻生（立刻長回 FIFO 隊首）
+  if (s.mode.beasts && input.skill) for (const side of SIDES) {
+    if (!input.skill[side]) continue;
+    if (s.skillUsed?.[side]) { ev.push({ t: 'skillReject', side, why: 'used' }); continue; }
+    if (s.mode.beasts[side] === 'snake') {
+      s.pierce = { ...(s.pierce ?? {}), [side]: { until: k + PIERCE_STEPS } }; s.skillUsed = { blue: s.skillUsed?.blue ?? false, red: s.skillUsed?.red ?? false, [side]: true };
+      ev.push({ t: 'skill', side, kind: 'pierce' });
+    } else {
+      const i = regrowOne(s, side, k);
+      if (i === null) { ev.push({ t: 'skillReject', side, why: 'none' }); continue; }   // 沒有可長回的器官：不能用、不算用掉
+      s.skillUsed = { blue: s.skillUsed?.blue ?? false, red: s.skillUsed?.red ?? false, [side]: true };
+      ev.push({ t: 'skill', side, kind: 'molt', i }, { t: 'spawn', i });
+    }
+  }
   // AI：到了預告時刻就用「目前狀態」選刀並固定刀線
   let red: Line | null = null;
   if (s.aim && s.aim.fireStep === k) { red = s.aim.line; s.aim = null; }
@@ -308,18 +358,29 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
   const sever = (i: number, by: Side) => {
     s.alive[i] = false; s.lockUntil[i] = 0;
     s.severedQ[s.organs[i].side].push(s.organs[i].kind); s.severedN[by]++;
+    if (s.severedP) s.severedP[s.organs[i].side].push([s.organs[i].p[0], s.organs[i].p[1]]);   // 原位（和 severedQ 同序）
   };
-  for (const r of strikes) if (r.severed !== null) sever(r.severed, r.side);
-  for (const f of frees) if (f.ended && f.ended.severed !== null) sever(f.ended.severed, f.side);
+  // 這一步的切除：直線刀（穿刺時可連切）、即時刀結束時的一刀、即時刀穿刺的連切（都在這一步生效）
+  const cutList: { i: number; by: Side }[] = [];
+  for (const r of strikes) for (const i of r.pierced ?? (r.severed !== null ? [r.severed] : [])) cutList.push({ i, by: r.side });
+  for (const f of frees) { for (const i of f.cuts) cutList.push({ i, by: f.side }); if (f.ended && f.ended.severed !== null) cutList.push({ i: f.ended.severed, by: f.side }); }
+  for (const c of cutList) sever(c.i, c.by);
+  // duel5 穿刺：帶穿刺的刀結束（不是點擊）或直線刀出手＝用掉；有效期過了而且沒有進行中的穿刺刀＝失效（仍算用過）
+  for (const side of SIDES) {
+    const pz = s.pierce?.[side];
+    if (!pz) continue;
+    const used = frees.some((f) => f.side === side && f.pierceUsed) || strikes.some((r) => r.side === side && r.pierced !== undefined);
+    const expired = !used && k + 1 >= pz.until && !s.stroke?.[side]?.pierce;
+    if (used || expired) { const rest: Partial<Record<Side, { until: number }>> = { ...s.pierce }; delete rest[side]; s.pierce = rest; ev.push({ t: 'pierceEnd', side, why: used ? 'used' : 'expired' }); }
+  }
   // duel4 前線推進：同一步先算淨值，再夾到 ±max（撞鎖、鎖定、再生都不算）
   if (s.mode.front) {
     let net = 0;
-    for (const r of strikes) if (r.severed !== null) net += r.side === 'blue' ? 1 : -1;
-    for (const f of frees) if (f.ended && f.ended.severed !== null) net += f.side === 'blue' ? 1 : -1;
+    for (const c of cutList) net += c.by === 'blue' ? 1 : -1;
     if (net) { const m = s.mode.front.max, p = Math.max(-m, Math.min(m, (s.push ?? 0) + net)); if (p !== (s.push ?? 0)) { s.push = p; ev.push({ t: 'push', push: p, d: net }); } }
   }
   // duel4 教學場：玩家第一次鎖定或切除的那一步起永久解除，AI 第一刀不早於這一步＋60
-  if (s.aiHold && (strikes.some((r) => r.side === 'blue' && (r.locks.length > 0 || r.severed !== null)) || frees.some((f) => f.side === 'blue' && (f.locks.length > 0 || (f.ended !== null && f.ended.severed !== null))))) {
+  if (s.aiHold && (strikes.some((r) => r.side === 'blue' && (r.locks.length > 0 || r.severed !== null)) || frees.some((f) => f.side === 'blue' && (f.locks.length > 0 || f.cuts.length > 0 || (f.ended !== null && f.ended.severed !== null))))) {
     s.aiHold = false; s.aiNextFire = Math.max(s.aiNextFire, k + AI_FIRST_FIRE_STEP); ev.push({ t: 'aiRelease' });
   }
   for (const r of strikes) ev.push({ t: 'strike', r });
@@ -338,14 +399,13 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
   }
   // 再生：固定節拍（第 300、600…步＝5、10…秒），未滿 8 個就長回最早被切的種類，萌芽 0.5 秒
   if (s.mode.regen && k > 0 && k % REGEN_STEPS === 0) for (const side of SIDES) {
-    if (countSide(s, side) >= (s.mode.maxPerSide?.[side] ?? MAX_PER_SIDE) || !s.severedQ[side].length) continue;
-    const p = spawnPoint(s, side);
-    if (!p) continue;
-    const kind = s.severedQ[side].shift()!;
-    const n = s.organs.filter((o) => o.side === side && o.kind === kind).length + 1;
-    s.organs = [...s.organs, { id: `${side === 'blue' ? '藍' : '紅'}${KIND_ZH[kind]}${n}`, side, kind, p }];
-    s.alive.push(true); s.lockUntil.push(0); s.readyAt.push(k + SPROUT_STEPS);
-    ev.push({ t: 'spawn', i: s.organs.length - 1 });
+    const i = regrowOne(s, side, k);
+    if (i !== null) ev.push({ t: 'spawn', i });
+  }
+  // duel5 AI 蛻生：龍、還沒用過、2×存活 ≤ 這場開局數，在 AI 這一刀生效的那一步執行（不動亂數與出刀排程；補述 1 第 9 條）
+  if (red && s.mode.beasts?.red === 'dragon' && !s.skillUsed?.red && s.startN && 2 * countSide(s, 'red') <= s.startN.red) {
+    const i = regrowOne(s, 'red', k);
+    if (i !== null) { s.skillUsed = { blue: s.skillUsed?.blue ?? false, red: true }; ev.push({ t: 'skill', side: 'red', kind: 'molt', i }, { t: 'spawn', i }); }
   }
   if (red) {
     // 下一刀生效時刻＝這刀＋冷卻＋0～0.9 秒種子亂數
@@ -399,18 +459,21 @@ export const FREE_MIN_SPEED = 0.6;           // px/ms：低於這個速度是鈍
 export type Piece = { k: 'down'; p: V } | { k: 'seg'; a: V; b: V; v: number } | { k: 'end'; why: 'up' | 'cancel' | 'multi' };
 export type FreeEndWhy = 'up' | 'cancel' | 'multi' | 'length' | 'sever' | 'blocked' | 'tap';
 export const TAP_LEN = 10;                  // 補述 1：放開時路徑總長 <10 且沒有鎖定／切除＝點擊，不算一刀、不進冷卻
-export interface Stroke { start: V; len: number; seen: number[]; locks: number[]; startStep: number }
+export interface Stroke { start: V; len: number; seen: number[]; locks: number[]; startStep: number; pierce?: boolean; cuts?: number[] }   // pierce＝這一刀帶穿刺；cuts＝已連切的器官
 export interface FreeOut {
+  cuts: number[];                     // duel5 穿刺：這一步連切下的器官（當步生效）
+  pierceUsed: boolean;                // duel5：帶穿刺的刀在這一步結束（不是點擊）＝穿刺用掉
   side: Side; stroke: Stroke | null; locks: number[]; events: GameEvent[];
   ended: { why: FreeEndWhy; severed: number | null; blocked: number | null } | null;
 }
 export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, pieces: Piece[], k: number): FreeOut {
   let st: Stroke | null = stroke0 && { ...stroke0, seen: [...stroke0.seen], locks: [...stroke0.locks] };
-  const locks: number[] = [], events: GameEvent[] = [];
-  let ended: FreeOut['ended'] = null;
+  const locks: number[] = [], events: GameEvent[] = [], cuts: number[] = [];
+  let ended: FreeOut['ended'] = null, pierceUsed = false;
   const rr = radOf(s0.mode);
   const finish = (cur: Stroke, why: FreeEndWhy, end: V, dir: V, severed: number | null = null, blocked: number | null = null) => {
     ended = { why, severed, blocked };
+    if (cur.pierce) pierceUsed = true;
     events.push({ t: 'freeEnd', side, why, locks: cur.locks, severed, blocked, end, dir, len: cur.len });
     st = null;
   };
@@ -422,6 +485,8 @@ export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, piec
         : !startOk(s0, side, pc.p) ? 'start' : null;
       if (reason) { events.push({ t: 'freeReject', side, reason }); continue; }
       st = { start: pc.p, len: 0, seen: [], locks: [], startStep: k };
+      const pz = s0.pierce?.[side];
+      if (pz && k < pz.until) { st.pierce = true; st.cuts = []; }   // 穿刺有效期內按下的刀帶穿刺
       events.push({ t: 'freeStart', side, p: pc.p });
       continue;
     }
@@ -448,6 +513,12 @@ export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, piec
         cur.seen.push(h.i);
         if (s0.organs[h.i].side === side) { cur.locks.push(h.i); locks.push(h.i); events.push({ t: 'freeLock', side, i: h.i }); continue; }
         const at: V = [a[0] + dir[0] * h.t, a[1] + dir[1] * h.t];
+        if (cur.pierce && !isLocked(s0, h.i)) {
+          // 穿刺：切下、當步生效，刀繼續；切到第 PIERCE_MAX 個就停（補述 1 第 8 條）
+          cur.cuts = [...(cur.cuts ?? []), h.i]; cuts.push(h.i); events.push({ t: 'freeCut', side, i: h.i });
+          if (cur.cuts.length >= PIERCE_MAX) { cur.len += h.t; finish(cur, 'sever', at, dir, null, null); stop = true; break; }
+          continue;
+        }
         cur.len += h.t;
         if (isLocked(s0, h.i)) finish(cur, 'blocked', at, dir, null, h.i); else finish(cur, 'sever', at, dir, h.i, null);
         stop = true; break;
@@ -457,7 +528,7 @@ export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, piec
     cur.len += L;
     if (cut) finish(cur, 'length', b, dir);
   }
-  return { side, stroke: st, locks, events, ended };
+  return { side, stroke: st, locks, events, ended, cuts, pierceUsed };
 }
 
 /** duel4：延伸區的 AI 錨點（10 單位網格上的延伸區點，依 x、y 排序均勻取 7 個；同一個起刀區函式）。沒有延伸＝空。 */

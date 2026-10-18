@@ -5,6 +5,7 @@
 // - 流程與回饋：開場 3-2-1 倒數、教學場 AI 等玩家先出手、再生倒數圈與長出動畫、縫合槽位與吸附、切中爽感（刀痕發光、hit-stop）、
 //   敵我分色（被切只在該器官爆紅光）、結果字一次一個、縫合後展示新身體再按「下一位對手」。
 // - 戰鬥期數值、器官效果、AI 打分不變。規則：切割期 src/rtcut/rules.ts；戰鬥期 src/cutbattle/battle.ts；征途 src/cutbattle/campaign.ts。
+import type { Kind as ArtKind } from './art/sprites.ts';   // 只用於型別斷言（duel5 加了蛇牙後，rules 的 Kind 比 art-kit 多一種）
 import { COOLDOWN_STEPS, FPS, FREE_MIN_SPEED, TAP_LEN, KIND_ZH, LOCK_STEPS, MAX_LEN, MIN_LEN, REGEN_STEPS, clampLine, countSide, endStep, isLocked, isReady, resolveStrike, startOk, step } from './rtcut/rules.ts';
 import { reachOf, zoneOf } from './rtcut/reach.ts';
 import { Slicer } from './rtcut/freehand.ts';
@@ -46,13 +47,13 @@ const els = {
 els.sha.textContent = BUILD_SHA;
 
 // ---------------------------------------------------------------- 說明文字（點器官、首次出現、選縫合共用）
-export const DESC: Record<Kind, { role: string; line: string }> = {
+export const DESC = {
   claw: { role: '攻擊手', line: `爪：每 ${BT.CLAW_EVERY / 1000} 秒攻擊一次，造成 ${BT.CLAW_DMG}` },
   heart: { role: '生命', line: `心：血量上限 +${BT.HEART_HP}，每 ${BT.HEART_EVERY / 1000} 秒回 ${BT.HEART_HEAL}` },
   eye: { role: '暴擊', line: `眼：我方爪暴擊率 +${BT.EYE_CRIT * 100}%（上限 ${BT.CRIT_CAP * 100}%），暴擊 ×${BT.CRIT_MULT}` },
   poison: { role: '持續傷害', line: `毒：每 ${BT.POISON_EVERY / 1000} 秒讓對手疊 1 層毒，每層每秒 1 傷害` },
   bone: { role: '護盾', line: `骨：開戰提供 ${BT.BONE_SHIELD} 護盾，先吸收傷害` },
-};
+} as Record<Kind, { role: string; line: string }>;   // 型別斷言：rules 的 Kind 含 duel5 的蛇牙，本版不會出現
 const REJECT_TEXT: Record<PlaceReject, string> = { outside: '這裡放不下：器官要整個在獸身裡', unreachable: '這裡放不下：對方的刀碰不到這裡（不能藏起來）', overlap: '這裡放不下：和其他器官重疊' };
 
 // ---------------------------------------------------------------- 狀態
@@ -231,15 +232,15 @@ function stepOnce(): void {
   if (G.game.phase !== 'cut') startBattle();
 }
 function severFx(o: { id?: string; kind: Kind; side: Side; p: V }, ang: number, now: number, a?: V): void {
-  G.cuts.push({ side: o.side, kind: o.kind, p: [o.p[0], o.p[1]], step: G.game.step });   // 傷口（再生倒數圈的位置）
+  G.cuts.push({ side: o.side, kind: o.kind as ArtKind, p: [o.p[0], o.p[1]], step: G.game.step });   // 傷口（再生倒數圈的位置）
   if (!ASSETS) return;
   if (o.side === 'red') {
     // 玩家切對方：裂成兩半（不傳 body／rect＝不整隻閃白，DUEL_V04_FRONT 三-5）＋刀痕加粗發光 150ms（三-4）
-    G.splits.push({ type: 'split', t0: dispNow(), im: ASSETS.organs[o.kind], x: o.p[0], y: o.p[1], r: R * 1.25, angle: ang, side: o.side, kind: o.kind });
+    G.splits.push({ type: 'split', t0: dispNow(), im: ASSETS.organs[o.kind as ArtKind], x: o.p[0], y: o.p[1], r: R * 1.25, angle: ang, side: o.side, kind: o.kind as ArtKind });
     if (a) G.cutGlow.push({ a: [a[0], a[1]], b: [o.p[0] + Math.cos(ang) * R * 2, o.p[1] + Math.sin(ang) * R * 2], t0: now });
   } else {
     // 被切：只在該器官位置爆紅光、留下傷口；裂開的兩半也用紅色（白與冷藍只留給自己的動作）
-    G.hurts.push({ p: [o.p[0], o.p[1]], t0: now }); hurtSplits.push({ o: { kind: o.kind, side: o.side, p: [o.p[0], o.p[1]] }, ang, t0: dispNow() });
+    G.hurts.push({ p: [o.p[0], o.p[1]], t0: now }); hurtSplits.push({ o: { kind: o.kind as ArtKind, side: o.side, p: [o.p[0], o.p[1]] }, ang, t0: dispNow() });
     G.fxLog.push({ t: 'redHit', at: now, side: o.side, id: o.id });
   }
   const last = G.splits[G.splits.length - 1];
@@ -454,7 +455,7 @@ function hud(): void {
 // ---------------------------------------------------------------- 輸入
 function organAt(p: V): { kind: Kind; side: Side } | null {
   const s = G.game;
-  for (let i = s.organs.length - 1; i >= 0; i--) { const o = s.organs[i]; if (s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) <= R + 6) return { kind: o.kind, side: o.side }; }
+  for (let i = s.organs.length - 1; i >= 0; i--) { const o = s.organs[i]; if (s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) <= R + 6) return { kind: o.kind as ArtKind, side: o.side }; }
   return null;
 }
 // 即時劃刀：事件時間戳換成本局的毫秒（規則時鐘 G.clock 在上一幀 G.lastT 的值＋事件距那一幀的時間）
@@ -567,9 +568,9 @@ function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganStateV3
     if (dimCv.width !== px) { dimCv.width = px; dimCv.height = px; }
     const dc = dimCv.getContext('2d')!; dc.setTransform(1, 0, 0, 1, 0, 0); dc.clearRect(0, 0, px, px);
     dc.setTransform(k, 0, 0, k, (box / 2 - o.p[0]) * k, (box / 2 - o.p[1]) * k);
-    drawOrganV3(dc, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
+    drawOrganV3(dc, ASSETS.organs[o.kind as ArtKind], { kind: o.kind as ArtKind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
     ctx.save(); ctx.globalAlpha = alpha; ctx.drawImage(dimCv, o.p[0] - box / 2, o.p[1] - box / 2, box, box); ctx.restore();
-  } else drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
+  } else drawOrganV3(ctx, ASSETS.organs[o.kind as ArtKind], { kind: o.kind as ArtKind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
   const m = ctx.getTransform(), r = els.canvas.getBoundingClientRect();
   spriteCenters.set(o.id, { x: r.left + (m.a * o.p[0] + m.c * o.p[1] + m.e) / dpr, y: r.top + (m.b * o.p[0] + m.d * o.p[1] + m.f) / dpr });
 }
@@ -719,8 +720,8 @@ function draw(now: number): void {
   for (const h of G.hurts) { const k = Math.max(0, (now - h.t0) / 350), rr = R * (1 + 1.8 * k), g = ctx.createRadialGradient(h.p[0], h.p[1], 0, h.p[0], h.p[1], rr); g.addColorStop(0, `rgba(255,60,80,${0.9 * (1 - k)})`); g.addColorStop(1, 'rgba(255,60,80,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(h.p[0] - rr, h.p[1] - rr, rr * 2, rr * 2); ctx.restore(); }
   for (let j = hurtSplits.length - 1; j >= 0; j--) {
     const f = hurtSplits[j], k = Math.max(0, (t - f.t0) / 0.5); if (k >= 1 || !ASSETS) { hurtSplits.splice(j, 1); continue; }
-    const hs = splitHalves({ type: 'split', t0: f.t0, im: ASSETS.organs[f.o.kind], x: f.o.p[0], y: f.o.p[1], r: R * 1.25, angle: f.ang, side: f.o.side }, f.t0 + k * 0.5), dx = Math.cos(f.ang), dy = Math.sin(f.ang), L = R * 3;
-    [-1, 1].forEach((sg, i) => { ctx.save(); ctx.globalAlpha = 1 - k; ctx.translate(hs[i][0], hs[i][1]); ctx.beginPath(); const cx = f.o.p[0], cy = f.o.p[1]; ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.lineTo(cx + dx * L - dy * sg * L, cy + dy * L + dx * sg * L); ctx.lineTo(cx - dx * L - dy * sg * L, cy - dy * L + dx * sg * L); ctx.closePath(); ctx.clip(); if (ASSETS) drawOrganV3(ctx, ASSETS.organs[f.o.kind], { kind: f.o.kind, side: f.o.side, x: cx, y: cy, r: R }, { mode: 'normal' }, t); ctx.restore(); });
+    const hs = splitHalves({ type: 'split', t0: f.t0, im: ASSETS.organs[f.o.kind as ArtKind], x: f.o.p[0], y: f.o.p[1], r: R * 1.25, angle: f.ang, side: f.o.side }, f.t0 + k * 0.5), dx = Math.cos(f.ang), dy = Math.sin(f.ang), L = R * 3;
+    [-1, 1].forEach((sg, i) => { ctx.save(); ctx.globalAlpha = 1 - k; ctx.translate(hs[i][0], hs[i][1]); ctx.beginPath(); const cx = f.o.p[0], cy = f.o.p[1]; ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.lineTo(cx + dx * L - dy * sg * L, cy + dy * L + dx * sg * L); ctx.lineTo(cx - dx * L - dy * sg * L, cy - dy * L + dx * sg * L); ctx.closePath(); ctx.clip(); if (ASSETS) drawOrganV3(ctx, ASSETS.organs[f.o.kind as ArtKind], { kind: f.o.kind as ArtKind, side: f.o.side, x: cx, y: cy, r: R }, { mode: 'normal' }, t); ctx.restore(); });
   }
   G.splits = G.splits.filter((f) => playSplit(ctx, f, t));
   // AI 預告：紅色虛線＋實線前進
@@ -774,7 +775,7 @@ function draw(now: number): void {
       const pulse = 0.6 + 0.4 * Math.sin(now / 220);
       for (const q of drawnSlots) { ctx.save(); ctx.globalAlpha = pulse; ctx.fillStyle = '#9fffb0'; ctx.shadowColor = '#9fffb0'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(q[0], q[1], 7, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     }
-    if (G.ghost && G.camp.picked) { drawSlot(ctx, G.ghost[0], G.ghost[1], R * 1.1, 'ok', t); ctx.save(); ctx.globalAlpha = 0.75; drawOrganSprite(ctx, ASSETS.organs[G.camp.picked], { kind: G.camp.picked, side: 'blue', x: G.ghost[0], y: G.ghost[1], r: R * 0.85 }, { mode: 'normal' }, t); ctx.restore(); drawSuture(ctx, G.ghost as [number, number], CENTER.blue as [number, number], t); }
+    if (G.ghost && G.camp.picked) { drawSlot(ctx, G.ghost[0], G.ghost[1], R * 1.1, 'ok', t); ctx.save(); ctx.globalAlpha = 0.75; drawOrganSprite(ctx, ASSETS.organs[G.camp.picked as ArtKind], { kind: G.camp.picked as ArtKind, side: 'blue', x: G.ghost[0], y: G.ghost[1], r: R * 0.85 }, { mode: 'normal' }, t); ctx.restore(); drawSuture(ctx, G.ghost as [number, number], CENTER.blue as [number, number], t); }
   }
   // 跳字
   G.pops = G.pops.filter((q) => now - q.t0 < q.life);

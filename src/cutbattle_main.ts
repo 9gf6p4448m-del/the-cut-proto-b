@@ -1,5 +1,6 @@
 // 切割→戰鬥（子路徑 duel/）手機試玩：切割期 30 秒（rt-cut2 規則）→ 可視戰鬥期 ≤15 秒 → 3 場征途、自己擺縫合。可丟棄原型，非正式規則。
 // 規則：切割期在 src/rtcut/rules.ts；戰鬥期在 src/cutbattle/battle.ts（純函式事件）；征途在 src/cutbattle/campaign.ts。本檔只負責輸入、播放事件、演出與說明。
+import type { Kind as ArtKind } from './art/sprites.ts';   // 只用於型別斷言（duel5 加了蛇牙後，rules 的 Kind 比 art-kit 多一種）
 import { BODY, COOLDOWN_STEPS, FPS, KIND_ZH, LOCK_STEPS, MIN_LEN, R, clampLine, countSide, endStep, isLocked, isReady, resolveStrike, step } from './rtcut/rules.ts';
 import type { GameEvent, GameState, Kind, Line, Side, StrikeResult, V } from './rtcut/rules.ts';
 import { BT, simulateBattle } from './cutbattle/battle.ts';
@@ -23,13 +24,13 @@ const els = {
 els.sha.textContent = BUILD_SHA;
 
 // ---------------------------------------------------------------- 說明文字（點器官、首次出現、選縫合共用）
-export const DESC: Record<Kind, { role: string; line: string }> = {
+export const DESC = {
   claw: { role: '攻擊手', line: `爪：每 ${BT.CLAW_EVERY / 1000} 秒攻擊一次，造成 ${BT.CLAW_DMG}` },
   heart: { role: '生命', line: `心：血量上限 +${BT.HEART_HP}，每 ${BT.HEART_EVERY / 1000} 秒回 ${BT.HEART_HEAL}` },
   eye: { role: '暴擊', line: `眼：我方爪暴擊率 +${BT.EYE_CRIT * 100}%（上限 ${BT.CRIT_CAP * 100}%），暴擊 ×${BT.CRIT_MULT}` },
   poison: { role: '持續傷害', line: `毒：每 ${BT.POISON_EVERY / 1000} 秒讓對手疊 1 層毒，每層每秒 1 傷害` },
   bone: { role: '護盾', line: `骨：開戰提供 ${BT.BONE_SHIELD} 護盾，先吸收傷害` },
-};
+} as Record<Kind, { role: string; line: string }>;   // 型別斷言：rules 的 Kind 含 duel5 的蛇牙，本版不會出現
 const REJECT_TEXT: Record<PlaceReject, string> = { outside: '這裡放不下：器官要整個在獸身裡', unreachable: '這裡放不下：對方的刀碰不到這裡（不能藏起來）', overlap: '這裡放不下：和其他器官重疊' };
 
 // ---------------------------------------------------------------- 狀態
@@ -290,7 +291,7 @@ function hud(): void {
 // ---------------------------------------------------------------- 輸入
 function organAt(p: V): { kind: Kind; side: Side } | null {
   const s = G.game;
-  for (let i = s.organs.length - 1; i >= 0; i--) { const o = s.organs[i]; if (s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) <= R + 6) return { kind: o.kind, side: o.side }; }
+  for (let i = s.organs.length - 1; i >= 0; i--) { const o = s.organs[i]; if (s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) <= R + 6) return { kind: o.kind as ArtKind, side: o.side }; }
   return null;
 }
 els.canvas.addEventListener('pointerdown', (e) => {
