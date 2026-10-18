@@ -152,7 +152,7 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
     const b = await page.evaluate(() => ({ step: window.__cb.game.step, ui: window.__cb.ui }));
     await page.evaluate(() => window.__cb.setFrameStall(0));
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 }); await cdp.detach();
-    check(`${tag} 回歸（慢幀當掉）：4 倍節流＋每幀 300ms 長幀下 AI 切下藍方器官、紅光演出之後，2.5 秒內規則步繼續前進、沒有頁面錯誤`, a.sev > 0 && a.red > 0 && (b.step - a.step > 10 || b.ui !== 'cut') && page.__errs.length === 0, JSON.stringify({ a, b, errs: page.__errs }));
+    check(`${tag} 回歸（慢幀當掉）：4 倍節流＋每幀 300ms 長幀下 AI 切下藍方器官、紅光演出之後，2.5 秒內規則步繼續前進、沒有頁面錯誤`, a.sev > 0 && a.red > 0 && (b.step - a.step > 30 || b.ui !== 'cut') && page.__errs.length === 0, JSON.stringify({ a, b, errs: page.__errs }));
     await ctx.close();
   }
   // ===== FV-06 決定性：同一份輸入序列，演出開／關，規則結果（含 push）逐步相同；且受測行為真的發生（有切除、push 有變） =====
@@ -217,10 +217,11 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
       if (af.next) bad.push('放上後立刻出現「下一位對手」');
       const clock0 = await page.evaluate(() => { window.__cb.setManual(false); return window.__cb.clock; });   // 即時模式下驗「展示期間模擬不跑」：從交還即時模式那一刻起比對時鐘（審查 L1、覆審 O1）
       await page.waitForFunction(() => window.__cb.nextFoe, null, { timeout: 4000 }).catch(() => {});
-      const shown = Date.now() - t0, mid = await page.evaluate(() => ({ ui: window.__cb.ui, step: window.__cb.game.step, clock: window.__cb.clock, next: window.__cb.nextFoe }));
+      const shown = Date.now() - t0, mid = await page.evaluate(() => ({ ui: window.__cb.ui, step: window.__cb.game.step, clock: window.__cb.clock, next: window.__cb.nextFoe, tip: window.__cb.tip }));
       await page.screenshot({ path: `${shotDir}/showcase_393x852.png` });
       if (!mid.next || shown < 1400) bad.push(`展示 ${shown}ms 後才出現「下一位對手」（應 ≥1.5 秒）：${JSON.stringify(mid)}`);
       if (mid.ui !== 'showcase') bad.push(`展示期間離開了展示：${mid.ui}`);
+      if (mid.tip !== null) bad.push(`展示時還有舊提示：${mid.tip}`);   // 覆審 N4
       await page.waitForTimeout(800);
       const late = await page.evaluate(() => ({ ui: window.__cb.ui, clock: window.__cb.clock }));
       if (late.ui !== 'showcase') bad.push('沒按「下一位對手」就開始下一場');

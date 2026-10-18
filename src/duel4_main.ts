@@ -343,6 +343,7 @@ function playBattleEvent(e: BattleEvent): void {
     G.banner = { text: win ? '勝！' : e.winner === 'draw' ? '平手' : '敗', sub: e.how === 'time' ? '時間到，比剩餘血量百分比' : e.how === 'empty' ? '一方沒有器官' : '血量歸零', t0: now, life: 1400 };
     sfx(win ? 'win' : 'lose'); if (!win) vibrate([60, 40, 60]);
     // 不再疊 art-kit 的 KO 大字（「擊倒／你贏了」）：結果字同一時間只有一個（三-6），由上面的橫幅（勝／敗／平手＋副標）負責
+    sampleResults(now);
   }
   hud();
 }
@@ -354,6 +355,12 @@ function battleTick(now: number): void {
   const ev = G.battle.events;
   while (G.bIdx < ev.length && ev[G.bIdx].ms <= G.bClock) playBattleEvent(ev[G.bIdx++]);
   if (G.bIdx >= ev.length && G.bClock >= G.battle.endMs + 900) showContrib();
+}
+/** 結果字：同一時間可見的數量（畫布橫幅中的勝負字＋art-kit 的 KO 大字＋DOM 結算標題＋結束標題；FV-06）。每幀、以及結束事件與結算表出現的當下各取樣一次（覆審 N1）。 */
+function sampleResults(now: number): void {
+  const RES = ['勝！', '敗', '平手', '清空！'];
+  const n = (G.banner && now - G.banner.t0 < G.banner.life && RES.includes(G.banner.text) ? 1 : 0) + (els.contrib.hidden ? 0 : 1) + (els.end.hidden ? 0 : 1) + (G.fx.some((f) => f.type === 'ko') ? 1 : 0);
+  G.resultMax = Math.max(G.resultMax, n);
 }
 function showContrib(): void {
   const b = G.battle!; G.ui = 'contrib'; G.banner = null; G.fx = G.fx.filter((f) => f.type !== 'ko');   // 結算標題出現前清掉畫布上的結果橫幅（三-6）
@@ -367,7 +374,7 @@ function showContrib(): void {
     + row('骨 擋下', c.blue.blocked, c.red.blocked, 'bone')
     + `</tbody></table><p class="hint">${b.how === 'time' ? `時間到：你剩 ${Math.round((100 * G.disp.blue.hp) / G.disp.blue.max)}%、對手剩 ${Math.round((100 * G.disp.red.hp) / G.disp.red.max)}%` : b.how === 'empty' ? '一方開戰時沒有器官' : `${(b.endMs / 1000).toFixed(1)} 秒分出勝負`}</p>`;
   els.contribNext.textContent = b.winner === 'blue' ? (G.camp.stage === CB.STAGES - 1 ? '看結果' : '挑縫合') : '看結果';
-  els.contrib.hidden = false;
+  els.contrib.hidden = false; sampleResults(performance.now());
 }
 els.contribNext.onclick = () => {
   if (G.ui !== 'contrib' || !G.battle) return;
@@ -785,7 +792,7 @@ function draw(now: number): void {
       ctx.shadowBlur = 0; ctx.font = '600 22px system-ui'; ctx.lineWidth = 4; ctx.strokeText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`, 0, 96); ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`, 0, 96); ctx.restore(); }
   }
   // 結果字：同一時間可見的數量（畫布橫幅中的勝負字＋DOM 結算標題＋結束標題；FV-06）
-  { const RES = ['勝！', '敗', '平手', '清空！'], n = (G.banner && now - G.banner.t0 < G.banner.life && RES.includes(G.banner.text) ? 1 : 0) + (els.contrib.hidden ? 0 : 1) + (els.end.hidden ? 0 : 1) + (G.fx.some((f) => f.type === 'ko') ? 1 : 0); G.resultMax = Math.max(G.resultMax, n); }   // art-kit 的 KO 大字也算結果字
+  sampleResults(now);
   // FPS（每秒更新）
   fps.frames++; if (now - fps.t0 >= 1000) { fps.last = (fps.frames * 1000) / (now - fps.t0); fps.frames = 0; fps.t0 = now; }
 }
