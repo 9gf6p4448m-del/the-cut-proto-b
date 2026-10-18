@@ -1,0 +1,15 @@
+{
+  "name": "執刀者 對決 v0.3 手感與可讀性 研究片段",
+  "short_name": "對決3",
+  "id": "duel3",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07090D",
+  "theme_color": "#07090D",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
