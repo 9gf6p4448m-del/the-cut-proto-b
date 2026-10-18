@@ -67,13 +67,15 @@ export interface Campaign {
   seed: number; stage: number; blueBase: OrganDef[]; stitches: Stitch[];
   body?: Record<Side, V[]>;                         // duel2：獸身多邊形（不給＝BODY，duel v0.1）
   r?: number;                                       // duel3：器官判定半徑 34（不給＝R）
+  front?: { unit: number; max: number };            // duel4：前線推進（不給＝沒有）
   phase: 'cut' | 'battle' | 'pick' | 'place' | 'won' | 'lost';
   offer: Kind[]; picked: Kind | null; history: StageLog[];
 }
-export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number): Campaign {
+export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number, front?: { unit: number; max: number }): Campaign {
   const c: Campaign = { seed: seed >>> 0, stage: 0, blueBase: genBlueBase(seed, body, r ?? R), stitches: [], phase: 'cut', offer: [], picked: null, history: [] };
   if (body) c.body = body;
   if (r !== undefined) c.r = r;
+  if (front) c.front = front;
   return c;
 }
 export const blueOrgans = (c: Campaign): OrganDef[] => [
@@ -83,6 +85,7 @@ export function modeFor(c: Campaign, nBlue: number, nRed: number): Mode {
   const m: Mode = { ...MODE_RT2, cutSteps: CB.CUT_SECONDS * 60, maxPerSide: { blue: nBlue, red: nRed }, spawnRule: 'cb', aiJitter: CB.AI_JITTER[c.stage] };
   if (c.body) m.body = c.body;
   if (c.r !== undefined) m.r = c.r;
+  if (c.front) m.front = c.front;
   return m;
 }
 /** 這一場的切割期起始狀態（rt-cut2 規則＋本版設定）。 */
@@ -122,6 +125,22 @@ export function placeCheck(c: Campaign, p: V): PlaceReject | null {
   if (!reachableBy(p, 'red', r, c.body)) return 'unreachable';
   if (blueOrgans(c).some((o) => dist(o.p, p) < 2 * r + 4)) return 'overlap';
   return null;
+}
+/** duel4 縫合槽位（補述 1 第 5 條、補述 2）：5 單位網格上所有通過 placeCheck 的點，依 y、x 排序做貪婪覆蓋——
+ * 和已選槽位都相距 >SLOT_GAP 的點就選為槽位。每個槽位都合法；每個 5 單位合法點到最近槽位 ≤SLOT_GAP（<SNAP_DIST）。畫面與吸附都用這份清單。 */
+export const SLOT_FINE = 5, SLOT_GAP = 30, SNAP_DIST = 40;
+export function stitchSlots(c: Campaign): V[] {
+  const poly = c.body?.blue ?? BODY.blue, xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]), out: V[] = [];
+  for (let y = Math.ceil(Math.min(...ys) / SLOT_FINE) * SLOT_FINE; y <= Math.max(...ys); y += SLOT_FINE)
+    for (let x = Math.ceil(Math.min(...xs) / SLOT_FINE) * SLOT_FINE; x <= Math.max(...xs); x += SLOT_FINE)
+      if (!placeCheck(c, [x, y]) && out.every((q) => dist(q, [x, y]) > SLOT_GAP)) out.push([x, y]);
+  return out;
+}
+/** 點擊位置吸附到最近的槽位（距離 ≤ SNAP_DIST）；40 單位內沒有槽位＝null（拒絕）。 */
+export function snapSlot(c: Campaign, p: V, slots: V[] = stitchSlots(c)): V | null {
+  let best: V | null = null, bd = SNAP_DIST;
+  for (const q of slots) { const d = dist(p, q); if (d <= bd) { bd = d; best = q; } }
+  return best;
 }
 export function placeStitch(c: Campaign, p: V): { c: Campaign; reject: PlaceReject | null } {
   if (c.phase !== 'place' || !c.picked) return { c, reject: null };

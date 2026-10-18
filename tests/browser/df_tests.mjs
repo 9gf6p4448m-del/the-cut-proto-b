@@ -1,16 +1,22 @@
 // duel v0.3 手感與可讀性（duel3/）瀏覽器測試（作者測試；Chromium＋WebKit 模擬，**不是 iPhone 實機**）。
 // 凍結驗收：the-cut docs/fusion/DUEL_V03_FEEL.md DF-03～07（瀏覽器部分）。DF-01／02／04（規則）在 tests/node/df_rules.test.ts。
 // DF-03（直線預覽不變）：cb_tests.mjs／da_tests.mjs 以 sub='duel3'＋載入前切到直線預覽照跑（由 run.mjs 呼叫，不在本檔）。
+// duel4（DUEL_V04_FRONT FV-07）：同一份測試以 sub='duel4' 照跑。預設參數＝duel3，duel3 的行為一字不變。
+// duel4 要調整的案例（規則變更，逐條理由見 the-cut DUEL_V04_EVIDENCE）：開局等待改為「等倒數結束」（settle）；跳過教學後等倒數結束才檢查切割期開始；
+// 按住提示改由 fv_tests 驗（加亮集合改為「範圍內」，補述 1 第 1／8 條），本檔在 duel4 跳過。
 import { mkdirSync } from 'node:fs';
 import { newPage } from './exp_tests.mjs';
 
 export const LINE_INIT = "try { localStorage.setItem('duel3-input', 'line'); } catch (e) {}";
-const NO_TUT = "try { localStorage.setItem('duel3-tutorial', 'done'); } catch (e) {}";
+export const lineInit = (sub) => `try { localStorage.setItem('${sub}-input', 'line'); } catch (e) {}`;
+const noTut = (sub) => `try { localStorage.setItem('${sub}-tutorial', 'done'); } catch (e) {}`;
+/** 開局後等 300ms；頁面有開場倒數（duel4）時再等倒數結束（duel3 沒有倒數掛勾＝只等 300ms，行為不變）。 */
+const settle = async (pg) => { await pg.waitForTimeout(300); if (await pg.evaluate(() => 'countdown' in window.__cb)) await pg.waitForFunction(() => window.__cb.countdown === 0, null, { timeout: 8000 }); };
 const ready = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady && !!window.__cb.camp, null, { timeout: 30000 });
 const frames = (pg, n = 2) => pg.evaluate((k) => new Promise((r) => { let i = 0; const f = () => (++i >= k ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
 
 /** 在頁面裡挑一刀：從藍龍身內出發、快速劃過一個可切的紅色器官（路上不經過其他紅色器官），回傳世界座標的起訖點與目標。 */
-const PLAN = `(() => {
+export const PLAN = `(() => {
   const g = window.__cb.game, R = window.__cb.R, body = g.mode.body.blue;
   const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c; } return c; };
   const segD = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
@@ -60,11 +66,12 @@ const regionLum = (page, box) => page.evaluate((b) => {
   const d = g.getImageData(x, y, w, h).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4);
 }, box);
 
-export async function runDfTests({ bname, btype, devices, url, check, shotDir = 'test-output/df_shots' }) {
+export async function runDfTests({ bname, btype, devices, url, check, shotDir = 'test-output/df_shots', sub = 'duel3', ver = 'v0.3 手感與可讀性' }) {
+  const NO_TUT = noTut(sub);
   mkdirSync(shotDir, { recursive: true });
   const browser = await btype.launch();
-  const tag = `[${bname}][duel3]`;
-  const open = async (w = 393, h = 852, init = [NO_TUT]) => { const { ctx, page } = await newPage(browser, bname, devices, w, h); for (const s of init) await ctx.addInitScript(s); await page.goto(url + '/duel3/'); await ready(page); return { ctx, page }; };
+  const tag = `[${bname}][${sub}]`;
+  const open = async (w = 393, h = 852, init = [NO_TUT]) => { const { ctx, page } = await newPage(browser, bname, devices, w, h); for (const s of init) await ctx.addInitScript(s); await page.goto(url + `/${sub}/`); await ready(page); return { ctx, page }; };
 
   // ===== DF-07 版本、版面（393×852／375×667）、操作切換鈕 =====
   for (const [w, h] of [[393, 852], [375, 667]]) {
@@ -75,8 +82,8 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
       return { ver: document.getElementById('ver').textContent, top: document.getElementById('top').textContent, sw: document.scrollingElement.scrollWidth, iw: innerWidth, ih: innerHeight,
         mode: document.getElementById('inputMode').textContent, minH: Math.min(...btns.map((b) => b.height)), maxR: Math.max(...btns.map((b) => b.right)), cv: r('scene'), foot: r('inputMode').bottom };
     });
-    const ok = v.ver === 'v0.3 手感與可讀性' && v.top.includes(sha) && v.top.includes('研究片段') && !sha.includes('__') && v.sw <= v.iw && v.minH >= 44 && v.maxR <= v.iw && v.foot <= v.ih && v.cv.height > 300 && v.mode === '操作：即時劃刀' && page.__errs.length === 0;
-    check(`${tag} DF-07 ${w}×${h} 版面：版本「v0.3 手感與可讀性」＋SHA＋研究片段、無水平捲動、按鈕 ≥44px 且在畫面內、預設「操作：即時劃刀」、無錯誤`, ok, JSON.stringify({ sha, ...v, cv: Math.round(v.cv.height), errs: page.__errs }));
+    const ok = v.ver === ver && v.top.includes(sha) && v.top.includes('研究片段') && !sha.includes('__') && v.sw <= v.iw && v.minH >= 44 && v.maxR <= v.iw && v.foot <= v.ih && v.cv.height > 300 && v.mode === '操作：即時劃刀' && page.__errs.length === 0;
+    check(`${tag} DF-07 ${w}×${h} 版面：版本「${ver}」＋SHA＋研究片段、無水平捲動、按鈕 ≥44px 且在畫面內、預設「操作：即時劃刀」、無錯誤`, ok, JSON.stringify({ sha, ...v, cv: Math.round(v.cv.height), errs: page.__errs }));
     await ctx.close();
   }
 
@@ -84,7 +91,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
   {
     const { ctx, page } = await open();
     await page.evaluate(() => window.__cb.newRun({ seed: 5 }));
-    await page.waitForTimeout(300);
+    await settle(page);
     const plan = await page.evaluate(PLAN);
     const A = await scr(page, plan.S), B = await scr(page, plan.E);
     const how = await swipe(page, bname, A, B);
@@ -105,7 +112,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
       const cdp = bname === 'chromium' ? await page.context().newCDPSession(page) : null;
       if (cdp) await cdp.send('Emulation.setCPUThrottlingRate', { rate });
       await page.evaluate(() => window.__cb.newRun({ seed: 5 }));
-      await page.waitForTimeout(300);
+      await settle(page);
       const go = async (gapMs) => {
         const plan = await page.evaluate(PLAN), A = await scr(page, plan.S), B = await scr(page, plan.E);
         if (cdp) {
@@ -140,7 +147,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     const { ctx, page } = await open();
     const cdp = bname === 'chromium' ? await page.context().newCDPSession(page) : null;
     await page.evaluate(() => window.__cb.newRun({ seed: 5 }));
-    await page.waitForTimeout(300);
+    await settle(page);
     const plan = await page.evaluate(PLAN), A = await scr(page, plan.S), B = await scr(page, plan.E);
     const now = () => Date.now() / 1000;
     if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: A.x, y: A.y }], timestamp: now() });
@@ -276,7 +283,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await ctx.close();
   }
   // ===== DF-05 按住提示：手指按住不動時，420 內的對方器官加亮（像素差）、420 外的不變（像素對照，排除全場同步脈動）；加亮集合＝幾何算出的集合；移動後取消；起點不能起刀時不亮 =====
-  {
+  if (sub === 'duel3') {   // duel4 的按住提示改為「範圍內」（補述 1 第 1／8 條），由 fv_tests 驗
     const { ctx, page } = await open();
     await page.evaluate(() => window.__cb.setManual(true));
     // 找一個起點：藍龍身內、不在器官圓內，420 內至少一個、470 外至少一個存活紅色器官（審查 M-2：沒有遠處器官就沒驗到「420 外不變」）
@@ -326,6 +333,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await page.waitForTimeout(600); await page.screenshot({ path: `${shotDir}/impl_tutorial_393x852.png` });
     await page.waitForFunction(() => window.__cb.tut && window.__cb.tut.phase === 'hints', null, { timeout: 6000 });
     const h0 = await page.evaluate(() => window.__cb.tut.text);
+    if (await page.evaluate(() => 'countdown' in window.__cb)) await page.waitForFunction(() => window.__cb.countdown === 0, null, { timeout: 8000 });   // duel4：示範後的開場倒數結束才出刀
     const plan = await page.evaluate(PLAN);
     const feedNext = async (S, E) => { const c = await page.evaluate(() => window.__cb.clock); await page.evaluate((e) => window.__cb.feed(e), evs(S, E, c + 150)); await page.waitForTimeout(1900); return page.evaluate(() => window.__cb.tut && window.__cb.tut.text); };
     const h1 = await feedNext(plan.S, plan.E);
@@ -340,7 +348,8 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     const s0 = await p.evaluate(() => !document.getElementById('tut').hidden);
     await p.click('#tutSkip');
     const s1 = await p.evaluate(() => ({ hidden: document.getElementById('tut').hidden, tut: window.__cb.tut }));
-    await p.waitForTimeout(400);
+    await settle(p);
+    await p.waitForTimeout(100);
     const running = await p.evaluate(() => window.__cb.game.step > 0);
     await c2.close();
     const ok = t0 && t0.phase === 'demo' && h0 === '劃過紅色器官＝切下' && h1 === '劃過自己的器官＝保護' && h2 === '每刀之後要等冷卻' && h3 === null && !shown && again.tut === null && again.hidden && s0 && s1.hidden && s1.tut === null && running;

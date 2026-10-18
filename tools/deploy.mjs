@@ -12,6 +12,7 @@
 //   node tools/deploy.mjs --sub duel               對決 切割→戰鬥研究片段：只替換 gh-pages 的 duel/ 目錄（來源 dist-duel/）；規則同上
 //   node tools/deploy.mjs --sub duel2              對決 v0.2 美術合併研究片段：只替換 gh-pages 的 duel2/ 目錄（來源 dist-duel2/）；規則同上
 //   node tools/deploy.mjs --sub duel3              對決 v0.3 手感與可讀性研究片段：只替換 gh-pages 的 duel3/ 目錄（來源 dist-duel3/）；規則同上
+//   node tools/deploy.mjs --sub duel4              對決 v0.4 前線推進研究片段：只替換 gh-pages 的 duel4/ 目錄（來源 dist-duel4/）；規則同上
 //   node tools/deploy.mjs --sub art-kit            幽光美術模組展示：只替換 gh-pages 的 art-kit/ 目錄（來源 dist-art/）；規則同上
 //                                                  根目錄其他檔案一個位元都不能動——部署前後逐檔 SHA-256 比對，不同就中止（推送前、推送後各驗一次）
 //   --rehearsal --remote <url-or-path>             演練：改推到指定遠端（不得是 origin），略過「工作樹乾淨／HEAD 已推送／建置 SHA 相符」檢查；測試用
@@ -36,7 +37,7 @@ const head = sh('git rev-parse --short=7 HEAD');
 const branch = sh('git rev-parse --abbrev-ref HEAD');
 
 if (!rehearsal) {
-  if (sh(`git status --porcelain -- src public${sub ? ' public-exp public-skewer public-twinslash public-twinsim public-rtcut public-rtcut2 public-duel public-duel2 public-duel3 public-artkit' : ''} shims engine tools`)) throw new Error('工作樹有未提交的變更');
+  if (sh(`git status --porcelain -- src public${sub ? ' public-exp public-skewer public-twinslash public-twinsim public-rtcut public-rtcut2 public-duel public-duel2 public-duel3 public-duel4 public-artkit' : ''} shims engine tools`)) throw new Error('工作樹有未提交的變更');
   const remote = sh(`git ls-remote origin refs/heads/${sub ? branch : 'proto-b'}`).slice(0, 7);
   if (remote !== head) throw new Error(`HEAD ${head} 尚未推送（遠端 ${remote}）`);
 }
@@ -57,7 +58,7 @@ if (!sub) {
 } else {
   // ---- 實驗版子路徑 ----
   assertSubName(sub);
-  const src = { 'core-skewer': 'dist-skewer', 'twin-slash': 'dist-twin', 'twin-sim': 'dist-sim', 'rt-cut': 'dist-rt', 'rt-cut2': 'dist-rt2', duel: 'dist-duel', duel2: 'dist-duel2', duel3: 'dist-duel3', 'art-kit': 'dist-art' }[sub] ?? 'dist-exp'; // 研究片段各有自己的建置輸出
+  const src = { 'core-skewer': 'dist-skewer', 'twin-slash': 'dist-twin', 'twin-sim': 'dist-sim', 'rt-cut': 'dist-rt', 'rt-cut2': 'dist-rt2', duel: 'dist-duel', duel2: 'dist-duel2', duel3: 'dist-duel3', duel4: 'dist-duel4', 'art-kit': 'dist-art' }[sub] ?? 'dist-exp'; // 研究片段各有自己的建置輸出
   if (!existsSync(`${src}/.build-info.json`)) throw new Error(`找不到 ${src}/（先跑 node tools/build.mjs）`);
   const info = JSON.parse(readFileSync(`${src}/.build-info.json`, 'utf8'));
   if (info.sub !== sub) throw new Error(`${src} 是為子路徑 ${info.sub} 建置的，不是 ${sub}`);
@@ -71,7 +72,7 @@ if (!sub) {
   const outside = touched.filter((f) => !f.startsWith(`${sub}/`));
   if (outside.length) throw new Error(`本次提交會動到 ${sub}/ 以外的檔案，中止：${outside.slice(0, 10).join('、')}`);
   if (touched.length === 0) { console.log('沒有變更，不部署'); process.exit(0); }
-  sh(`git -c user.name="${an}" -c user.email="${ae}" commit -q -m "部署 ${{ 'core-skewer': '串刺研究片段', 'twin-slash': '一刀雙獸研究片段', 'twin-sim': '同時下刀研究片段', 'rt-cut': '即時亂切研究片段', 'rt-cut2': '即時亂切 v2 研究片段', duel: '對決 切割→戰鬥研究片段', duel2: '對決 v0.2 美術合併研究片段', duel3: '對決 v0.3 手感與可讀性研究片段', 'art-kit': '幽光美術模組展示' }[sub] ?? 'FUN-EXP-01 實驗版'} ${sub}/ ${head}"`, { cwd: dir });
+  sh(`git -c user.name="${an}" -c user.email="${ae}" commit -q -m "部署 ${{ 'core-skewer': '串刺研究片段', 'twin-slash': '一刀雙獸研究片段', 'twin-sim': '同時下刀研究片段', 'rt-cut': '即時亂切研究片段', 'rt-cut2': '即時亂切 v2 研究片段', duel: '對決 切割→戰鬥研究片段', duel2: '對決 v0.2 美術合併研究片段', duel3: '對決 v0.3 手感與可讀性研究片段', duel4: '對決 v0.4 前線推進研究片段', 'art-kit': '幽光美術模組展示' }[sub] ?? 'FUN-EXP-01 實驗版'} ${sub}/ ${head}"`, { cwd: dir });
   assertRootUnchanged(beforeTree, treeSnapshot(dir, 'HEAD', sub)); // 提交後：git blob id 逐檔相同（與換行轉換無關）
   sh('git push -q origin gh-pages', { cwd: dir });
   // 推送後：重新 clone 遠端 gh-pages，再比對一次根目錄

@@ -4,7 +4,7 @@
 import { newPage } from './exp_tests.mjs';
 import { greedyLine } from '../cb_stats.ts';
 import { contributionFromEvents } from '../../src/cutbattle/battle.ts';
-import { placeCheck } from '../../src/cutbattle/campaign.ts';
+import { placeCheck, stitchSlots } from '../../src/cutbattle/campaign.ts';
 
 const SIZES = { iPhone14Pro: [393, 852], iPhoneSE: [375, 667] };
 const C = (page) => page.evaluate(() => { const c = window.__cb; return { ui: c.ui, camp: c.camp, game: c.game, tip: c.tip }; });
@@ -41,6 +41,7 @@ function legalSpot(camp) {
 export async function runCbTests({ bname, btype, devices, url, check, sub = 'duel', ver = 'v0.1 切割→戰鬥', winSeed = 1, init = null }) {   // init：載入前執行的腳本（duel3 DF-03 用來切到直線預覽）
   const browser = await btype.launch();
   const tag = `[${bname}][${sub}]`;
+  const d4 = sub === 'duel4';   // duel4（DUEL_V04_FRONT 三-3／三-7）：縫合改為吸附到槽位（40 外拒絕）、放下後展示新身體再按「下一位對手」
   const ready = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady !== false && !!window.__cb.camp, null, { timeout: 30000 });
   const { ctx, page } = await newPage(browser, bname, devices, ...SIZES.iPhone14Pro);
   if (init) await ctx.addInitScript(init);
@@ -105,20 +106,28 @@ export async function runCbTests({ bname, btype, devices, url, check, sub = 'due
         // 不合法：角落（圓超出獸身）→ 拒絕＋提示，仍在擺放
         await tap(page, [26, 975]);
         const r1 = await C(page);
-        if (r1.ui !== 'place' || !r1.tip || !r1.tip.includes('放不下')) bad.push(`角落沒被拒絕：ui=${r1.ui} tip=${r1.tip}`); else rejectSeen = true;
+        if (r1.ui !== 'place' || !r1.tip || !(r1.tip.includes('放不下') || (d4 && r1.tip.includes('槽位')))) bad.push(`角落沒被拒絕：ui=${r1.ui} tip=${r1.tip}`); else rejectSeen = true;
         // 不合法：壓在既有器官上
         await tap(page, r1.camp.blueBase[0].p);
         const r2 = await C(page);
-        if (r2.ui !== 'place' || !r2.tip?.includes('重疊')) bad.push(`重疊沒被拒絕：${r2.tip}`);
+        if (r2.ui !== 'place' || !(d4 ? r2.tip?.includes('槽位') : r2.tip?.includes('重疊'))) bad.push(`重疊沒被拒絕：${r2.tip}`);   // duel4：既有器官中心離所有槽位 >40（槽位與器官相距 ≥2R+4），按吸附規則拒絕
         const spot = legalSpot(r2.camp);
         await tap(page, spot);
+        if (d4) {
+          await waitUi(page, 'showcase', 5000);
+          if (await page.evaluate(() => window.__cb.nextFoe)) bad.push('放下後立刻出現「下一位對手」（應先展示新身體）');
+          await page.waitForFunction(() => window.__cb.nextFoe, null, { timeout: 5000 });
+          await page.click('#nextFoe');
+          await waitUi(page, 'cut', 5000);
+        }
         const r3 = await C(page);
         if (r3.ui !== 'cut' || r3.camp.stage !== stage + 1) { bad.push(`擺放後沒進下一場：${r3.ui}`); break; }
         const st = r3.camp.stitches.at(-1), org = r3.game.organs.find((x) => x.id.startsWith('藍縫') && x.p[0] === st.p[0] && x.p[1] === st.p[1]);
         if (!org || org.kind !== offer[0]) bad.push(`下一場沒有縫上的 ${offer[0]}（位置 ${st?.p}）`);
         // 點擊會落在整數 CSS 像素上（WebKit）：每軸最多差約 0.5 CSS 像素（取 0.71 保守），兩軸合成 ×√2，換成世界距離；再加擺放時座標四捨五入的 0.71
         const px = await page.evaluate(() => { const a = window.__cb.toScreen(0, 0), b = window.__cb.toScreen(700, 0); return 700 / (b.x - a.x); });
-        if (Math.hypot(st.p[0] - spot[0], st.p[1] - spot[1]) > 0.71 * px * Math.SQRT2 + 0.71) bad.push(`位置 ${st.p}≠點擊 ${spot}（容許 ${(0.71 * px * Math.SQRT2 + 0.71).toFixed(2)}）`);
+        if (d4) { const sl = stitchSlots({ ...r2.camp, phase: 'place' }); if (!sl.some((q) => q[0] === st.p[0] && q[1] === st.p[1]) || Math.hypot(st.p[0] - spot[0], st.p[1] - spot[1]) > 40 + 0.71 * px * Math.SQRT2) bad.push(`位置 ${st.p} 不是點擊 ${spot} 附近 40 內的槽位`); }
+        else if (Math.hypot(st.p[0] - spot[0], st.p[1] - spot[1]) > 0.71 * px * Math.SQRT2 + 0.71) bad.push(`位置 ${st.p}≠點擊 ${spot}（容許 ${(0.71 * px * Math.SQRT2 + 0.71).toFixed(2)}）`);
         if (stage === 0) placed = { kind: offer[0], p: st.p };
       }
     }

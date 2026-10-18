@@ -31,6 +31,7 @@ export interface Mode {
   aiJitter?: number;                         // AI 出刀間隔＝冷卻＋0～aiJitter 步；不給＝AI_JITTER_STEPS
   body?: Record<Side, V[]>;                  // 獸身多邊形（duel2：由已確認的 beast_boundary.json 換成世界座標）；不給＝BODY
   r?: number;                                // 器官判定半徑（duel3：34，DUEL_V03_FEEL 二）；不給＝R（28）
+  front?: { unit: number; max: number };     // duel4 前線推進（DUEL_V04_FRONT 一）：每 1 推進值延伸 unit 世界單位、推進值上下限 ±max；不給＝沒有推進
 }
 /** 這一局的器官判定半徑。 */
 export const radOf = (mode: { r?: number }): number => mode.r ?? R;
@@ -119,6 +120,35 @@ export function reachableBy(p: V, attacker: Side, r = R, body?: Record<Side, V[]
   return d <= MAX_LEN + r - 1;
 }
 export const validSpot = (p: V, side: Side, body?: Record<Side, V[]>, r = R) => circleInside(p, side, r, body) && reachableBy(p, other(side), r, body);
+/** 線段 ab 與線段 cd 相交（含端點接觸）。 */
+function segCross(a: V, b: V, c: V, d: V): boolean {
+  const o = (p: V, q: V, r: V) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const d1 = o(c, d, a), d2 = o(c, d, b), d3 = o(a, b, c), d4 = o(a, b, d);
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+  const on = (p: V, q: V, r: V) => Math.min(p[0], q[0]) <= r[0] && r[0] <= Math.max(p[0], q[0]) && Math.min(p[1], q[1]) <= r[1] && r[1] <= Math.max(p[1], q[1]);
+  return (d1 === 0 && on(c, d, a)) || (d2 === 0 && on(c, d, b)) || (d3 === 0 && on(a, b, c)) || (d4 === 0 && on(a, b, d));
+}
+/** 線段 ab 碰到多邊形（端點在內，或與任一邊相交）。 */
+export function segHitsPoly(a: V, b: V, poly: V[]): boolean {
+  if (inside(a, poly) || inside(b, poly)) return true;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if (segCross(a, b, poly[j], poly[i])) return true;
+  return false;
+}
+/** duel4 前線延伸長度（世界單位）：玩家（藍）在 push>0、AI（紅）在 push<0 時延伸 |push|×unit；沒有前線推進＝0。 */
+export const extOf = (mode: Mode, push: number, side: Side): number => (mode.front ? Math.max(0, side === 'blue' ? push : -push) * mode.front.unit : 0);
+/**
+ * 起刀區（DUEL_V04_FRONT 一＋補述 1 第 2 條）：自己的獸身，加上延伸區。
+ * 延伸區＝對方獸身內、往自己方向（藍往下、紅往上）0..延伸長度的垂直線段碰到自己獸身的點
+ * ＝「自己獸身朝對方平移 0..延伸長度的聯集 ∩ 對方獸身」（凹多邊形也精確）。沒有前線推進的模式＝原本的「獸身內」。
+ */
+export function inStartZone(mode: Mode, push: number, side: Side, p: V): boolean {
+  const own = bodyOf(mode, side);
+  if (inside(p, own)) return true;
+  const d = extOf(mode, push, side);
+  if (d <= 0 || !inside(p, bodyOf(mode, other(side)))) return false;
+  return segHitsPoly(p, [p[0], side === 'blue' ? p[1] + d : p[1] - d], own);
+}
+export const startOk = (s: GameState, side: Side, p: V): boolean => inStartZone(s.mode, s.push ?? 0, side, p);
 
 // ---------------------------------------------------------------- 狀態
 export type Phase = 'cut' | 'duel' | 'ko';
@@ -145,6 +175,9 @@ export interface GameState {
   end: { by: 'ko' | 'time'; winner: Side | 'draw' } | null;
   // ---- duel3 即時劃刀：進行中的刀（只有用到即時劃刀時才出現；其他模式沒有這個欄位） ----
   stroke?: Partial<Record<Side, Stroke | null>>;
+  // ---- duel4 前線推進（只有 mode.front 的模式才出現） ----
+  push?: number;                      // 推進值：玩家切除 +1、AI 切除 −1，同一步先算淨值再夾到 ±front.max；每場從 0 開始
+  aiHold?: boolean;                   // 教學場：玩家第一次鎖定或切除之前 AI 不出刀（補述 1 第 4 條）
 }
 export interface DuelResult { claws: Record<Side, number>; hearts: Record<Side, number>; power: Record<Side, number>; winner: Side | 'draw' }
 
@@ -188,7 +221,7 @@ export function resolveStrike(s: GameState, side: Side, raw: Line): StrikeResult
   if (s.phase !== 'cut' || s.step >= endStep(s)) return { ...base, ok: false, reject: 'phase' };
   if (Math.hypot(raw.b[0] - raw.a[0], raw.b[1] - raw.a[1]) < MIN_LEN) return { ...base, ok: false, reject: 'short' };
   if (s.cdUntil[side] > s.step) return { ...base, ok: false, reject: 'cooldown' };
-  if (!inside(raw.a, bodyOf(s.mode, side))) return { ...base, ok: false, reject: 'start' };
+  if (!startOk(s, side, raw.a)) return { ...base, ok: false, reject: 'start' };
   const line = clampLine(raw);
   const hits: { i: number; t: number }[] = [];
   const rr = radOf(s.mode);
@@ -216,7 +249,9 @@ export type GameEvent =
   | { t: 'freeStart'; side: Side; p: V }
   | { t: 'freeReject'; side: Side; reason: Reject }
   | { t: 'freeLock'; side: Side; i: number }
-  | { t: 'freeEnd'; side: Side; why: FreeEndWhy; locks: number[]; severed: number | null; blocked: number | null; end: V; dir: V; len: number };
+  | { t: 'freeEnd'; side: Side; why: FreeEndWhy; locks: number[]; severed: number | null; blocked: number | null; end: V; dir: V; len: number }
+  | { t: 'push'; push: number; d: number }     // duel4：推進值改變（d＝這一步的淨值，夾限前）
+  | { t: 'aiRelease' };                        // duel4 教學場：玩家第一次鎖定或切除，AI 開始出刀
 export interface StepInput { blue?: Line | null; drag?: Line | null; free?: Partial<Record<Side, Piece[]>> }
 export interface StepOut { state: GameState; events: GameEvent[] }
 
@@ -276,6 +311,17 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
   };
   for (const r of strikes) if (r.severed !== null) sever(r.severed, r.side);
   for (const f of frees) if (f.ended && f.ended.severed !== null) sever(f.ended.severed, f.side);
+  // duel4 前線推進：同一步先算淨值，再夾到 ±max（撞鎖、鎖定、再生都不算）
+  if (s.mode.front) {
+    let net = 0;
+    for (const r of strikes) if (r.severed !== null) net += r.side === 'blue' ? 1 : -1;
+    for (const f of frees) if (f.ended && f.ended.severed !== null) net += f.side === 'blue' ? 1 : -1;
+    if (net) { const m = s.mode.front.max, p = Math.max(-m, Math.min(m, (s.push ?? 0) + net)); if (p !== (s.push ?? 0)) { s.push = p; ev.push({ t: 'push', push: p, d: net }); } }
+  }
+  // duel4 教學場：玩家第一次鎖定或切除的那一步起永久解除，AI 第一刀不早於這一步＋60
+  if (s.aiHold && (strikes.some((r) => r.side === 'blue' && (r.locks.length > 0 || r.severed !== null)) || frees.some((f) => f.side === 'blue' && (f.locks.length > 0 || (f.ended !== null && f.ended.severed !== null))))) {
+    s.aiHold = false; s.aiNextFire = Math.max(s.aiNextFire, k + AI_FIRST_FIRE_STEP); ev.push({ t: 'aiRelease' });
+  }
   for (const r of strikes) ev.push({ t: 'strike', r });
   for (const f of frees) ev.push(...f.events);
   // 擊倒：任一方器官（含萌芽中）全部被切除的那一步立即結束；同一步雙方清空＝平手
@@ -308,7 +354,7 @@ export function step(s0: GameState, input: StepInput = {}): StepOut {
   }
   s.step = k + 1;
   // 預告開始：下一步起算 AIM_STEPS 步後生效；選刀看的是本步套用後的公開狀態
-  if (!s.aim && s.aiNextFire - AIM_STEPS <= s.step) {
+  if (!s.aim && !s.aiHold && s.aiNextFire - AIM_STEPS <= s.step) {
     const fireStep = Math.max(s.aiNextFire, s.step + AIM_STEPS);
     if (fireStep < endStep(s)) {
       const pick = aiChoose(s); s.rng = pick.rng;
@@ -373,7 +419,7 @@ export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, piec
       if (st) continue;   // 進行中的刀不會再按下（第二指另以 multi 結束）
       const reason: Reject | null = s0.phase !== 'cut' || k >= endStep(s0) ? 'phase'
         : ended || s0.cdUntil[side] > k ? 'cooldown'          // 同一步內剛結束的刀也算冷卻中
-        : !inside(pc.p, bodyOf(s0.mode, side)) ? 'start' : null;
+        : !startOk(s0, side, pc.p) ? 'start' : null;
       if (reason) { events.push({ t: 'freeReject', side, reason }); continue; }
       st = { start: pc.p, len: 0, seen: [], locks: [], startStep: k };
       events.push({ t: 'freeStart', side, p: pc.p });
@@ -414,10 +460,26 @@ export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, piec
   return { side, stroke: st, locks, events, ended };
 }
 
+/** duel4：延伸區的 AI 錨點（10 單位網格上的延伸區點，依 x、y 排序均勻取 7 個；同一個起刀區函式）。沒有延伸＝空。 */
+const extCache = new Map<string, V[]>();
+export function extAnchors(mode: Mode, push: number, side: Side): V[] {
+  const d = extOf(mode, push, side);
+  if (d <= 0) return [];
+  const key = `${side}:${d}:${bodyOf(mode, 'blue').length}:${bodyOf(mode, 'red').length}:${bodyOf(mode, side)[0].join(',')}`;
+  let a = extCache.get(key);
+  if (!a) {
+    const own = bodyOf(mode, side), pts: V[] = [];
+    for (let y = 0; y <= 1000; y += 10) for (let x = 0; x <= 700; x += 10) if (!inside([x, y], own) && inStartZone(mode, push, side, [x, y])) pts.push([x, y]);
+    pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    a = pts.length <= 7 ? pts : Array.from({ length: 7 }, (_, i) => pts[Math.round((i * (pts.length - 1)) / 6)]);
+    extCache.set(key, a);
+  }
+  return a;
+}
 export function candidates(s: GameState, side: Side): Line[] {
   const starts: V[] = [];
   s.organs.forEach((o, i) => { if (o.side === side && isReady(s, i)) starts.push(o.p); });
-  starts.push(...anchorsOf(s.mode, side));
+  starts.push(...anchorsOf(s.mode, side), ...extAnchors(s.mode, s.push ?? 0, side));
   const out: Line[] = [];
   for (const a of starts) for (let k = 0; k < AI_ANGLES; k++) {
     const th = (k * 2 * Math.PI) / AI_ANGLES;
