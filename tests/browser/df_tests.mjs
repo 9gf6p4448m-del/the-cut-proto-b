@@ -133,17 +133,45 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     const ok = res.every((r) => r.fast.sev === r.fast.plan && r.slow.why === 'up' && r.slow.sev === null);
     check(`${tag} DF-02 瀏覽器鏈路：真實指標事件${bname === 'chromium' ? '（CDP 觸控＋硬體式時間戳，CPU 1 倍／4 倍）' : '（滑鼠，WebKit 無觸控／節流 API）'}：快刀都切下目標、慢描都是鈍刀`, ok, JSON.stringify(res));
   }
-  // ===== 覆審 N-1：前一刀的時間戳被卡頓推高（lastEvT 領先 3 秒）後，新的一刀仍照手指真實速度判定（快刀照切，不會整刀被夾成鈍刀） =====
+  // ===== DL-085 卡頓後緊接下一刀（取代沒有鑑別力的「覆審 N-1」測試）：真實指標事件，不經 feed（feed 跳過時間戳換算，測不到這個缺陷）。
+  // 第一刀按下後主執行緒卡住 700ms（規則時鐘一幀最多走 250ms → 落後實際時間），放開成點擊；緊接著第二刀快劃切目標。
+  // 斷言：①兩刀各自起刀、各自結束（第一刀＝點擊、第二刀＝切下目標）②第二刀的按下沒被吞（兩次 freeStart、沒有 freeReject）③第二刀的線段沒接到第一刀（第一刀沒有切到東西）。
   {
     const { ctx, page } = await open();
+    const cdp = bname === 'chromium' ? await page.context().newCDPSession(page) : null;
     await page.evaluate(() => window.__cb.newRun({ seed: 5 }));
     await page.waitForTimeout(300);
-    await page.evaluate(() => window.__cb.bumpEvT(3000));
     const plan = await page.evaluate(PLAN), A = await scr(page, plan.S), B = await scr(page, plan.E);
-    await swipe(page, bname, A, B);
-    await page.waitForFunction(() => !!window.__cb.lastFree, null, { timeout: 8000 }).catch(() => {});
-    const r = await page.evaluate(() => { const x = window.__cb.lastFree; return x && { why: x.why, sev: x.severed === null ? null : window.__cb.game.organs[x.severed].id }; });
-    check(`${tag} 覆審 N-1 時間戳基準被推高後，快刀照切（刀內只用事件時間戳的差）`, r && r.sev === plan.id, JSON.stringify({ plan: plan.id, ...r }));
+    const now = () => Date.now() / 1000;
+    if (cdp) await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: A.x, y: A.y }], timestamp: now() });
+    else { await page.mouse.move(A.x, A.y); await page.mouse.down(); }
+    const lag = await page.evaluate(async () => {
+      const lag0 = performance.now() - window.__cb.clock, t = performance.now(); while (performance.now() - t < 700) { /* 卡住主執行緒 */ }
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      return Math.round(performance.now() - window.__cb.clock - lag0);
+    });
+    if (cdp) {
+      const t1 = now();
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t1 });
+      const t2 = t1 + 0.002, pt = (k) => ({ x: A.x + ((B.x - A.x) * k) / 8, y: A.y + ((B.y - A.y) * k) / 8 });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt(0)], timestamp: t2 });
+      for (let k = 1; k <= 8; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [pt(k)], timestamp: t2 + (k * 8) / 1000 });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t2 + 0.065 });
+    } else {
+      await page.mouse.up();
+      await page.mouse.move(A.x, A.y); await page.mouse.down();
+      for (let k = 1; k <= 8; k++) await page.mouse.move(A.x + ((B.x - A.x) * k) / 8, A.y + ((B.y - A.y) * k) / 8);
+      await page.mouse.up();
+    }
+    await page.waitForFunction(() => window.__cb.freeLog.filter((x) => x.includes('freeEnd')).length >= 2, null, { timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => ({ log: window.__cb.freeLog, ids: window.__cb.game.organs.map((o) => o.id) }));
+    const starts = r.log.filter((x) => x.endsWith(':freeStart')).length, rejects = r.log.filter((x) => x.includes(':freeReject')).length;
+    const ends = r.log.filter((x) => x.includes(':freeEnd:')).map((x) => x.split(':'));
+    const sev2 = ends[1] && ends[1][3] !== 'null' ? r.ids[+ends[1][3]] : null;   // 格式：步:freeEnd:why:severed:blocked
+    const ok = lag >= 300 && starts === 2 && rejects === 0 && ends.length === 2 && ends[0][2] === 'tap' && ends[0][3] === 'null' && ends[1][2] === 'sever' && sev2 === plan.id;
+    check(`${tag} DL-085 卡頓 700ms 後緊接下一刀（${cdp ? 'CDP 觸控＋時間戳' : '滑鼠 pointer'}）：兩刀各自起刀與結束、第二刀按下沒被吞、線段沒接到第一刀（第一刀＝點擊、第二刀切下目標）`, ok, JSON.stringify({ lag, plan: plan.id, starts, rejects, sev2, log: r.log }));
+    if (cdp) await cdp.detach();
     await ctx.close();
   }
   // ===== 審查 H-1：教學示範期間拖線不出刀（不漏成直線刀），示範結束後盤面、冷卻不變 =====
@@ -304,7 +332,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     const p2 = await page.evaluate(PLAN);
     const h2 = await feedNext(p2.S, p2.E);
     const h3 = await feedNext(p2.S, [p2.S[0] + 150, p2.S[1]]);
-    const shown = await page.evaluate(() => !document.getElementById('tut').hidden);
+    const shown = await page.evaluate(() => !document.getElementById('tut').hidden), tlog = await page.evaluate(() => window.__cb.freeLog);   // tlog 只供失敗時歸因
     await page.reload(); await ready(page);
     const again = await page.evaluate(() => ({ tut: window.__cb.tut, hidden: document.getElementById('tut').hidden }));
     await ctx.close();
@@ -316,7 +344,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     const running = await p.evaluate(() => window.__cb.game.step > 0);
     await c2.close();
     const ok = t0 && t0.phase === 'demo' && h0 === '劃過紅色器官＝切下' && h1 === '劃過自己的器官＝保護' && h2 === '每刀之後要等冷卻' && h3 === null && !shown && again.tut === null && again.hidden && s0 && s1.hidden && s1.tut === null && running;
-    check(`${tag} DF-05 第一場教學：示範（虛擬手）→ 三句提示依事件逐條出現 → 結束；重開不再出現；可跳過（跳過後切割期開始）`, ok, JSON.stringify({ t0, h0, h1, h2, h3, shown, again, s0, s1, running }));
+    check(`${tag} DF-05 第一場教學：示範（虛擬手）→ 三句提示依事件逐條出現 → 結束；重開不再出現；可跳過（跳過後切割期開始）`, ok, JSON.stringify({ t0, h0, h1, h2, h3, shown, again, s0, s1, running, tlog }));
   }
 
   // ===== 393×852 截圖（切割期即時劃刀中、戰鬥期、縫合） =====
