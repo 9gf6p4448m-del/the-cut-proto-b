@@ -554,7 +554,7 @@ function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganStateV3
   if (!ASSETS) return;
   if (alpha < 1) {
     // 調暗：art-kit 的 drawOrganV3 內部會把 globalAlpha 設成定值（蓋掉呼叫端的透明度），所以先畫到離屏小畫布、再以 alpha 貼回（審查後實測：直接設 globalAlpha 畫面沒變暗）
-    const m0 = ctx.getTransform(), k = m0.a, box = R * 3, px = Math.ceil(box * k);
+    const m0 = ctx.getTransform(), k = m0.a, box = R * 4.4, px = Math.ceil(box * k);   // 框要涵蓋鎖定秒數（art-kit 畫在中心上方約 49.5～62.5，覆審 N2）
     if (!dimCv) dimCv = document.createElement('canvas');
     if (dimCv.width !== px) { dimCv.width = px; dimCv.height = px; }
     const dc = dimCv.getContext('2d')!; dc.setTransform(1, 0, 0, 1, 0, 0); dc.clearRect(0, 0, px, px);

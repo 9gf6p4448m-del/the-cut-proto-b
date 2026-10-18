@@ -13,11 +13,11 @@ MUTS = [
  ('沒有再生倒數圈', [("if (ci >= 0) next.add(ci); }", "if (ci >= 0 && ci < 0) next.add(ci); }")], 'FV-06 回饋事件'),
  ('放上後直接開下一場（沒有展示與按鈕）', [("  G.camp = r.c; sfx('place'); showcase();", "  G.camp = r.c; sfx('place'); startCut();")], 'FV-05 縫合'),
  ('展示只有 0.3 秒', [("const SHOWCASE_MS = 1500;", "const SHOWCASE_MS = 300;")], 'FV-05 縫合'),
- ('畫出的槽位少一個', [("      drawnSlots = stitchSlots(G.camp);", "      drawnSlots = stitchSlots(G.camp).slice(1);")], 'FV-05 縫合'),
- ('吸附不限距離（40 外也放）', [("  const q = snapSlot(G.camp, p);\n  if (!q) {", "  const q = snapSlot(G.camp, p) ?? stitchSlots(G.camp)[0];\n  if (!q) {")], 'FV-05 縫合'),
+ ('畫出的槽位少一個', [("      drawnSlots = G.slotCache.slots;", "      drawnSlots = G.slotCache.slots.slice(1);")], 'FV-05 縫合'),
+ ('吸附不限距離（40 外也放）', [("  const q = snapSlot(G.camp, p, G.slotCache?.camp === G.camp ? G.slotCache.slots : undefined);\n  if (!q) {", "  const q = snapSlot(G.camp, p, G.slotCache?.camp === G.camp ? G.slotCache.slots : undefined) ?? stitchSlots(G.camp)[0];\n  if (!q) {")], 'FV-05 縫合'),
  ('結算標題出現時沒清畫布橫幅', [("  const b = G.battle!; G.ui = 'contrib'; G.banner = null;", "  const b = G.battle!; G.ui = 'contrib';")], 'FV-05 縫合'),
- ('範圍外只調暗到 0.6', [("const al = inR && o.side === 'red' && !inR[i] ? 0.4 : 1;", "const al = inR && o.side === 'red' && !inR[i] ? 0.6 : 1;")], 'C 範圍顯示'),
- ('按住加亮仍用「按下點 420 內」', [("  const r = reachNow(); G.game.organs.forEach((o, i) => { if (o.side === 'red' && r[i]) out.add(i); });", "  const fp = G.fp!; G.game.organs.forEach((o, i) => { if (o.side === 'red' && G.game.alive[i] && Math.hypot(o.p[0] - fp.start[0], o.p[1] - fp.start[1]) <= MAX_LEN) out.add(i); });")], 'C 範圍顯示'),
+ ('範圍外只調暗到 0.6', [("const al = inR && o.side === 'red' && !inR[i] && !sprout ? 0.4 : 1;", "const al = inR && o.side === 'red' && !inR[i] && !sprout ? 0.6 : 1;")], 'C 範圍顯示'),
+ ('按住加亮（直線預覽）仍用「按下點 420 內」', [("  const r = reachNow(); G.game.organs.forEach((o, i) => { if (o.side === 'red' && r[i]) out.add(i); });", "  const a0 = G.drag!.a; G.game.organs.forEach((o, i) => { if (o.side === 'red' && G.game.alive[i] && Math.hypot(o.p[0] - a0[0], o.p[1] - a0[1]) <= MAX_LEN) out.add(i); });")], 'C 範圍顯示'),
  ('慢幀時演出進度沒夾（負半徑丟例外，迴圈停住）', [("  for (const h of G.hurts) { const k = Math.max(0, (now - h.t0) / 350),", "  for (const h of G.hurts) { const k = (now - h.t0) / 350,"), ("  for (const g of G.grows) { const k = Math.max(0, (now - g.t0) / 600);", "  for (const g of G.grows) { const k = (now - g.t0) / 600;")], '回歸（慢幀當掉）'),
  ('調暗沒真的畫出來（直接設 globalAlpha，被 art-kit 蓋掉）', [("  if (alpha < 1) {", "  if (alpha < 0) {"), ("  } else drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);", "  } else { ctx.save(); ctx.globalAlpha = alpha; drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t); ctx.restore(); }")], 'C 範圍顯示'),
  ('即時劃刀也調暗（違反 DL-087 A）', [("inR = hold && G.input === 'line' ? reachNow() : null;", "inR = hold ? reachNow() : null;")], 'DF-05 按住提示（duel4'),
@@ -35,7 +35,8 @@ for name, pairs, pat in MUTS:
         open(F, 'w', encoding='utf-8', newline='').write(s.replace('\n', nl))
         b = run('node tools/build.mjs')
         if b.returncode: res.append((name, 'BUILD-FAIL', b.stderr[-300:])); continue
-        r = run('node tests/browser/fv_run.mjs', env={**__import__('os').environ, 'FV_ONLY': 'chromium', 'FV_PART': 'fv'}, timeout=900)
+        part = 'fvdf' if pat.startswith('DF-') else 'fv'
+        r = run('node tests/browser/fv_run.mjs', env={**__import__('os').environ, 'FV_ONLY': 'chromium', 'FV_PART': part}, timeout=1800)
         fails = [l[:90] for l in r.stdout.split('\n') if l.startswith('FAIL')]
         hit = [l for l in fails if pat in l]
         crashed = r.returncode != 0 and not fails

@@ -54,6 +54,17 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
     check(`${tag} FV-04 教學場：玩家出手前 AI 出刀 0 次（4 秒、>200 步都沒有預告）；玩家第一次切除後解除，AI 開始預告出刀`, ok, JSON.stringify({ idle: { ...idle, log: idle.log.slice(-3) }, after: { ...after, log: after.log.slice(-4) } }));
     await ctx.close();
   }
+  // ===== 審查 M3：教學示範中按「重新征途」→ 教學畫面結束、新征途不是教學場（AI 不等待） =====
+  {
+    const { ctx, page } = await open([]);
+    await page.waitForTimeout(500);
+    const t0 = await page.evaluate(() => ({ tut: window.__cb.tut, hold: window.__cb.game.aiHold }));
+    await page.click('#restart');
+    await frames(page, 2);
+    const t1 = await page.evaluate(() => ({ tut: window.__cb.tut, shown: !document.getElementById('tut').hidden, hold: !!window.__cb.game.aiHold, cd: window.__cb.countdown }));
+    check(`${tag} 審查 M3：教學示範中重開 → 教學畫面結束、新的一場沒有 AI 等待、照常倒數`, t0.tut && t0.tut.phase === 'demo' && t0.hold === true && t1.tut === null && !t1.shown && !t1.hold && t1.cd > 0, JSON.stringify({ t0, t1 }));
+    await ctx.close();
+  }
   // ===== B 前線推進（畫面）：切下 → push +1、前線帶往對方移動、閃己方色 =====
   {
     const { ctx, page } = await open();
@@ -204,12 +215,14 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
       if (af.next) bad.push('放上後立刻出現「下一位對手」');
       await page.evaluate(() => window.__cb.setManual(false));   // 即時模式下驗「展示期間模擬不跑」（審查 L1：manual 模式下恆真）
       await page.waitForFunction(() => window.__cb.nextFoe, null, { timeout: 4000 }).catch(() => {});
-      const shown = Date.now() - t0, mid = await page.evaluate(() => ({ ui: window.__cb.ui, step: window.__cb.game.step, next: window.__cb.nextFoe }));
+      const shown = Date.now() - t0, mid = await page.evaluate(() => ({ ui: window.__cb.ui, step: window.__cb.game.step, clock: window.__cb.clock, next: window.__cb.nextFoe }));
       await page.screenshot({ path: `${shotDir}/showcase_393x852.png` });
       if (!mid.next || shown < 1400) bad.push(`展示 ${shown}ms 後才出現「下一位對手」（應 ≥1.5 秒）：${JSON.stringify(mid)}`);
-      if (mid.step !== af.step || mid.ui !== 'showcase') bad.push(`展示期間模擬有前進：${af.step}→${mid.step}`);
+      if (mid.ui !== 'showcase') bad.push(`展示期間離開了展示：${mid.ui}`);
       await page.waitForTimeout(800);
-      if ((await page.evaluate(() => window.__cb.ui)) !== 'showcase') bad.push('沒按「下一位對手」就開始下一場');
+      const late = await page.evaluate(() => ({ ui: window.__cb.ui, clock: window.__cb.clock }));
+      if (late.ui !== 'showcase') bad.push('沒按「下一位對手」就開始下一場');
+      if (late.clock !== mid.clock) bad.push(`展示期間（即時模式）規則時鐘有走：${mid.clock}→${late.clock}`);   // 覆審 L1：步數在舊局結束後不會動、沒有鑑別力，改驗規則時鐘
       const box = await page.locator('#nextFoe').boundingBox();
       if (!box) bad.push('「下一位對手」按鈕沒有出現');
       else {
