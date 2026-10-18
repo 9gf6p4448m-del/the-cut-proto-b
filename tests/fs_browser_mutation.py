@@ -1,10 +1,12 @@
 # duel v0.5 FS 瀏覽器測試的突變驗紅：每個突變改壞 src/duel5_main.ts 一處 → 重建 → 跑 fs_tests（Chromium）→ 必須有對應項變紅（或測試程式異常結束，也算紅）；
+# 兩條「只回報」的單一防線突變預期為綠（設計冗餘，補述 2 條件 3 修正）；其餘必須紅。
 # 改壞前先備份、跑完從同一份備份還原並重建。用法：python tests/fs_browser_mutation.py（會改寫 dist-*；不要和其他瀏覽器測試同時跑）
 import subprocess, shutil, os
 F = 'src/duel5_main.ts'
 MUTS = [
- ('拿掉戰鬥期器官背後的深色暈影（主 session 指定）', [("g.addColorStop(0, 'rgba(7,13,25,0.9)'); g.addColorStop(0.75, 'rgba(7,13,25,0.7)'); g.addColorStop(1, 'rgba(7,13,25,0)');", "g.addColorStop(0, 'rgba(7,13,25,0)'); g.addColorStop(0.75, 'rgba(7,13,25,0)'); g.addColorStop(1, 'rgba(7,13,25,0)');")], 'FS-06 戰鬥可讀'),
- ('戰鬥期本體不調暗（回到 v0.4）', [("  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? BATTLE_DIM : G.ui === 'cut'", "  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? undefined : G.ui === 'cut'")], 'FS-06 戰鬥可讀'),
+ ('只拿掉暈影（只回報：單一防線足以通過，預期綠）', [("g.addColorStop(0, 'rgba(7,13,25,0.9)'); g.addColorStop(0.75, 'rgba(7,13,25,0.7)'); g.addColorStop(1, 'rgba(7,13,25,0)');", "g.addColorStop(0, 'rgba(7,13,25,0)'); g.addColorStop(0.75, 'rgba(7,13,25,0)'); g.addColorStop(1, 'rgba(7,13,25,0)');")], 'FS-06 戰鬥可讀'),
+ ('只拿掉戰鬥期本體調暗（只回報：單一防線足以通過，預期綠）', [("  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? BATTLE_DIM : G.ui === 'cut'", "  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? undefined : G.ui === 'cut'")], 'FS-06 戰鬥可讀'),
+ ('暈影＋戰鬥期本體調暗同時拿掉（補述 2 條件 3，主 session 裁定 A）', [("g.addColorStop(0, 'rgba(7,13,25,0.9)'); g.addColorStop(0.75, 'rgba(7,13,25,0.7)'); g.addColorStop(1, 'rgba(7,13,25,0)');", "g.addColorStop(0, 'rgba(7,13,25,0)'); g.addColorStop(0.75, 'rgba(7,13,25,0)'); g.addColorStop(1, 'rgba(7,13,25,0)');"), ("  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? BATTLE_DIM : G.ui === 'cut'", "  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? undefined : G.ui === 'cut'")], 'FS-06 戰鬥可讀'),
  ('開戰前對照少算一種', [("  G.matchupInfo = { me, foe, text:", "  delete (me as Record<string, number>)[Object.keys(me)[0]]; G.matchupInfo = { me, foe, text:")], 'FS-06 戰鬥可讀'),
  ('「清空！」同一步就開戰（沒有保留）', [("  if (G.game.phase === 'ko') G.pendingBattle = performance.now() + KO_HOLD_MS;", "  if (G.game.phase === 'ko') G.pendingBattle = performance.now() + 1;")], 'FS-06「清空！」'),
  ('跳字字級回到 26（約 14.6 CSS px）', [("const NUM_SIZE = 36, NUM_CRIT = 46;", "const NUM_SIZE = 26, NUM_CRIT = 46;")], 'FS-06 戰鬥可讀'),
