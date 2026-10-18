@@ -60,11 +60,17 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     const reload = await p2.evaluate(() => document.getElementById('beastSnake').classList.contains('sel'));
     await c2.close();
     // localStorage 丟例外：仍可選、可玩
-    const { ctx: c3, page: p3 } = await open(["Object.defineProperty(window, 'localStorage', { get() { throw new Error('blocked'); } });"]);
-    await p3.waitForFunction(() => window.__cb.ui === 'beast', null, { timeout: 8000 });
-    await tapEl(p3, '#beastDragon');
-    await p3.waitForFunction(() => window.__cb.ui === 'cut' && !!window.__cb.camp, null, { timeout: 8000 });
-    const blocked = await p3.evaluate(() => ({ beast: window.__cb.beast, n: window.__cb.game.organs.length }));
+    // 主程式在儲存被封鎖時當掉 → 記為不合格，而不是讓整個測試程式丟例外
+    const { ctx: c3, page: p3 } = await newPage(browser, bname, devices, 393, 852);
+    await c3.addInitScript("Object.defineProperty(window, 'localStorage', { get() { throw new Error('blocked'); } });");
+    let blocked = { beast: null, n: 0 };
+    try {
+      await p3.goto(url + '/duel5/'); await readyAny(p3);
+      await p3.waitForFunction(() => window.__cb?.ui === 'beast', null, { timeout: 8000 });
+      await tapEl(p3, '#beastDragon');
+      await p3.waitForFunction(() => window.__cb.ui === 'cut' && !!window.__cb.camp, null, { timeout: 8000 });
+      blocked = await p3.evaluate(() => ({ beast: window.__cb.beast, n: window.__cb.game.organs.length }));
+    } catch (e) { blocked = { beast: null, n: 0, err: String(e).slice(0, 80) }; }
     const errs3 = p3.__errs.length; await c3.close();
     const fields = (t, ws) => ws.every((w) => t.includes(w));
     const ok = cards.every((c) => c.lit > 500 && c.h >= 44 && c.visible) && fields(cards[0].text, ['幽光龍', '器官', '蛻生', '平衡，器官分散好防守']) && fields(cards[1].text, ['千節蛇', '蛇牙', '穿刺', '器官排成一列、貼近前線，靠技能一刀連切'])
