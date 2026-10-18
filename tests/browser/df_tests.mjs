@@ -3,7 +3,7 @@
 // DF-03（直線預覽不變）：cb_tests.mjs／da_tests.mjs 以 sub='duel3'＋載入前切到直線預覽照跑（由 run.mjs 呼叫，不在本檔）。
 // duel4（DUEL_V04_FRONT FV-07）：同一份測試以 sub='duel4' 照跑。預設參數＝duel3，duel3 的行為一字不變。
 // duel4 要調整的案例（規則變更，逐條理由見 the-cut DUEL_V04_EVIDENCE）：開局等待改為「等倒數結束」（settle）；跳過教學後等倒數結束才檢查切割期開始；
-// 按住提示：加亮集合改為「範圍內」、遠處改驗範圍外調暗（補述 1 第 1／8 條；其餘斷言照驗，審查 H2）。
+// 按住提示（即時劃刀）：加亮集合改為輪廓內、直線範圍外的器官不調暗（DL-087 選 A、補述 3；其餘斷言照驗，審查 H2）。
 import { mkdirSync } from 'node:fs';
 import { newPage } from './exp_tests.mjs';
 
@@ -60,7 +60,7 @@ function evs(S, E, t0, ms = 60) {
   return out;
 }
 /** 畫布上一塊區域的平均亮度（R+G+B）。 */
-const regionLum = (page, box) => page.evaluate((b) => {
+export const regionLum = (page, box) => page.evaluate((b) => {
   const cv = document.getElementById('scene'), g = cv.getContext('2d'), r = cv.getBoundingClientRect(), k = cv.width / r.width;
   const x = Math.max(0, Math.round((b.x - r.left) * k)), y = Math.max(0, Math.round((b.y - r.top) * k)), w = Math.max(1, Math.round(b.w * k)), h = Math.max(1, Math.round(b.h * k));
   const d = g.getImageData(x, y, w, h).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4);
@@ -283,8 +283,8 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await ctx.close();
   }
   // ===== DF-05 按住提示：手指按住不動時，420 內的對方器官加亮（像素差）、420 外的不變（像素對照，排除全場同步脈動）；加亮集合＝幾何算出的集合；移動後取消；起點不能起刀時不亮 =====
-  // duel4（審查 H2：不得整段跳過）：加亮集合改為「範圍內」（補述 1 第 1／8 條）；「遠處」改取範圍外的器官，duel4 會把它調暗，所以改驗像素變暗（<0.9）。
-  // 其餘照原條件驗：近處像素 +8% 以上、移動後取消、獸身外按住不亮。
+  // duel4（審查 H2：不得整段跳過；DL-087 選 A、補述 3）：即時劃刀手指能繞路，加亮集合＝輪廓內（離起刀區 ≤420＋半徑）的存活紅色器官，不調暗。
+  // 「遠處」改取「直線碰不到」的紅色器官：鎖住 A 的行為——它和範圍內的器官一樣加亮（亮度增益差 <5%）、透明度 1。其餘照原條件驗：近處像素 +8% 以上、移動後取消、獸身外按住不亮。
   {
     const d4 = sub === 'duel4';
     const { ctx, page } = await open();
@@ -301,7 +301,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
           const d = g.organs.map((q, i) => (q.side === 'red' && g.alive[i] ? Math.hypot(q.p[0] - x, q.p[1] - y) : null));
           if (d4) {
             const near = d.findIndex((v, i) => v !== null && inR[i]), far = d.findIndex((v, i) => v !== null && !inR[i]);
-            if (near >= 0 && far >= 0) return { S, near, far, expect: d.map((v, i) => (v !== null && inR[i] ? i : -1)).filter((i) => i >= 0), np: g.organs[near].p, fp: g.organs[far].p, R };
+            if (near >= 0 && far >= 0) return { S, near, far, farId: g.organs[far].id, expect: d.map((v, i) => (v !== null ? i : -1)).filter((i) => i >= 0), np: g.organs[near].p, fp: g.organs[far].p, R };   // 開局沒有萌芽中的；B-0：紅方器官都在藍身 321 內（<420＋34）
             continue;
           }
           const near = d.findIndex((v) => v !== null && v <= 400), far = d.findIndex((v) => v !== null && v > 470);
@@ -317,7 +317,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
       const nb = await regionLum(page, await boxOf(pick.np)), fb = await regionLum(page, await boxOf(pick.fp));
       const A = await scr(page, pick.S);
       await page.mouse.move(A.x, A.y); await page.mouse.down(); await frames(page, 3);
-      const held = await page.evaluate(() => window.__cb.held);
+      const held = await page.evaluate(() => window.__cb.held), farAlpha = d4 ? await page.evaluate((id) => window.__cb.drawAlpha[id], pick.farId) : 1;
       const nd = await regionLum(page, await boxOf(pick.np)), fd = await regionLum(page, await boxOf(pick.fp));
       await page.mouse.move(A.x + 40, A.y); await frames(page, 2);
       const afterMove = await page.evaluate(() => window.__cb.held.length);
@@ -328,10 +328,10 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
       const heldOutside = await page.evaluate(() => window.__cb.held.length);
       await page.mouse.up();
       const nearGain = nd / nb, farGain = fd / fb;
-      ok = JSON.stringify([...held].sort((a, b) => a - b)) === JSON.stringify(pick.expect) && nearGain > 1.08 && nearGain - farGain > 0.06 && (d4 ? farGain < 0.9 : Math.abs(farGain - 1) < 0.05) && afterMove === 0 && heldOutside === 0;
-      info = { S: pick.S, held, expect: pick.expect, nearGain: nearGain.toFixed(3), farGain: farGain.toFixed(3), afterMove, heldOutside };
+      ok = JSON.stringify([...held].sort((a, b) => a - b)) === JSON.stringify(pick.expect) && nearGain > 1.08 && (d4 ? Math.abs(farGain - nearGain) < 0.05 && farAlpha === 1 : nearGain - farGain > 0.06 && Math.abs(farGain - 1) < 0.05) && afterMove === 0 && heldOutside === 0;
+      info = { S: pick.S, held, expect: pick.expect, nearGain: nearGain.toFixed(3), farGain: farGain.toFixed(3), farAlpha, afterMove, heldOutside };
     }
-    check(d4 ? `${tag} DF-05 按住提示（duel4）：加亮集合＝範圍內的存活紅色器官、範圍內像素 +8% 以上、範圍外像素變暗（<0.9）、移動後取消、獸身外按住不亮` : `${tag} DF-05 按住提示：加亮集合＝起點 420 內的存活紅色器官、近處像素 +8% 以上且比遠處（470 外）多 6% 以上、遠處變化 <5%、移動後取消、獸身外按住不亮`, ok, JSON.stringify(info));
+    check(d4 ? `${tag} DF-05 按住提示（duel4 即時劃刀，DL-087 選 A）：加亮集合＝輪廓內的存活紅色器官、範圍內像素 +8% 以上、直線範圍外的器官不調暗（透明度 1、亮度增益和範圍內差 <5%）、移動後取消、獸身外按住不亮` : `${tag} DF-05 按住提示：加亮集合＝起點 420 內的存活紅色器官、近處像素 +8% 以上且比遠處（470 外）多 6% 以上、遠處變化 <5%、移動後取消、獸身外按住不亮`, ok, JSON.stringify(info));
     await ctx.close();
   }
   // ===== DF-05 第一場教學：只出現一次、可以跳過；示範後依事件逐條出現三句提示 =====

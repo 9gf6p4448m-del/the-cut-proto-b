@@ -19,6 +19,8 @@ MUTS = [
  ('範圍外只調暗到 0.6', [("const al = inR && o.side === 'red' && !inR[i] ? 0.4 : 1;", "const al = inR && o.side === 'red' && !inR[i] ? 0.6 : 1;")], 'C 範圍顯示'),
  ('按住加亮仍用「按下點 420 內」', [("  const r = reachNow(); G.game.organs.forEach((o, i) => { if (o.side === 'red' && r[i]) out.add(i); });", "  const fp = G.fp!; G.game.organs.forEach((o, i) => { if (o.side === 'red' && G.game.alive[i] && Math.hypot(o.p[0] - fp.start[0], o.p[1] - fp.start[1]) <= MAX_LEN) out.add(i); });")], 'C 範圍顯示'),
  ('慢幀時演出進度沒夾（負半徑丟例外，迴圈停住）', [("  for (const h of G.hurts) { const k = Math.max(0, (now - h.t0) / 350),", "  for (const h of G.hurts) { const k = (now - h.t0) / 350,"), ("  for (const g of G.grows) { const k = Math.max(0, (now - g.t0) / 600);", "  for (const g of G.grows) { const k = (now - g.t0) / 600;")], '回歸（慢幀當掉）'),
+ ('調暗沒真的畫出來（直接設 globalAlpha，被 art-kit 蓋掉）', [("  if (alpha < 1) {", "  if (alpha < 0) {"), ("  } else drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);", "  } else { ctx.save(); ctx.globalAlpha = alpha; drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t); ctx.restore(); }")], 'C 範圍顯示'),
+ ('即時劃刀也調暗（違反 DL-087 A）', [("inR = hold && G.input === 'line' ? reachNow() : null;", "inR = hold ? reachNow() : null;")], 'DF-05 按住提示（duel4'),
  ('前線帶不跟著 push 移動', [("    G.front = { from: frontNow(now), to: frontEdge(e.push), t0: now, flash: now, flashSide: e.push > prev ? 'blue' : 'red', push: e.push };", "    G.front = { ...G.front, flash: now, flashSide: e.push > prev ? 'blue' : 'red', push: e.push };")], 'B 前線帶'),
 ]
 def run(cmd, **kw): return subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', **kw)

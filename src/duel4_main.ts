@@ -1,6 +1,7 @@
 // duel v0.4「前線推進」（子路徑 duel4/，the-cut docs/fusion/DUEL_V04_FRONT.md＋補述 1／2，DL-086）：以 duel3（v0.3 手感與可讀性）為起點。
 // - 前線推進（B）：切下對方器官 push +1／被切 −1（±4），起刀區延伸（規則 src/rtcut/rules.ts 的 inStartZone）；前線帶跟著移動。
-// - 範圍顯示（C）：按住時畫「起刀區往外 420」淡色輪廓；碰不到（不被擋就切得到＝src/rtcut/reach.ts）的對方器官調暗。
+// - 範圍顯示（C）：按住時畫「起刀區往外 420」淡色輪廓。直線預覽另把直線碰不到（不被擋就切得到＝src/rtcut/reach.ts）的對方器官調暗；
+//   即時劃刀手指能繞路，只畫輪廓、不調暗（DL-087 選 A、補述 3）。
 // - 流程與回饋：開場 3-2-1 倒數、教學場 AI 等玩家先出手、再生倒數圈與長出動畫、縫合槽位與吸附、切中爽感（刀痕發光、hit-stop）、
 //   敵我分色（被切只在該器官爆紅光）、結果字一次一個、縫合後展示新身體再按「下一位對手」。
 // - 戰鬥期數值、器官效果、AI 打分不變。規則：切割期 src/rtcut/rules.ts；戰鬥期 src/cutbattle/battle.ts；征途 src/cutbattle/campaign.ts。
@@ -548,9 +549,19 @@ function burst(p: V, c: string, n: number, sp = 1): void { const now = performan
 void burst;
 /** 器官 sprite 畫在規則座標上（顯示半徑＝判定半徑 R，DF-04）；同時記下它在螢幕上的中心（DA-04 對齊驗證用）。 */
 const spriteCenters = new Map<string, { x: number; y: number }>();
-function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganStateV3, t: number): void {
+let dimCv: HTMLCanvasElement | null = null;
+function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganStateV3, t: number, alpha = 1): void {
   if (!ASSETS) return;
-  drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
+  if (alpha < 1) {
+    // 調暗：art-kit 的 drawOrganV3 內部會把 globalAlpha 設成定值（蓋掉呼叫端的透明度），所以先畫到離屏小畫布、再以 alpha 貼回（審查後實測：直接設 globalAlpha 畫面沒變暗）
+    const m0 = ctx.getTransform(), k = m0.a, box = R * 3, px = Math.ceil(box * k);
+    if (!dimCv) dimCv = document.createElement('canvas');
+    if (dimCv.width !== px) { dimCv.width = px; dimCv.height = px; }
+    const dc = dimCv.getContext('2d')!; dc.setTransform(1, 0, 0, 1, 0, 0); dc.clearRect(0, 0, px, px);
+    dc.setTransform(k, 0, 0, k, (box / 2 - o.p[0]) * k, (box / 2 - o.p[1]) * k);
+    drawOrganV3(dc, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
+    ctx.save(); ctx.globalAlpha = alpha; ctx.drawImage(dimCv, o.p[0] - box / 2, o.p[1] - box / 2, box, box); ctx.restore();
+  } else drawOrganV3(ctx, ASSETS.organs[o.kind], { kind: o.kind, side: o.side, x: o.p[0], y: o.p[1], r: R }, st, t);
   const m = ctx.getTransform(), r = els.canvas.getBoundingClientRect();
   spriteCenters.set(o.id, { x: r.left + (m.a * o.p[0] + m.c * o.p[1] + m.e) / dpr, y: r.top + (m.b * o.p[0] + m.d * o.p[1] + m.f) / dpr });
 }
@@ -562,11 +573,23 @@ function reachNow(): boolean[] {
   if (!G.reach || G.reach.key !== key) G.reach = { key, inRange: reachOf(s, 'blue').inRange };
   return G.reach.inRange;
 }
-/** 按住提示：手指按住、還沒移動時，加亮刀碰得到（範圍內）的對方器官（補述 1 第 1／8 條：和調暗同一個判定函式）。 */
-const holding = () => { const fp = G.fp; return !!fp && fp.valid && fp.moved < 8 && G.ui === 'cut'; };
+/** 按住：手指按住、還沒移動、這一下能起刀。即時劃刀看 G.fp；直線預覽看 G.drag（起點在起刀區、冷卻好）。 */
+const holding = (): boolean => {
+  if (G.ui !== 'cut') return false;
+  if (G.input === 'free') { const fp = G.fp; return !!fp && fp.valid && fp.moved < 8; }
+  const d = G.drag, g = G.game; return !!d && d.moved < 8 && g.cdUntil.blue <= g.step && startOk(g, 'blue', d.a);
+};
+/** 輪廓內：離起刀區 ≤ 420＋半徑的存活、萌芽完成的對方器官（即時劃刀能繞路，輪廓內都切得到；DL-087 選 A）。 */
+function outlineNow(): Set<number> {
+  const s = G.game, z = zoneOf(s.mode, s.push ?? 0, 'blue'), out = new Set<number>(), lim = (MAX_LEN + R) ** 2;
+  s.organs.forEach((o, i) => { if (o.side === 'red' && s.alive[i] && isReady(s, i) && z.pts.some((p) => (p[0] - o.p[0]) ** 2 + (p[1] - o.p[1]) ** 2 <= lim)) out.add(i); });
+  return out;
+}
+/** 按住提示：直線預覽加亮直線碰得到（範圍內）的對方器官（和調暗同一個判定函式，補述 1 第 1／8 條）；即時劃刀加亮輪廓內的對方器官（補述 3）。 */
 function holdLit(): Set<number> {
   const out = new Set<number>();
   if (!holding()) return out;
+  if (G.input === 'free') return outlineNow();
   const r = reachNow(); G.game.organs.forEach((o, i) => { if (o.side === 'red' && r[i]) out.add(i); });
   return out;
 }
@@ -635,7 +658,7 @@ function draw(now: number): void {
   }
   drawScene(ctx, { w: W, h: H, body: ASSETS.body, rects: RECTS }, t, G.ui === 'cut' ? CUT_DIM : undefined);   // 切割期本體調暗，器官才跳出來
   if (sceneOnly) return;   // 測試用：只畫場景（DF-05 比較切割期與戰鬥期的本體亮度；和正式畫面同一個 drawScene 呼叫）
-  const s = G.game, pv = G.drag && G.preview?.ok ? G.preview : null, held = holdLit(), hold = holding(), inR = hold ? reachNow() : null;
+  const s = G.game, pv = G.drag && G.preview?.ok ? G.preview : null, held = holdLit(), hold = holding(), inR = hold && G.input === 'line' ? reachNow() : null;   // 調暗只在直線預覽（DL-087）
   spriteCenters.clear(); drawAlpha.clear();
   // 前線帶（起刀區前緣，跟著 push 移動 300ms；push 變化時閃己方陣營色）
   if (G.ui === 'cut') {
@@ -675,9 +698,9 @@ function draw(now: number): void {
       : locked ? { mode: 'locked', k: (s.lockUntil[i] - s.step) / LOCK_STEPS, label: `${Math.ceil((s.lockUntil[i] - s.step) / FPS)}` } : { mode: 'normal' };
     st.cuttable = G.ui === 'cut' && o.side === 'red' && !sprout && !locked;
     st.lit = held.has(i) ? 1 : pv && pv.locks.includes(i) ? Math.max(lit, 0.7) : lit; st.target = !!pv && (pv.severed === i || pv.blocked === i);
-    const al = inR && o.side === 'red' && !inR[i] && !sprout ? 0.4 : 1;   // 萌芽中的不調暗（≤0.5 秒後就能切，審查 L7）   // 範圍外的對方器官調暗（透明度 ≤ 範圍內的 50%，DUEL_V04_FRONT 二）
+    const al = inR && o.side === 'red' && !inR[i] && !sprout ? 0.4 : 1;   // 直線預覽：範圍外調暗；萌芽中的不調暗（≤0.5 秒後就能切，審查 L7）   // 範圍外的對方器官調暗（透明度 ≤ 範圍內的 50%，DUEL_V04_FRONT 二）
     drawAlpha.set(o.id, al);
-    ctx.save(); ctx.globalAlpha = al; organ(o, st, t); ctx.restore();
+    organ(o, st, t, al);
   });
   // 長出動畫（≥400ms）：綠色擴散環＋光點
   G.grows = G.grows.filter((g) => now - g.t0 < 600);

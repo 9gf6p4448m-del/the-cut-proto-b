@@ -3,7 +3,7 @@
 // FV-01／02／03 與 FV-05 槽位幾何在 tests/node/fv_rules.test.ts；FV-07 由 run.mjs 以 sub='duel4' 照跑 df／cb／da 測試。
 import { mkdirSync } from 'node:fs';
 import { newPage } from './exp_tests.mjs';
-import { PLAN } from './df_tests.mjs';
+import { PLAN, regionLum } from './df_tests.mjs';
 
 const NO_TUT = "try { localStorage.setItem('duel4-tutorial', 'done'); } catch (e) {}";
 const ready = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady && !!window.__cb.camp, null, { timeout: 30000 });
@@ -76,10 +76,10 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
     check(`${tag} B 前線帶：切下對方器官 → push +1、前線帶平均往對方（上方）移 >20、300ms 動畫有過渡幀且幀間隔 <100ms、有「閃己方色」事件（藍）`, r.push === 1 && y0 - y1 > 20 && mid >= 2 && maxDt < 100 && r.front.length === 1 && r.front[0].side === 'blue', JSON.stringify({ ...r, y0: Math.round(y0), y1: Math.round(y1), midFrames: mid, maxDt: Math.round(maxDt) }));
     await ctx.close();
   }
-  // ===== C 範圍顯示：按住時，範圍外的對方器官透明度 ≤ 範圍內的 50%；加亮集合＝範圍內（同一個判定函式）；放開後恢復 =====
+  // ===== C 範圍顯示（直線預覽，DL-087 選 A：調暗只在直線預覽）：按住時，範圍外的對方器官透明度 ≤ 範圍內的 50%；加亮集合＝範圍內（同一個判定函式）；放開後恢復 =====
   {
     const { ctx, page } = await open();
-    await page.evaluate(() => window.__cb.setManual(true));
+    await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setInput('line'); });
     let got = null;
     for (let seed = 1; seed <= 80 && !got; seed++) {
       await page.evaluate((sd) => { window.__cb.newRun({ seed: sd }); window.__cb.advance(1); }, seed);
@@ -89,15 +89,21 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
     if (got) {
       const S = await page.evaluate(() => { const g = window.__cb.game, body = g.mode.body.blue, R = window.__cb.R; const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c; } return c; }; for (let y = 900; y > 500; y -= 10) for (let x = 100; x < 600; x += 10) if (inside([x, y], body) && !g.organs.some((q, j) => g.alive[j] && Math.hypot(q.p[0] - x, q.p[1] - y) < R + 8)) return [x, y]; return null; });
       const A = await scr(page, S);
+      // 像素：器官所在方框的平均亮度（按住前／按住中）——畫面真的變暗，不只是掛勾回報的數字
+      const boxOf = async (id) => { const p = await page.evaluate((x) => window.__cb.game.organs.find((o) => o.id === x).p, id), c = await scr(page, p), e = await scr(page, [p[0] + 34, p[1]]), r = e.x - c.x; return { x: c.x - r, y: c.y - r, w: 2 * r, h: 2 * r }; };
+      await frames(page, 3);
+      const outB = await boxOf(got.out[0]), inB = await boxOf(got.inn[0]), out0 = await regionLum(page, outB), in0 = await regionLum(page, inB);
       await page.mouse.move(A.x, A.y); await page.mouse.down(); await frames(page, 4);
       res = await page.evaluate(() => ({ holding: window.__cb.holding, alpha: window.__cb.drawAlpha, held: window.__cb.held.map((i) => window.__cb.game.organs[i].id) }));
+      res.outGain = (await regionLum(page, outB)) / out0; res.inGain = (await regionLum(page, inB)) / in0;
       await page.screenshot({ path: `${shotDir}/range_hold_393x852.png` });
       await page.mouse.up(); await frames(page, 3);
       res.after = await page.evaluate(() => ({ holding: window.__cb.holding, alpha: window.__cb.drawAlpha }));
     }
     const ok = !!got && !!res && res.holding && got.out.every((id) => res.alpha[id] <= 0.5 * Math.min(...got.inn.map((x) => res.alpha[x]))) && got.inn.every((id) => res.alpha[id] === 1)
-      && JSON.stringify([...res.held].sort()) === JSON.stringify([...got.inn].sort()) && !res.after.holding && Object.values(res.after.alpha).every((a) => a === 1);
-    check(`${tag} C 範圍顯示：按住時範圍外的對方器官透明度 ≤ 範圍內的 50%、加亮集合＝範圍內集合；放開後全部恢復`, ok, JSON.stringify({ got, alpha: res && Object.fromEntries(Object.entries(res.alpha).filter(([k]) => k.startsWith('紅'))), held: res?.held }));
+      && JSON.stringify([...res.held].sort()) === JSON.stringify([...got.inn].sort()) && !res.after.holding && Object.values(res.after.alpha).every((a) => a === 1)
+      && res.outGain < 0.85 && res.inGain >= 1;   // 方框含背景像素：透明度 0.4 約降到 0.77；未調暗約 1.00（修正前的錯誤狀態實測 1.01）
+    check(`${tag} C 範圍顯示（直線預覽）：按住時範圍外的對方器官透明度 ≤ 範圍內的 50% 且像素亮度 <0.85 倍、範圍內不變暗、加亮集合＝範圍內集合；放開後全部恢復`, ok, JSON.stringify({ got, outGain: res?.outGain?.toFixed(3), inGain: res?.inGain?.toFixed(3), alpha: res && Object.fromEntries(Object.entries(res.alpha).filter(([k]) => k.startsWith('紅'))), held: res?.held }));
     await ctx.close();
   }
   // ===== FV-06 回饋：玩家切除＝裂開＋hit-stop，沒有整隻閃白；被切＝紅色事件在該器官位置；再生＝倒數圈＋長出 =====
