@@ -1,7 +1,7 @@
 // duel v0.5 千節蛇（duel5/）瀏覽器測試（作者測試；Chromium＋WebKit 模擬，**不是 iPhone 實機**）。
 // 凍結驗收：the-cut docs/fusion/DUEL_V05_SNAKE.md＋補述 1 的 FS-05、FS-06 與 FS-07 的技能鈕、?cut= 瀏覽器部分。
 // FS-01～04 在 tests/node/fs_rules.test.ts；FS-07 的舊測試照跑由 run.mjs 以 sub='duel5'（預選龍）呼叫 fv／df／cb／da。
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { newPage } from './exp_tests.mjs';
 import { PLAN } from './df_tests.mjs';
 
@@ -9,7 +9,6 @@ const NO_TUT = "try { localStorage.setItem('duel5-tutorial', 'done'); } catch (e
 export const autoBeast = (b) => `window.__duel5AutoBeast = '${b}';`;
 const readyCamp = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady && !!window.__cb.camp, null, { timeout: 30000 });
 const readyAny = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady, null, { timeout: 30000 });
-const scr = (page, p) => page.evaluate(([x, y]) => window.__cb.toScreen(x, y), p);
 const frames = (pg, n = 3) => pg.evaluate((k) => new Promise((r) => { let i = 0; const f = () => (++i >= k ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
 const evs = (S, E, t0, ms = 60) => { const out = [{ t: t0, k: 'down', p: S }]; for (let t = 8; t < ms; t += 8) out.push({ t: t0 + t, k: 'move', p: [S[0] + ((E[0] - S[0]) * t) / ms, S[1] + ((E[1] - S[1]) * t) / ms] }); out.push({ t: t0 + ms, k: 'move', p: E }, { t: t0 + ms, k: 'up', p: E }); return out; };
 /** 器官內圈（0.8r）平均亮度 ÷ 外圈（1.5r～2r）背景平均亮度（補述 1 第 10a 條；補述 2：外圈只取不在其他存活器官 1.4r 內的像素（art-kit 器官圖層延伸到 r×1.36：pad＝0.36r，sprites.ts organLayers）——
@@ -132,16 +131,21 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     await frames(page, 3);
     const m = await page.evaluate(() => { const g = window.__cb.game, c = (side) => { const o = {}; g.organs.forEach((x, i) => { if (g.alive[i] && x.side === side) o[x.kind] = (o[x.kind] ?? 0) + 1; }); return o; }; return { m: window.__cb.matchup, me: c('blue'), foe: c('red'), alive: g.organs.filter((o, i) => g.alive[i] && o.side === 'red').map((o) => o.id) }; });
     const bat = await ratioOf(page, m.alive);
+    // 補述 2 條件 2：量測當下從 canvas 截出背景占比最低 3 顆的 90×90 CSS px 區塊（就是被量測的像素；開戰前對照的 DOM 橫幅不在 canvas 上，量測也不含它）
+    const shareList = m.alive.map((id) => ({ id, share: bat[`${id}#share`] })).sort((a, b) => a.share - b.share);
+    const pos = await page.evaluate((ids) => Object.fromEntries(ids.map((id) => { const o = window.__cb.game.organs.find((x) => x.id === id); return [id, o.p]; })), m.alive);
+    const crops = [];
+    for (const x of shareList.slice(0, 3)) {
+      const url64 = await page.evaluate((p) => { const cv = document.getElementById('scene'), rect = cv.getBoundingClientRect(), k = cv.width / rect.width, c = window.__cb.toScreen(p[0], p[1]);
+        const sx = (c.x - rect.left - 45) * k, sy = (c.y - rect.top - 45) * k, w = 90 * k, o = document.createElement('canvas'); o.width = w; o.height = w;
+        o.getContext('2d').drawImage(cv, sx, sy, w, w, 0, 0, w, w); return o.toDataURL('image/png'); }, pos[x.id]);
+      const f = `${shotDir}/fs06_crop_${x.id}.png`; writeFileSync(f, Buffer.from(url64.split(',')[1], 'base64')); crops.push(`${x.id}@${pos[x.id]} share=${x.share.toFixed(2)}`);
+    }
     await page.screenshot({ path: `${shotDir}/battle_matchup_393x852.png` });
     await page.waitForFunction(() => window.__cb.ui === 'contrib', null, { timeout: 60000 }).catch(() => {});
     await page.screenshot({ path: `${shotDir}/battle_end_393x852.png` });
     const log = await page.evaluate(() => window.__cb.fxLog);
     const ids = new Set(m.alive), judged = m.alive.filter((id) => bat[id] !== null && cut[id] !== null), visBad = judged.filter((id) => !(bat[id] >= 1.6 && bat[id] >= 0.9 * cut[id]));
-    // 補述 2 條件：回報不評數與「外圈有排除鄰居像素」的器官（位置），並存背景占比最低的 3 顆的裁切截圖（393×852 畫面上 90×90 CSS px）
-    const shareList = m.alive.map((id) => ({ id, share: bat[`${id}#share`] })).sort((a, b) => a.share - b.share);
-    const pos = await page.evaluate((ids) => Object.fromEntries(ids.map((id) => { const o = window.__cb.game.organs.find((x) => x.id === id); return [id, o.p]; })), m.alive);
-    const crops = [];
-    for (const x of shareList.slice(0, 3)) { const p = await scr(page, pos[x.id]); const f = `${shotDir}/fs06_crop_${x.id}.png`; await page.screenshot({ path: f, clip: { x: Math.max(0, p.x - 45), y: Math.max(0, p.y - 45), width: 90, height: 90 } }); crops.push(`${x.id}@${pos[x.id]} share=${x.share.toFixed(2)}`); }
     const excluded = { notJudged: `${m.alive.length - judged.length}/${m.alive.length}`, partial: shareList.filter((x) => x.share < 1).map((x) => `${x.id}@${pos[x.id]}:${x.share.toFixed(2)}`), crops };
     const eq = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
     const nums = log.filter((x) => x.t === 'num'), acts = log.filter((x) => x.t === 'act'), lines = log.filter((x) => x.t === 'line');
