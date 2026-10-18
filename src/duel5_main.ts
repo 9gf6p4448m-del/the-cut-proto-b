@@ -35,6 +35,7 @@ const HITSTOP_MS = 50;                          // 切中瞬間畫面停頓（�
 const FRONT = { unit: 60, max: 4 };             // 前線推進【試玩值】：每 1 推進延伸 60、上下限 ±4（DUEL_V04_FRONT 一）
 const COUNTDOWN_MS = 2400;                      // 開場 3-2-1 倒數（三-1）
 const SHOWCASE_MS = 1500;
+const BATTLE_DIM = Object.freeze({ alpha: 0.2, saturation: 0.3 });   // duel5 戰鬥期本體調暗（比切割期的 CUT_DIM 0.45 更暗：戰鬥時只看器官）
 const KO_HOLD_MS = 700;                         // duel5：「清空！」至少完整顯示 600ms 才進戰鬥（FS-06）
 const MATCHUP_MS = 1200;                        // duel5：開戰前器官對照（FS-06）
 const NUM_GAP_MS = 80;                          // duel5：雙方跳字錯開（只改畫面，FS-06）
@@ -344,6 +345,7 @@ function onFreeEvent(e: Extract<GameEvent, { t: 'freeStart' | 'freeReject' | 'fr
 function startBattle(): void {
   const f = fightersOf(G.game);
   G.battle = simulateBattle(f, battleSeed(G.camp));
+  G.pops = []; G.cutGlow = []; G.trail = [];   // 切割期殘留的跳字與刀痕不帶進戰鬥
   G.ui = 'battle'; G.bT0 = performance.now(); G.bBase = 0; G.bClock = 0; G.bIdx = 0; G.speed = 1; els.fast.textContent = '快轉'; G.vis = []; G.release = null; G.drag = null; G.preview = null;
   const st = (G.battle.events[0] as Extract<BattleEvent, { t: 'start' }>).stats;
   G.disp = { blue: { hp: st.blue.hp, max: st.blue.maxHp, shield: st.blue.shield, poison: 0 }, red: { hp: st.red.hp, max: st.red.maxHp, shield: st.red.shield, poison: 0 } };
@@ -517,7 +519,7 @@ function hud(): void {
     const cd = Math.max(0, s.cdUntil.blue - s.step) / COOLDOWN_STEPS;
     els.cd.style.width = `${100 * (1 - cd)}%`; els.cd.parentElement!.classList.toggle('cool', cd > 0);
   } else if (G.ui === 'battle' || G.ui === 'contrib') {
-    els.clock.textContent = (Math.min(BT.MAX_MS, G.bClock) / 1000).toFixed(1);
+    els.clock.textContent = (Math.max(0, Math.min(BT.MAX_MS, G.bClock)) / 1000).toFixed(1);   // 開戰前對照期間回放還沒開始（負值顯示 0）
     for (const side of ['blue', 'red'] as Side[]) {
       const d = G.disp[side], bar = side === 'blue' ? els.meBar : els.foeBar, sh = side === 'blue' ? els.meShield : els.foeShield, txt = side === 'blue' ? els.meTxt : els.foeTxt;
       bar.style.width = `${(100 * Math.max(0, d.hp)) / d.max}%`; sh.style.width = `${Math.min(100, (100 * Math.max(0, d.shield)) / d.max)}%`;
@@ -785,10 +787,14 @@ function draw(now: number): void {
     if (i >= 0) organ(G.game.organs[i], isoOpt.st ?? { mode: 'normal' }, 0);   // 和正式畫面同一個 organ()（覆審：不能另寫一份繪製）
     return;
   }
-  const dimNow = G.ui === 'cut' || G.ui === 'pick' || G.ui === 'place' || G.ui === 'showcase' || G.ui === 'battle' || G.ui === 'contrib' ? CUT_DIM : undefined;   // 戰鬥期也調暗（器官對比，FS-06／補述 1 第 10a 條）
+  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? BATTLE_DIM : G.ui === 'cut' || G.ui === 'pick' || G.ui === 'place' || G.ui === 'showcase' ? CUT_DIM : undefined;   // 戰鬥期本體更暗，器官才看得清（FS-06／補述 1 第 10a 條）
   const snake = G.camp?.beast === 'snake';
   drawScene(ctx, { w: W, h: H, body: ASSETS.body, rects: snake ? { ...RECTS, blue: { ...RECTS.blue, x: -9999, y: -9999 } } : RECTS }, t, dimNow);
   if (snake) drawSnake(t, dimNow ? dimNow.alpha : 1);
+  if (G.ui === 'battle' || G.ui === 'contrib') {   // 戰鬥期壓暗前線帶（雙方獸身重疊區的亮紋只對切割期有意義；擠在前線的器官才看得清，FS-06）
+    const path = (poly: V[]) => { ctx.beginPath(); poly.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); };
+    ctx.save(); path(bodyPoly('blue')); ctx.clip(); path(bodyPoly('red')); ctx.clip(); ctx.fillStyle = 'rgba(7,13,25,0.8)'; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
   if (!G.game || G.ui === 'beast') return;   // 選怪獸畫面：只畫場景   // 切割期與縫合時本體調暗，器官才跳出來（縫合時要看得到原有器官，三-3）
   if (sceneOnly) return;   // 測試用：只畫場景（DF-05 比較切割期與戰鬥期的本體亮度；和正式畫面同一個 drawScene 呼叫）
   const s = G.game, pv = G.drag && G.preview?.ok ? G.preview : null, held = holdLit(), hold = holding(), inR = hold && G.input === 'line' ? reachNow() : null;   // 調暗只在直線預覽（DL-087）
@@ -824,6 +830,11 @@ function draw(now: number): void {
   }
   const showCamp = G.ui === 'pick' || G.ui === 'place' || G.ui === 'showcase';
   if (showCamp) for (const o of blueOrgans(G.camp)) organ(o, { mode: 'normal' }, t);   // 縫合時顯示自己身上原有的器官（三-3）
+  if (!showCamp && (G.ui === 'battle' || G.ui === 'contrib')) s.organs.forEach((o, i) => {   // 戰鬥期：每顆存活器官背後墊深色暈影，擠在前線帶或鄰居旁的器官也看得清（FS-06）
+    if (!s.alive[i]) return;
+    const g = ctx.createRadialGradient(o.p[0], o.p[1], R * 0.6, o.p[0], o.p[1], R * 2.3); g.addColorStop(0, 'rgba(7,13,25,0.9)'); g.addColorStop(0.75, 'rgba(7,13,25,0.7)'); g.addColorStop(1, 'rgba(7,13,25,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.p[0], o.p[1], R * 2.3, 0, Math.PI * 2); ctx.fill();
+  });
   if (!showCamp) s.organs.forEach((o, i) => {
     if (!s.alive[i]) return;
     const sprout = G.ui === 'cut' && !isReady(s, i), locked = G.ui === 'cut' && isLocked(s, i), lit = Math.max(0, ((glowUntil.get(o.id) ?? 0) - now) / 260);
