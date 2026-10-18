@@ -342,7 +342,7 @@ function playBattleEvent(e: BattleEvent): void {
     const win = e.winner === 'blue';
     G.banner = { text: win ? '勝！' : e.winner === 'draw' ? '平手' : '敗', sub: e.how === 'time' ? '時間到，比剩餘血量百分比' : e.how === 'empty' ? '一方沒有器官' : '血量歸零', t0: now, life: 1400 };
     sfx(win ? 'win' : 'lose'); if (!win) vibrate([60, 40, 60]);
-    G.fx.push({ type: 'ko', t0: dispNow(), w: W, h: H, winner: e.winner });
+    // 不再疊 art-kit 的 KO 大字（「擊倒／你贏了」）：結果字同一時間只有一個（三-6），由上面的橫幅（勝／敗／平手＋副標）負責
   }
   hud();
 }
@@ -356,7 +356,7 @@ function battleTick(now: number): void {
   if (G.bIdx >= ev.length && G.bClock >= G.battle.endMs + 900) showContrib();
 }
 function showContrib(): void {
-  const b = G.battle!; G.ui = 'contrib'; G.banner = null;   // 結算標題出現前清掉畫布上的結果橫幅（三-6）
+  const b = G.battle!; G.ui = 'contrib'; G.banner = null; G.fx = G.fx.filter((f) => f.type !== 'ko');   // 結算標題出現前清掉畫布上的結果橫幅（三-6）
   const c = b.contrib, row = (label: string, me: number, foe: number, key: string) => `<tr data-k="${key}"><th>${label}</th><td class="me">${Math.round(me)}</td><td class="foe">${Math.round(foe)}</td></tr>`;
   els.contribTitle.textContent = b.winner === 'blue' ? `勝！對手 ${G.camp.stage + 1}／${CB.STAGES}` : b.winner === 'draw' ? '平手（算輸）' : '敗';
   els.contribBody.innerHTML = `<table class="ct"><thead><tr><th>本場貢獻</th><th>你</th><th>對手</th></tr></thead><tbody>`
@@ -377,7 +377,7 @@ els.contribNext.onclick = () => {
   if (G.camp.phase === 'pick') showPick(); else showEnd();
 };
 function showPick(): void {
-  G.ui = 'pick'; els.pickOpts.innerHTML = ''; G.banner = null; els.tip.hidden = true; tipQueue.length = 0; clearTimeout(tipTimer); els.tut.hidden = true; G.tut = null; G.pops = [];   // 進入縫合前清掉所有橫幅（三-6）
+  G.ui = 'pick'; els.pickOpts.innerHTML = ''; G.banner = null; G.fx = []; els.tip.hidden = true; tipQueue.length = 0; clearTimeout(tipTimer); els.tut.hidden = true; G.tut = null; G.pops = [];   // 進入縫合前清掉所有橫幅（三-6）
   G.camp.offer.forEach((k, i) => {
     const b = document.createElement('button'); b.id = `pick${i}`; b.dataset.kind = k;
     b.innerHTML = `<img alt="" src="./assets/final/${k}.png"><span><b>${KIND_ZH[k]}・${DESC[k].role}</b><small>${DESC[k].line}</small></span>`;
@@ -396,7 +396,7 @@ function tryPlace(p: V): void {
 }
 /** 縫合之後：先展示新身體 1.5 秒，然後出現「下一位對手」；按下後才開始下一場（倒數）。期間模擬不跑。 */
 function showcase(): void {
-  G.ui = 'showcase'; G.showcaseT0 = performance.now(); G.ghost = null; els.nextFoe.hidden = true; G.banner = null;
+  G.ui = 'showcase'; G.showcaseT0 = performance.now(); G.ghost = null; els.nextFoe.hidden = true; G.banner = null; els.tip.hidden = true; tipQueue.length = 0; clearTimeout(tipTimer);
   setInfo('新的身體。'); hud();
 }
 els.nextFoe.onclick = () => { if (G.ui === 'showcase' && !els.nextFoe.hidden) { els.nextFoe.hidden = true; startCut(); } };
@@ -657,7 +657,7 @@ function draw(now: number): void {
     if (i >= 0) organ(G.game.organs[i], isoOpt.st ?? { mode: 'normal' }, 0);   // 和正式畫面同一個 organ()（覆審：不能另寫一份繪製）
     return;
   }
-  drawScene(ctx, { w: W, h: H, body: ASSETS.body, rects: RECTS }, t, G.ui === 'cut' ? CUT_DIM : undefined);   // 切割期本體調暗，器官才跳出來
+  drawScene(ctx, { w: W, h: H, body: ASSETS.body, rects: RECTS }, t, G.ui === 'cut' || G.ui === 'pick' || G.ui === 'place' || G.ui === 'showcase' ? CUT_DIM : undefined);   // 切割期與縫合時本體調暗，器官才跳出來（縫合時要看得到原有器官，三-3）
   if (sceneOnly) return;   // 測試用：只畫場景（DF-05 比較切割期與戰鬥期的本體亮度；和正式畫面同一個 drawScene 呼叫）
   const s = G.game, pv = G.drag && G.preview?.ok ? G.preview : null, held = holdLit(), hold = holding(), inR = hold && G.input === 'line' ? reachNow() : null;   // 調暗只在直線預覽（DL-087）
   spriteCenters.clear(); drawAlpha.clear();
@@ -785,7 +785,7 @@ function draw(now: number): void {
       ctx.shadowBlur = 0; ctx.font = '600 22px system-ui'; ctx.lineWidth = 4; ctx.strokeText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`, 0, 96); ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`, 0, 96); ctx.restore(); }
   }
   // 結果字：同一時間可見的數量（畫布橫幅中的勝負字＋DOM 結算標題＋結束標題；FV-06）
-  { const RES = ['勝！', '敗', '平手', '清空！'], n = (G.banner && now - G.banner.t0 < G.banner.life && RES.includes(G.banner.text) ? 1 : 0) + (els.contrib.hidden ? 0 : 1) + (els.end.hidden ? 0 : 1); G.resultMax = Math.max(G.resultMax, n); }
+  { const RES = ['勝！', '敗', '平手', '清空！'], n = (G.banner && now - G.banner.t0 < G.banner.life && RES.includes(G.banner.text) ? 1 : 0) + (els.contrib.hidden ? 0 : 1) + (els.end.hidden ? 0 : 1) + (G.fx.some((f) => f.type === 'ko') ? 1 : 0); G.resultMax = Math.max(G.resultMax, n); }   // art-kit 的 KO 大字也算結果字
   // FPS（每秒更新）
   fps.frames++; if (now - fps.t0 >= 1000) { fps.last = (fps.frames * 1000) / (now - fps.t0); fps.frames = 0; fps.t0 = now; }
 }

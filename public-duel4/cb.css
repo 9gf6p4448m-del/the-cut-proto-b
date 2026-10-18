@@ -61,5 +61,5 @@ body.cb { height:100dvh; overflow:hidden; background:#070D19; color:#F0F7FF; }
 footer .tools button#inputMode { font-size: 12px; line-height: 1.2; padding-left: 4px; padding-right: 4px; }
 
 /* duel4：縫合後展示新身體，再出現「下一位對手」（三-7） */
-.nextFoe { position:absolute; left:50%; bottom:18px; transform:translateX(-50%); z-index:7; min-height:52px; padding:0 28px; font-size:18px; font-weight:bold; background:#278DD1; border:1px solid #AEEAFF; color:#070D19; border-radius:12px; box-shadow:0 0 18px rgba(127,200,255,0.45); }
-.nextFoe[hidden] { display:none; }
+#nextFoe.nextFoe { position:absolute; left:50%; bottom:18px; transform:translateX(-50%); z-index:7; min-height:52px; padding:0 28px; font-size:18px; font-weight:bold; background:#278DD1; border:1px solid #AEEAFF; color:#070D19; border-radius:12px; box-shadow:0 0 18px rgba(127,200,255,0.45); }
+#nextFoe.nextFoe[hidden] { display:none; }
