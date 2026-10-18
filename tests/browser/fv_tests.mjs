@@ -145,12 +145,14 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
     const cdp = await page.context().newCDPSession(page);
     await page.evaluate(() => window.__cb.newRun({ seed: 11 }));
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.evaluate(() => window.__cb.setFrameStall(300));   // 每幀推進前空轉 300ms：事件時間比這一幀的 rAF 時間晚 300ms 以上（H1 修好後自然卡頓不夠長，覆審發現回歸測試失去鑑別力）
     await page.waitForFunction(() => window.__cb.game.severedN.red > 0 || window.__cb.ui !== 'cut', null, { timeout: 30000 }).catch(() => {});
     const a = await page.evaluate(() => ({ step: window.__cb.game.step, sev: window.__cb.game.severedN.red, red: window.__cb.fxLog.filter((x) => x.t === 'redHit').length }));
     await page.waitForTimeout(2500);
     const b = await page.evaluate(() => ({ step: window.__cb.game.step, ui: window.__cb.ui }));
+    await page.evaluate(() => window.__cb.setFrameStall(0));
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 }); await cdp.detach();
-    check(`${tag} 回歸（慢幀當掉）：4 倍節流下 AI 切下藍方器官、紅光演出之後，2.5 秒內規則步繼續前進、沒有頁面錯誤`, a.sev > 0 && a.red > 0 && (b.step - a.step > 30 || b.ui !== 'cut') && page.__errs.length === 0, JSON.stringify({ a, b, errs: page.__errs }));
+    check(`${tag} 回歸（慢幀當掉）：4 倍節流＋每幀 300ms 長幀下 AI 切下藍方器官、紅光演出之後，2.5 秒內規則步繼續前進、沒有頁面錯誤`, a.sev > 0 && a.red > 0 && (b.step - a.step > 10 || b.ui !== 'cut') && page.__errs.length === 0, JSON.stringify({ a, b, errs: page.__errs }));
     await ctx.close();
   }
   // ===== FV-06 決定性：同一份輸入序列，演出開／關，規則結果（含 push）逐步相同；且受測行為真的發生（有切除、push 有變） =====
@@ -213,7 +215,7 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
       if (af.ui !== 'showcase' || !af.st || af.st === undefined || (st.n + 1 !== (await page.evaluate(() => window.__cb.camp.stitches.length))) || Math.hypot(af.st.p[0] - tapAt[0], af.st.p[1] - tapAt[1]) > 40) bad.push(`點槽位旁沒吸附放上：${JSON.stringify(af)}`);
       if (af.st && !st.rule.some((q) => q[0] === af.st.p[0] && q[1] === af.st.p[1])) bad.push(`放上的位置 ${af.st.p} 不是槽位`);
       if (af.next) bad.push('放上後立刻出現「下一位對手」');
-      await page.evaluate(() => window.__cb.setManual(false));   // 即時模式下驗「展示期間模擬不跑」（審查 L1：manual 模式下恆真）
+      const clock0 = await page.evaluate(() => { window.__cb.setManual(false); return window.__cb.clock; });   // 即時模式下驗「展示期間模擬不跑」：從交還即時模式那一刻起比對時鐘（審查 L1、覆審 O1）
       await page.waitForFunction(() => window.__cb.nextFoe, null, { timeout: 4000 }).catch(() => {});
       const shown = Date.now() - t0, mid = await page.evaluate(() => ({ ui: window.__cb.ui, step: window.__cb.game.step, clock: window.__cb.clock, next: window.__cb.nextFoe }));
       await page.screenshot({ path: `${shotDir}/showcase_393x852.png` });
@@ -222,7 +224,7 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
       await page.waitForTimeout(800);
       const late = await page.evaluate(() => ({ ui: window.__cb.ui, clock: window.__cb.clock }));
       if (late.ui !== 'showcase') bad.push('沒按「下一位對手」就開始下一場');
-      if (late.clock !== mid.clock) bad.push(`展示期間（即時模式）規則時鐘有走：${mid.clock}→${late.clock}`);   // 覆審 L1：步數在舊局結束後不會動、沒有鑑別力，改驗規則時鐘
+      if (late.clock !== clock0 || mid.clock !== clock0) bad.push(`展示期間（即時模式）規則時鐘有走：${clock0}→${mid.clock}→${late.clock}`);   // 覆審 L1：步數在舊局結束後不會動、沒有鑑別力，改驗規則時鐘
       const box = await page.locator('#nextFoe').boundingBox();
       if (!box) bad.push('「下一位對手」按鈕沒有出現');
       else {

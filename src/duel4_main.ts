@@ -550,6 +550,7 @@ void burst;
 /** 器官 sprite 畫在規則座標上（顯示半徑＝判定半徑 R，DF-04）；同時記下它在螢幕上的中心（DA-04 對齊驗證用）。 */
 const spriteCenters = new Map<string, { x: number; y: number }>();
 let dimCv: HTMLCanvasElement | null = null;
+let frameStall = 0;   // 測試掛勾 setFrameStall：每幀推進規則前空轉的毫秒數（慢幀回歸測試用；正式遊戲為 0）
 function organ(o: { id: string; kind: Kind; side: Side; p: V }, st: OrganStateV3, t: number, alpha = 1): void {
   if (!ASSETS) return;
   if (alpha < 1) {
@@ -793,6 +794,7 @@ function frame(now: number): void {
   tutTick(now);
   if (G.countdown && now - G.countdown.t0 >= COUNTDOWN_MS) { G.countdown = null; G.lastT = null; G.fxLog.push({ t: 'go', at: now }); }
   if (G.ui === 'showcase' && els.nextFoe.hidden && now - G.showcaseT0 >= SHOWCASE_MS) els.nextFoe.hidden = false;
+  if (frameStall > 0) { const t = performance.now(); while (performance.now() - t < frameStall) { /* 測試用：模擬慢裝置的長幀（事件時間晚於這一幀的 rAF 時間） */ } }
   if (G.ui === 'cut' && !G.manual && !(G.tut && G.tut.phase === 'demo') && !counting()) {
     // 規則時鐘：真實時間推進（不受畫面放慢影響）。直線預覽＝duel2 的節奏；即時劃刀晚 2 步跑，讓所屬步的事件到齊
     if (G.lastT === null) G.lastT = now;
@@ -827,7 +829,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
   get fxLog() { return G.fxLog.map((x) => ({ ...x })); }, get resultMax() { return G.resultMax; }, resetResultMax: () => { G.resultMax = 0; },
   get slots() { return drawnSlots.map((q) => [q[0], q[1]]); }, get ruleSlots() { return stitchSlots(G.camp).map((q) => [q[0], q[1]]); }, get campOrgans() { return blueOrgans(G.camp).map((o) => ({ id: o.id, p: o.p })); },
   get push() { return G.game ? G.game.push ?? 0 : 0; }, get inRange() { return reachNow(); }, get drawAlpha() { return Object.fromEntries(drawAlpha); }, get holding() { return holding(); },
-  get nextFoe() { return !els.nextFoe.hidden; }, get aimCount() { return G.aimCount; }, get frontEdge() { return frontNow(performance.now()); },
+  get nextFoe() { return !els.nextFoe.hidden; }, get aimCount() { return G.aimCount; }, setFrameStall: (ms: number) => { frameStall = ms; }, get frontEdge() { return frontNow(performance.now()); },
 };
 // ---------------------------------------------------------------- PWA（子路徑獨立 scope）
 if ('serviceWorker' in navigator && window.isSecureContext) {
