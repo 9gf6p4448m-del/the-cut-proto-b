@@ -69,7 +69,7 @@ const G = {
   disp: { blue: { hp: 0, max: 1, shield: 0, poison: 0 }, red: { hp: 0, max: 1, shield: 0, poison: 0 } },
   vis: [] as { kind: Kind | 'overtime'; ev: BattleEvent['t'] }[], tipsShown: new Set<string>(),
   pops: [] as Pop[], particles: [] as Particle[], shots: [] as Shot[], slashes: [] as { a: V; b: V; t0: number; side: Side }[],
-  shakeUntil: 0, flashUntil: 0, banner: null as null | { text: string; sub: string; t0: number; life: number },
+  shakeUntil: 0, banner: null as null | { text: string; sub: string; t0: number; life: number },
   fx: [] as Fx2[], bursts: [] as { o: { id: string; kind: Kind; side: Side; p: V }; t0: number; ang: number }[],
   sound: true, ghost: null as V | null, ghostOk: false, placing: null as number | null, aimFirst: 0,
   // ---- duel3 ----
@@ -80,7 +80,7 @@ const G = {
   tut: null as null | { phase: 'demo' | 'hints'; t0: number; hint: number; path: V[] },
   // ---- duel4 ----
   countdown: null as null | { t0: number },     // 開場倒數（期間規則時鐘不走、AI 不動、指標事件丟棄）
-  showcaseT0: 0, hitstopUntil: 0,
+  showcaseT0: 0, hitstopUntil: 0, aimCount: 0, slotCache: null as null | { camp: Campaign; slots: V[] },
   cuts: [] as { side: Side; kind: Kind; p: V; step: number }[],   // 切口（傷口＋再生倒數圈的位置；長回時移除該種類最早的一個）
   grows: [] as { p: V; t0: number; side: Side }[], hurts: [] as { p: V; t0: number }[], cutGlow: [] as { a: V; b: V; t0: number }[],
   front: { from: [] as number[], to: [] as number[], t0: 0, flash: 0, flashSide: 'blue' as Side, push: 0 },
@@ -157,6 +157,7 @@ function onceTip(key: string, text: string, ms = 2400): void {
 // ---------------------------------------------------------------- 流程
 function newRun(seed?: number): void {
   G.token++;
+  if (G.tut) tutEnd();   // 教學期間按「重新征途」：教學畫面一併結束（審查 M3）
   G.camp = newCampaign(seed ?? G.seedSource(), BODY2, R3, FRONT);
   G.tipsShown = new Set(); tipQueue.length = 0; tipLog.length = 0;
   startCut();
@@ -204,7 +205,8 @@ function startCut(): void {
   G.game = matchFor(G.camp); G.ui = 'cut'; G.cutByMe = []; G.drag = null; G.release = null; G.preview = null; G.battle = null; G.vis = [];
   G.acc = 0; G.lastT = null; G.pops = []; G.particles = []; G.shots = []; G.slashes = []; G.fx = []; G.bursts = [];
   G.clock = 0; lastEvT = 0; downT = 0; downTs = 0; G.slicer = new Slicer(); G.fp = null; G.trail = []; G.splits = []; G.lastFree = null; G.freeLog = []; G.stepSig = []; G.slowLog = [];
-  G.banner = null; G.cuts = []; G.grows = []; G.hurts = []; G.cutGlow = []; G.fxLog = []; G.reach = null; G.hitstopUntil = 0;
+  G.aimCount = 0; G.banner = null; G.cuts = []; G.grows = []; G.hurts = []; G.cutGlow = []; G.fxLog = []; G.reach = null; G.hitstopUntil = 0;
+  for (let p = -FRONT.max; p <= FRONT.max; p++) frontEdge(p);   // 預先建好各 push 的起刀區點陣與前線帶（審查 H1：第一次推進時才建會卡幀）
   G.front = { from: frontEdge(0), to: frontEdge(0), t0: 0, flash: 0, flashSide: 'blue', push: 0 };
   for (const m of [els.contrib, els.pick, els.end]) m.hidden = true;
   els.nextFoe.hidden = true;
@@ -253,10 +255,10 @@ function onCutEvent(e: GameEvent, s0: GameState): void {
     if (r.severed !== null) {
       const o = s0.organs[r.severed]; severFx(o, Math.atan2(r.line.b[1] - r.line.a[1], r.line.b[0] - r.line.a[0]), now, r.line.a); sfx('sever');
       pop([o.p[0], o.p[1] - 30], `切下 ${KIND_ZH[o.kind]}`, o.side === 'red' ? '#AEEAFF' : '#ff8a8a', 18);
-      if (r.side === 'blue') G.cutByMe.push(o.kind); else vibrate([30, 30, 30]);   // 切割期不晃畫面，被切的本體閃白（iPhone 沒有震動）
+      if (r.side === 'blue') G.cutByMe.push(o.kind); else vibrate([30, 30, 30]);   // 切割期不晃畫面；被切＝該器官位置爆紅光（不整隻閃白，三-5；iPhone 沒有震動）
     }
     if (r.blocked !== null) { const o = s0.organs[r.blocked]; G.fx.push({ type: 'boneShield', t0: dispNow(), at: o.p as [number, number], facing: Math.atan2(r.line.a[1] - o.p[1], r.line.a[0] - o.p[0]) }); pop([o.p[0], o.p[1] - 30], '鎖住，擋下', '#cfe8ff', 16); sfx('block'); }
-  } else if (e.t === 'aim') { if (!G.aimFirst) G.aimFirst = now; }
+  } else if (e.t === 'aim') { if (!G.aimFirst) G.aimFirst = now; G.aimCount++; }
   else if (e.t === 'spawn') {
     const o = G.game.organs[e.i]; pop([o.p[0], o.p[1] - 32], `長回 ${KIND_ZH[o.kind]}`, '#9fffb0', 18);
     // 長回：移除該陣營同種類最早的切口，在實際長出的位置播長出動畫（≥400ms，三-2）
@@ -374,7 +376,7 @@ els.contribNext.onclick = () => {
   if (G.camp.phase === 'pick') showPick(); else showEnd();
 };
 function showPick(): void {
-  G.ui = 'pick'; els.pickOpts.innerHTML = ''; G.banner = null; els.tip.hidden = true; els.tut.hidden = true; G.tut = null; G.pops = [];   // 進入縫合前清掉所有橫幅（三-6）
+  G.ui = 'pick'; els.pickOpts.innerHTML = ''; G.banner = null; els.tip.hidden = true; tipQueue.length = 0; clearTimeout(tipTimer); els.tut.hidden = true; G.tut = null; G.pops = [];   // 進入縫合前清掉所有橫幅（三-6）
   G.camp.offer.forEach((k, i) => {
     const b = document.createElement('button'); b.id = `pick${i}`; b.dataset.kind = k;
     b.innerHTML = `<img alt="" src="./assets/final/${k}.png"><span><b>${KIND_ZH[k]}・${DESC[k].role}</b><small>${DESC[k].line}</small></span>`;
@@ -385,7 +387,7 @@ function showPick(): void {
 }
 /** 縫合：點擊位置吸附到 40 內最近的槽位（槽位＝和規則同一個 placeCheck 算出的合法點；補述 1 第 5 條、補述 2）；40 內沒有槽位就拒絕。 */
 function tryPlace(p: V): void {
-  const q = snapSlot(G.camp, p);
+  const q = snapSlot(G.camp, p, G.slotCache?.camp === G.camp ? G.slotCache.slots : undefined);
   if (!q) { tip(`點亮著的槽位（${SNAP_DIST} 內會自動吸附）`); sfx('deny'); return; }
   const r = placeStitch(G.camp, q);
   if (r.reject) { tip(REJECT_TEXT[r.reject]); sfx('deny'); return; }
@@ -463,7 +465,7 @@ const freeActive = () => G.input === 'free' && G.ui === 'cut' && !(G.tut && G.tu
 els.canvas.addEventListener('pointerdown', (e) => {
   ac();
   const p = toWorld(e.clientX, e.clientY);
-  if (G.ui === 'place') { G.ghost = snapSlot(G.camp, p); G.ghostOk = !!G.ghost; G.placing = e.pointerId; els.canvas.setPointerCapture(e.pointerId); return; }   // 只用按下／放開（觸控），不靠游標停留
+  if (G.ui === 'place') { G.ghost = snapSlot(G.camp, p, G.slotCache?.camp === G.camp ? G.slotCache.slots : undefined); G.ghostOk = !!G.ghost; G.placing = e.pointerId; els.canvas.setPointerCapture(e.pointerId); return; }   // 只用按下／放開（觸控），不靠游標停留
   if (G.input === 'free' && G.ui === 'cut' && G.tut && G.tut.phase === 'demo') return;   // 示範期間不接受切割輸入（只能按「跳過教學」）
   if (G.ui === 'cut' && counting()) return;   // 倒數期間不能出刀
   if (freeActive()) {
@@ -479,7 +481,7 @@ els.canvas.addEventListener('pointerdown', (e) => {
 });
 els.canvas.addEventListener('pointermove', (e) => {
   const p = toWorld(e.clientX, e.clientY);
-  if (G.ui === 'place') { if (G.placing === e.pointerId) { G.ghost = snapSlot(G.camp, p); G.ghostOk = !!G.ghost; } return; }
+  if (G.ui === 'place') { if (G.placing === e.pointerId) { G.ghost = snapSlot(G.camp, p, G.slotCache?.camp === G.camp ? G.slotCache.slots : undefined); G.ghostOk = !!G.ghost; } return; }
   if (G.fp && e.pointerId === G.fp.id) {
     const list = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];   // 手機一幀內的多個取樣點（密度不影響結果：DF-02）
     for (const c of list.length ? list : [e]) {
@@ -673,7 +675,7 @@ function draw(now: number): void {
       : locked ? { mode: 'locked', k: (s.lockUntil[i] - s.step) / LOCK_STEPS, label: `${Math.ceil((s.lockUntil[i] - s.step) / FPS)}` } : { mode: 'normal' };
     st.cuttable = G.ui === 'cut' && o.side === 'red' && !sprout && !locked;
     st.lit = held.has(i) ? 1 : pv && pv.locks.includes(i) ? Math.max(lit, 0.7) : lit; st.target = !!pv && (pv.severed === i || pv.blocked === i);
-    const al = inR && o.side === 'red' && !inR[i] ? 0.4 : 1;   // 範圍外的對方器官調暗（透明度 ≤ 範圍內的 50%，DUEL_V04_FRONT 二）
+    const al = inR && o.side === 'red' && !inR[i] && !sprout ? 0.4 : 1;   // 萌芽中的不調暗（≤0.5 秒後就能切，審查 L7）   // 範圍外的對方器官調暗（透明度 ≤ 範圍內的 50%，DUEL_V04_FRONT 二）
     drawAlpha.set(o.id, al);
     ctx.save(); ctx.globalAlpha = al; organ(o, st, t); ctx.restore();
   });
@@ -736,7 +738,8 @@ function draw(now: number): void {
   if (G.ui === 'place' || G.ui === 'pick' || G.ui === 'showcase') {
     for (const st of G.camp.stitches) drawSuture(ctx, st.p as [number, number], CENTER.blue as [number, number], t);
     if (G.ui === 'place') {
-      drawnSlots = stitchSlots(G.camp);
+      if (!G.slotCache || G.slotCache.camp !== G.camp) G.slotCache = { camp: G.camp, slots: stitchSlots(G.camp) };   // 每次縫合只算一次（審查 M1）
+      drawnSlots = G.slotCache.slots;
       const pulse = 0.6 + 0.4 * Math.sin(now / 220);
       for (const q of drawnSlots) { ctx.save(); ctx.globalAlpha = pulse; ctx.fillStyle = '#9fffb0'; ctx.shadowColor = '#9fffb0'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(q[0], q[1], 7, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
     }
@@ -801,7 +804,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
   get fxLog() { return G.fxLog.map((x) => ({ ...x })); }, get resultMax() { return G.resultMax; }, resetResultMax: () => { G.resultMax = 0; },
   get slots() { return drawnSlots.map((q) => [q[0], q[1]]); }, get ruleSlots() { return stitchSlots(G.camp).map((q) => [q[0], q[1]]); }, get campOrgans() { return blueOrgans(G.camp).map((o) => ({ id: o.id, p: o.p })); },
   get push() { return G.game ? G.game.push ?? 0 : 0; }, get inRange() { return reachNow(); }, get drawAlpha() { return Object.fromEntries(drawAlpha); }, get holding() { return holding(); },
-  get nextFoe() { return !els.nextFoe.hidden; }, get frontEdge() { return frontNow(performance.now()); },
+  get nextFoe() { return !els.nextFoe.hidden; }, get aimCount() { return G.aimCount; }, get frontEdge() { return frontNow(performance.now()); },
 };
 // ---------------------------------------------------------------- PWA（子路徑獨立 scope）
 if ('serviceWorker' in navigator && window.isSecureContext) {

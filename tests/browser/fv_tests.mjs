@@ -43,14 +43,14 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
     await page.waitForFunction(() => window.__cb.tut && window.__cb.tut.phase === 'hints', null, { timeout: 8000 });
     await page.waitForFunction(() => window.__cb.countdown === 0, null, { timeout: 8000 });
     await page.waitForTimeout(4000);   // 一般場 1 秒內 AI 就會預告
-    const idle = await page.evaluate(() => ({ step: window.__cb.game.step, aim: window.__cb.game.aim, hold: window.__cb.game.aiHold, sevR: window.__cb.game.severedN.red, log: window.__cb.fxLog.map((x) => x.t) }));
+    const idle = await page.evaluate(() => ({ step: window.__cb.game.step, aim: window.__cb.game.aim, aims: window.__cb.aimCount, hold: window.__cb.game.aiHold, sevR: window.__cb.game.severedN.red, log: window.__cb.fxLog.map((x) => x.t) }));
     const plan = await page.evaluate(PLAN);
     const c0 = await page.evaluate(() => window.__cb.clock);
     await page.evaluate((e) => window.__cb.feed(e), evs(plan.S, plan.E, c0 + 150));
     await page.waitForFunction(() => window.__cb.fxLog.some((x) => x.t === 'aiRelease'), null, { timeout: 4000 }).catch(() => {});
     await page.waitForFunction(() => !!window.__cb.game.aim || window.__cb.game.severedN.red > 0, null, { timeout: 8000 }).catch(() => {});
     const after = await page.evaluate(() => ({ step: window.__cb.game.step, aim: !!window.__cb.game.aim, hold: window.__cb.game.aiHold, sevB: window.__cb.game.severedN.blue, log: window.__cb.fxLog.map((x) => x.t) }));
-    const ok = idle.step > 200 && idle.aim === null && idle.hold === true && idle.sevR === 0 && !idle.log.includes('aiRelease') && after.log.includes('aiRelease') && after.hold === false && after.sevB >= 1 && after.aim;
+    const ok = idle.step > 200 && idle.aim === null && idle.aims === 0 && idle.hold === true && idle.sevR === 0 && !idle.log.includes('aiRelease') && after.log.includes('aiRelease') && after.hold === false && after.sevB >= 1 && after.aim;
     check(`${tag} FV-04 教學場：玩家出手前 AI 出刀 0 次（4 秒、>200 步都沒有預告）；玩家第一次切除後解除，AI 開始預告出刀`, ok, JSON.stringify({ idle: { ...idle, log: idle.log.slice(-3) }, after: { ...after, log: after.log.slice(-4) } }));
     await ctx.close();
   }
@@ -62,13 +62,18 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
     const avgY = () => page.evaluate(() => { const e = window.__cb.frontEdge.filter(Number.isFinite); return e.reduce((a, b) => a + b, 0) / e.length; });
     const y0 = await avgY();
     const plan = await page.evaluate(PLAN), c0 = await page.evaluate(() => window.__cb.clock);
+    // 每一幀記錄前線帶平均 y、push、幀間隔（驗 300ms 推進動畫：中間要有過渡幀、而且不卡幀；審查 H1／L5）
+    await page.evaluate(() => { window.__frontRec = []; let last = performance.now(); const f = (t) => { const e = window.__cb.frontEdge.filter(Number.isFinite); window.__frontRec.push({ t, dt: t - last, push: window.__cb.push, y: e.reduce((a, b) => a + b, 0) / e.length }); last = t; if (window.__frontRec.length < 400) requestAnimationFrame(f); }; requestAnimationFrame(f); });
     await page.evaluate((e) => window.__cb.feed(e), evs(plan.S, plan.E, c0 + 150));
     await page.waitForFunction(() => window.__cb.push !== 0, null, { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(450);
     const r = await page.evaluate(() => ({ push: window.__cb.push, front: window.__cb.fxLog.filter((x) => x.t === 'front') }));
     const y1 = await avgY();
+    const rec = await page.evaluate(() => window.__frontRec), i0 = rec.findIndex((x) => x.push === 1);
+    const win = i0 >= 0 ? rec.filter((x) => x.t >= rec[i0].t - 20 && x.t <= rec[i0].t + 320) : [];
+    const mid = win.filter((x) => x.y < y0 - 2 && x.y > y1 + 2).length, maxDt = win.length ? Math.max(...win.map((x) => x.dt)) : 999;
     await page.screenshot({ path: `${shotDir}/front_push1_393x852.png` });
-    check(`${tag} B 前線帶：切下對方器官 → push +1、前線帶平均往對方（上方）移 >20、有「閃己方色」事件（藍）`, r.push === 1 && y0 - y1 > 20 && r.front.length === 1 && r.front[0].side === 'blue', JSON.stringify({ ...r, y0: Math.round(y0), y1: Math.round(y1) }));
+    check(`${tag} B 前線帶：切下對方器官 → push +1、前線帶平均往對方（上方）移 >20、300ms 動畫有過渡幀且幀間隔 <100ms、有「閃己方色」事件（藍）`, r.push === 1 && y0 - y1 > 20 && mid >= 2 && maxDt < 100 && r.front.length === 1 && r.front[0].side === 'blue', JSON.stringify({ ...r, y0: Math.round(y0), y1: Math.round(y1), midFrames: mid, maxDt: Math.round(maxDt) }));
     await ctx.close();
   }
   // ===== C 範圍顯示：按住時，範圍外的對方器官透明度 ≤ 範圍內的 50%；加亮集合＝範圍內（同一個判定函式）；放開後恢復 =====
@@ -191,6 +196,7 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
       if (af.ui !== 'showcase' || !af.st || af.st === undefined || (st.n + 1 !== (await page.evaluate(() => window.__cb.camp.stitches.length))) || Math.hypot(af.st.p[0] - tapAt[0], af.st.p[1] - tapAt[1]) > 40) bad.push(`點槽位旁沒吸附放上：${JSON.stringify(af)}`);
       if (af.st && !st.rule.some((q) => q[0] === af.st.p[0] && q[1] === af.st.p[1])) bad.push(`放上的位置 ${af.st.p} 不是槽位`);
       if (af.next) bad.push('放上後立刻出現「下一位對手」');
+      await page.evaluate(() => window.__cb.setManual(false));   // 即時模式下驗「展示期間模擬不跑」（審查 L1：manual 模式下恆真）
       await page.waitForFunction(() => window.__cb.nextFoe, null, { timeout: 4000 }).catch(() => {});
       const shown = Date.now() - t0, mid = await page.evaluate(() => ({ ui: window.__cb.ui, step: window.__cb.game.step, next: window.__cb.nextFoe }));
       await page.screenshot({ path: `${shotDir}/showcase_393x852.png` });
@@ -201,7 +207,6 @@ export async function runFvTests({ bname, btype, devices, url, check, shotDir = 
       const box = await page.locator('#nextFoe').boundingBox();
       if (!box) bad.push('「下一位對手」按鈕沒有出現');
       else {
-        await page.evaluate(() => window.__cb.setManual(false));   // 倒數是即時的：交還即時推進再按
         await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
         await frames(page, 2);
         const go = await page.evaluate(() => ({ ui: window.__cb.ui, cd: window.__cb.countdown, stage: window.__cb.camp.stage, step: window.__cb.game.step }));

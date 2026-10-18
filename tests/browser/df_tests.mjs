@@ -3,7 +3,7 @@
 // DF-03（直線預覽不變）：cb_tests.mjs／da_tests.mjs 以 sub='duel3'＋載入前切到直線預覽照跑（由 run.mjs 呼叫，不在本檔）。
 // duel4（DUEL_V04_FRONT FV-07）：同一份測試以 sub='duel4' 照跑。預設參數＝duel3，duel3 的行為一字不變。
 // duel4 要調整的案例（規則變更，逐條理由見 the-cut DUEL_V04_EVIDENCE）：開局等待改為「等倒數結束」（settle）；跳過教學後等倒數結束才檢查切割期開始；
-// 按住提示改由 fv_tests 驗（加亮集合改為「範圍內」，補述 1 第 1／8 條），本檔在 duel4 跳過。
+// 按住提示：加亮集合改為「範圍內」、遠處改驗範圍外調暗（補述 1 第 1／8 條；其餘斷言照驗，審查 H2）。
 import { mkdirSync } from 'node:fs';
 import { newPage } from './exp_tests.mjs';
 
@@ -283,24 +283,32 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await ctx.close();
   }
   // ===== DF-05 按住提示：手指按住不動時，420 內的對方器官加亮（像素差）、420 外的不變（像素對照，排除全場同步脈動）；加亮集合＝幾何算出的集合；移動後取消；起點不能起刀時不亮 =====
-  if (sub === 'duel3') {   // duel4 的按住提示改為「範圍內」（補述 1 第 1／8 條），由 fv_tests 驗
+  // duel4（審查 H2：不得整段跳過）：加亮集合改為「範圍內」（補述 1 第 1／8 條）；「遠處」改取範圍外的器官，duel4 會把它調暗，所以改驗像素變暗（<0.9）。
+  // 其餘照原條件驗：近處像素 +8% 以上、移動後取消、獸身外按住不亮。
+  {
+    const d4 = sub === 'duel4';
     const { ctx, page } = await open();
     await page.evaluate(() => window.__cb.setManual(true));
     // 找一個起點：藍龍身內、不在器官圓內，420 內至少一個、470 外至少一個存活紅色器官（審查 M-2：沒有遠處器官就沒驗到「420 外不變」）
     let pick = null;
     for (let seed = 1; seed <= 60 && !pick; seed++) {
       await page.evaluate((sd) => window.__cb.newRun({ seed: sd }), seed);
-      pick = await page.evaluate(() => {
-        const g = window.__cb.game, R = window.__cb.R, body = g.mode.body.blue;
+      pick = await page.evaluate((d4) => {
+        const g = window.__cb.game, R = window.__cb.R, body = g.mode.body.blue, inR = d4 ? window.__cb.inRange : null;
         const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c; } return c; };
         for (let y = 990; y > 380; y -= 10) for (let x = 40; x < 680; x += 10) {
           const S = [x, y]; if (!inside(S, body) || g.organs.some((q, j) => g.alive[j] && Math.hypot(q.p[0] - x, q.p[1] - y) < R + 6)) continue;
           const d = g.organs.map((q, i) => (q.side === 'red' && g.alive[i] ? Math.hypot(q.p[0] - x, q.p[1] - y) : null));
+          if (d4) {
+            const near = d.findIndex((v, i) => v !== null && inR[i]), far = d.findIndex((v, i) => v !== null && !inR[i]);
+            if (near >= 0 && far >= 0) return { S, near, far, expect: d.map((v, i) => (v !== null && inR[i] ? i : -1)).filter((i) => i >= 0), np: g.organs[near].p, fp: g.organs[far].p, R };
+            continue;
+          }
           const near = d.findIndex((v) => v !== null && v <= 400), far = d.findIndex((v) => v !== null && v > 470);
           if (near >= 0 && far >= 0) return { S, near, far, expect: d.map((v, i) => (v !== null && v <= 420 ? i : -1)).filter((i) => i >= 0), np: g.organs[near].p, fp: g.organs[far].p, R };
         }
         return null;
-      });
+      }, d4);
     }
     let ok = false, info = { pick: !!pick };
     if (pick) {
@@ -320,10 +328,10 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
       const heldOutside = await page.evaluate(() => window.__cb.held.length);
       await page.mouse.up();
       const nearGain = nd / nb, farGain = fd / fb;
-      ok = JSON.stringify([...held].sort((a, b) => a - b)) === JSON.stringify(pick.expect) && nearGain > 1.08 && nearGain - farGain > 0.06 && Math.abs(farGain - 1) < 0.05 && afterMove === 0 && heldOutside === 0;
+      ok = JSON.stringify([...held].sort((a, b) => a - b)) === JSON.stringify(pick.expect) && nearGain > 1.08 && nearGain - farGain > 0.06 && (d4 ? farGain < 0.9 : Math.abs(farGain - 1) < 0.05) && afterMove === 0 && heldOutside === 0;
       info = { S: pick.S, held, expect: pick.expect, nearGain: nearGain.toFixed(3), farGain: farGain.toFixed(3), afterMove, heldOutside };
     }
-    check(`${tag} DF-05 按住提示：加亮集合＝起點 420 內的存活紅色器官、近處像素 +8% 以上且比遠處（470 外）多 6% 以上、遠處變化 <5%、移動後取消、獸身外按住不亮`, ok, JSON.stringify(info));
+    check(d4 ? `${tag} DF-05 按住提示（duel4）：加亮集合＝範圍內的存活紅色器官、範圍內像素 +8% 以上、範圍外像素變暗（<0.9）、移動後取消、獸身外按住不亮` : `${tag} DF-05 按住提示：加亮集合＝起點 420 內的存活紅色器官、近處像素 +8% 以上且比遠處（470 外）多 6% 以上、遠處變化 <5%、移動後取消、獸身外按住不亮`, ok, JSON.stringify(info));
     await ctx.close();
   }
   // ===== DF-05 第一場教學：只出現一次、可以跳過；示範後依事件逐條出現三句提示 =====

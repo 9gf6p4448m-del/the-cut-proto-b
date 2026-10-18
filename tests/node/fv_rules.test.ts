@@ -5,7 +5,7 @@ import { AIM_STEPS, BODY, LOCK_STEPS, MAX_LEN, aiChoose, candidates, entryDist, 
 import type { GameEvent, GameState, Line, Mode, OrganDef, Side, V } from '../../src/rtcut/rules.ts';
 import { toPieces } from '../../src/rtcut/freehand.ts';
 import type { PtrEv } from '../../src/rtcut/freehand.ts';
-import { reachOf } from '../../src/rtcut/reach.ts';
+import { reachOf, zoneOf } from '../../src/rtcut/reach.ts';
 import { BODY2, R3 } from '../../src/cutbattle/duel3_board.ts';
 import { finishStage, matchFor, newCampaign, placeCheck, snapSlot, stitchSlots } from '../../src/cutbattle/campaign.ts';
 
@@ -117,6 +117,20 @@ test('FV-01 延伸區在凹的 BODY2 上精確＝「往自己方向 0..d 的垂�
   }
   assert.ok(ext > 500, `有延伸區點被取樣到（${ext}）`);
   assert.ok(bad <= 3, `不一致 ${bad}/${n}（只容許取樣 0.25 單位造成的邊界誤差）`);
+});
+
+test('FV-03 前置：範圍判定與前線帶用的起刀區點陣＝規則的 inStartZone（按欄區間算法，審查 H1；各 push、雙方逐點比對，只容許邊界上的格子不同）', () => {
+  const mode: Mode = { knockout: true, regen: true, r: R3, body: BODY2, front: FRONT };
+  for (const side of ['blue', 'red'] as Side[]) for (let push = -4; push <= 4; push++) {
+    const z = zoneOf(mode, push, side); let bad = 0, on = 0, n = 0;
+    for (let j = 0; j < z.h; j += 3) for (let i = 0; i < z.w; i += 3) {
+      const p: V = [z.x0 + i * 2, z.y0 + j * 2], want = inStartZone(mode, push, side, p), got = z.bits[j * z.w + i] === 1;
+      n++; if (want) on++;
+      if (want !== got) { const nb = [[2, 0], [-2, 0], [0, 2], [0, -2]].some(([dx, dy]) => inStartZone(mode, push, side, [p[0] + dx, p[1] + dy]) !== want); if (!nb) bad++; }   // 邊界格（鄰格判定不同）不算
+    }
+    assert.ok(on > 1000, `${side} push=${push} 起刀區非空`);
+    assert.equal(bad, 0, `${side} push=${push}：非邊界格不一致 ${bad}/${n}`);
+  }
 });
 
 // ---------------------------------------------------------------- FV-02
