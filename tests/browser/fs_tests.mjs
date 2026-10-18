@@ -29,6 +29,7 @@ export const ratioOf = (page, ids) => page.evaluate((ids) => {
       if (dd <= 0.8 * r) { si += lum; ni++; } else if (dd >= 1.5 * r && dd <= 2 * r) { ring++; if (near.every((q) => Math.hypot(px - q.c[0], py - q.c[1]) > 1.4 * r)) { so += lum; no++; } }
     }
     out[id] = no < 0.25 * ring ? null : (si / ni) / Math.max(1, so / no);
+    out[`${id}#share`] = no / ring;   // 外圈中背景像素的比例（1＝沒有排除鄰居）
   }
   return out;
 }, ids);
@@ -130,6 +131,12 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     await page.screenshot({ path: `${shotDir}/battle_end_393x852.png` });
     const log = await page.evaluate(() => window.__cb.fxLog);
     const ids = new Set(m.alive), judged = m.alive.filter((id) => bat[id] !== null && cut[id] !== null), visBad = judged.filter((id) => !(bat[id] >= 1.6 && bat[id] >= 0.9 * cut[id]));
+    // 補述 2 條件：回報不評數與「外圈有排除鄰居像素」的器官（位置），並存背景占比最低的 3 顆的裁切截圖（393×852 畫面上 90×90 CSS px）
+    const shareList = m.alive.map((id) => ({ id, share: bat[`${id}#share`] })).sort((a, b) => a.share - b.share);
+    const pos = await page.evaluate((ids) => Object.fromEntries(ids.map((id) => { const o = window.__cb.game.organs.find((x) => x.id === id); return [id, o.p]; })), m.alive);
+    const crops = [];
+    for (const x of shareList.slice(0, 3)) { const p = await scr(page, pos[x.id]); const f = `${shotDir}/fs06_crop_${x.id}.png`; await page.screenshot({ path: f, clip: { x: Math.max(0, p.x - 45), y: Math.max(0, p.y - 45), width: 90, height: 90 } }); crops.push(`${x.id}@${pos[x.id]} share=${x.share.toFixed(2)}`); }
+    const excluded = { notJudged: `${m.alive.length - judged.length}/${m.alive.length}`, partial: shareList.filter((x) => x.share < 1).map((x) => `${x.id}@${pos[x.id]}:${x.share.toFixed(2)}`), crops };
     const eq = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
     const nums = log.filter((x) => x.t === 'num'), acts = log.filter((x) => x.t === 'act'), lines = log.filter((x) => x.t === 'line');
     const minCss = Math.min(...nums.map((x) => x.css)), crit = nums.filter((x) => x.crit), normal = nums.filter((x) => !x.crit);
@@ -138,7 +145,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     void ids;
     const ok = visBad.length === 0 && judged.length >= Math.ceil(m.alive.length / 2) && eq(m.m.me, m.me) && eq(m.m.foe, m.foe) && acts.length > 0 && lineKinds.has('爪') && nums.length > 4 && minCss >= 18 && gap >= 80
       && (crit.length === 0 || (crit[0].css > normal[0].css && crit[0].text.startsWith('暴擊')));
-    check(`${tag} FS-06 戰鬥可讀：器官亮度比 ≥1.6 且 ≥ 切割期×0.9、開戰前對照＝實際剩下的器官、有行動亮起與爪的攻擊連線、跳字 ≥18 CSS px、暴擊樣式不同、雙方跳字間隔 ≥80ms`, ok, JSON.stringify({ visBad, judged: `${judged.length}/${m.alive.length}`, cut: Object.fromEntries(Object.entries(cut).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), bat: Object.fromEntries(Object.entries(bat).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), m: m.m.text, acts: acts.length, lineKinds: [...lineKinds], nums: nums.length, minCss: +minCss.toFixed(1), crit: crit.length, gap: gap === Infinity ? null : Math.round(gap) }));
+    check(`${tag} FS-06 戰鬥可讀：器官亮度比 ≥1.6 且 ≥ 切割期×0.9、開戰前對照＝實際剩下的器官、有行動亮起與爪的攻擊連線、跳字 ≥18 CSS px、暴擊樣式不同、雙方跳字間隔 ≥80ms`, ok, JSON.stringify({ visBad, judged: `${judged.length}/${m.alive.length}`, excluded, cut: Object.fromEntries(Object.entries(cut).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), bat: Object.fromEntries(Object.entries(bat).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), m: m.m.text, acts: acts.length, lineKinds: [...lineKinds], nums: nums.length, minCss: +minCss.toFixed(1), crit: crit.length, gap: gap === Infinity ? null : Math.round(gap) }));
     await ctx.close();
   }
   // ===== FS-06 毒的攻擊連線（蛇有 3 毒，直接進戰鬥）=====

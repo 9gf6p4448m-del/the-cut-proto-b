@@ -1,21 +1,23 @@
 // duel v0.4 前線推進（duel4/）瀏覽器測試（作者測試；Chromium＋WebKit 模擬，**不是 iPhone 實機**）。
 // 凍結驗收：the-cut docs/fusion/DUEL_V04_FRONT.md＋補述 1／2 的 FV-04、FV-05、FV-06 與 C（範圍顯示）、B（前線帶）的瀏覽器部分。
 // FV-01／02／03 與 FV-05 槽位幾何在 tests/node/fv_rules.test.ts；FV-07 由 run.mjs 以 sub='duel4' 照跑 df／cb／da 測試。
+// duel5（DUEL_V05_SNAKE FS-07）：同一份測試以 sub='duel5'、extraInit＝預選龍照跑；預設參數＝duel4，duel4 的行為不變。
 import { mkdirSync } from 'node:fs';
 import { newPage } from './exp_tests.mjs';
 import { PLAN, regionLum } from './df_tests.mjs';
 
-const NO_TUT = "try { localStorage.setItem('duel4-tutorial', 'done'); } catch (e) {}";
+const noTut = (sub) => `try { localStorage.setItem('${sub}-tutorial', 'done'); } catch (e) {}`;
 const ready = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady && !!window.__cb.camp, null, { timeout: 30000 });
 const scr = (page, p) => page.evaluate(([x, y]) => window.__cb.toScreen(x, y), p);
 const evs = (S, E, t0, ms = 60) => { const out = [{ t: t0, k: 'down', p: S }]; for (let t = 8; t < ms; t += 8) out.push({ t: t0 + t, k: 'move', p: [S[0] + ((E[0] - S[0]) * t) / ms, S[1] + ((E[1] - S[1]) * t) / ms] }); out.push({ t: t0 + ms, k: 'move', p: E }, { t: t0 + ms, k: 'up', p: E }); return out; };
 const frames = (pg, n = 3) => pg.evaluate((k) => new Promise((r) => { let i = 0; const f = () => (++i >= k ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
 
-export async function runFvTests({ bname, btype, devices, url, check, shotDir = 'test-output/fv_shots' }) {
+export async function runFvTests({ bname, btype, devices, url, check, shotDir = 'test-output/fv_shots', sub = 'duel4', extraInit = [] }) {
+  const NO_TUT = noTut(sub);
   mkdirSync(shotDir, { recursive: true });
   const browser = await btype.launch();
-  const tag = `[${bname}][duel4]`;
-  const open = async (init = [NO_TUT]) => { const { ctx, page } = await newPage(browser, bname, devices, 393, 852); for (const s of init) await ctx.addInitScript(s); await page.goto(url + '/duel4/'); await ready(page); return { ctx, page }; };
+  const tag = `[${bname}][${sub}]`;
+  const open = async (init = [NO_TUT]) => { const { ctx, page } = await newPage(browser, bname, devices, 393, 852); for (const s of [...init, ...extraInit]) await ctx.addInitScript(s); await page.goto(url + `/${sub}/`); await ready(page); return { ctx, page }; };
   const touch = async (page, p) => { const A = await scr(page, p); await page.touchscreen.tap(A.x, A.y); };
 
   // ===== FV-04 倒數：期間模擬時間不前進、AI 不出刀、玩家拖曳不生效；結束後開始 =====

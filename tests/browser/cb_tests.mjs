@@ -41,7 +41,7 @@ function legalSpot(camp) {
 export async function runCbTests({ bname, btype, devices, url, check, sub = 'duel', ver = 'v0.1 切割→戰鬥', winSeed = 1, init = null }) {   // init：載入前執行的腳本（duel3 DF-03 用來切到直線預覽）
   const browser = await btype.launch();
   const tag = `[${bname}][${sub}]`;
-  const d4 = sub === 'duel4';   // duel4（DUEL_V04_FRONT 三-3／三-7）：縫合改為吸附到槽位（40 外拒絕）、放下後展示新身體再按「下一位對手」
+  const d4 = sub === 'duel4' || sub === 'duel5';   // duel4（DUEL_V04_FRONT 三-3／三-7）：縫合改為吸附到槽位（40 外拒絕）、放下後展示新身體再按「下一位對手」
   const ready = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady !== false && !!window.__cb.camp, null, { timeout: 30000 });
   const { ctx, page } = await newPage(browser, bname, devices, ...SIZES.iPhone14Pro);
   if (init) await ctx.addInitScript(init);
