@@ -91,8 +91,7 @@ test('beginRun 後不 endStage 直接關頁：重開為 unfinished、stages 空�
   assert.equal(b.log.runs.length, 1);
   assert.equal(b.log.runs[0].result, 'unfinished');
   assert.deepEqual(b.log.runs[0].stages, []);
-  assert.match(b.log.copyText().split('
-')[0], /｜1 局｜/);
+  assert.match(b.log.copyText().split('\n')[0], /｜1 局｜/);
 });
 
 // 局欄位：runIdx／gapSec／abandoned 語意／寫入時機
