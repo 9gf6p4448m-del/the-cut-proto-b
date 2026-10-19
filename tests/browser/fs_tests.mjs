@@ -298,6 +298,25 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     check(`${tag} FS-06「清空！」完整顯示 ≥600ms 才換下一個（開戰前對照或戰鬥橫幅）`, !!ko && shown !== null && shown >= 600, JSON.stringify({ ko, shown: shown && Math.round(shown), log: log.slice(Math.max(0, i0 - 1), i0 + 3).map((x) => `${x.t}:${x.id ?? ''}`) }));
     await ctx.close();
   }
+  // ===== 即時（非手動推進）打到「清空！」不能卡死整頁，且要進戰鬥（iPhone 實機回報：停在「清空！」、計時 0.7；原因＝清空保留中規則時鐘的 while 迴圈無窮空轉） =====
+  {
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake')], '?cut=60');
+    await readyCamp(page);
+    await page.evaluate(() => { window.__cb.newRun({ seed: 9, beast: 'snake' }); window.__cb.skipCountdown(); });
+    let ko = null;
+    for (let i = 0; i < 200 && !ko; i++) {
+      const st = await page.evaluate(() => ({ ph: window.__cb.game.phase, k: window.__cb.game.step }));
+      if (st.ph !== 'cut') { ko = st.ph; break; }
+      const plan = await page.evaluate(PLAN);
+      if (plan) await page.evaluate(([e]) => window.__cb.feed(e), [evs(plan.S, plan.E, (st.k + 4) * (1000 / 60))]);
+      await page.waitForTimeout(350);
+    }
+    const hung = (ms) => Promise.race([page.evaluate(() => window.__cb.ui), new Promise((r) => setTimeout(() => r('HUNG'), ms))]);
+    const t0 = Date.now(); let ui = 'HUNG';
+    while (Date.now() - t0 < 5000 && ui !== 'battle' && ui !== 'contrib') { ui = await hung(1500); if (ui === 'HUNG') break; await page.waitForTimeout(100); }
+    check(`${tag} 即時打到「清空！」不卡死、5 秒內進戰鬥（卡死＝evaluate 無回應）`, ko === 'ko' && (ui === 'battle' || ui === 'contrib'), JSON.stringify({ ko, ui }));
+    if (ui !== 'HUNG') await ctx.close().catch(() => {});   // 卡死的頁面不等它關
+  }
   // ===== 選怪獸畫面：「清空！」保留中按「重新征途」→ 舊征途的戰鬥不在選擇畫面背後開打，選擇畫面照常可用（審查 C3） =====
   {
     const { ctx, page } = await open([NO_TUT, autoBeast('snake')], '?cut=60');
@@ -348,5 +367,5 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     const same = JSON.stringify(sigs[0].sig) === JSON.stringify(sigs[1].sig) && sigs[0].sig.length >= 590 && sigs[0].sig.some((x) => !x.endsWith('|0')) && !!sigs[0].battle && JSON.stringify(sigs[0].battle) === JSON.stringify(sigs[1].battle);
     check(`${tag} FS-06 決定性：同一輸入、演出開／關，整個切割期的規則結果逐步相同（有切除、push 有變），戰鬥結果（勝負、時長、事件數、最後一個事件）也相同`, same, JSON.stringify({ n: sigs.map((x) => x.sig.length), battle: sigs.map((x) => x.battle && { winner: x.battle.winner, endMs: x.battle.endMs, n: x.battle.n }) }));
   }
-  await browser.close();
+  await Promise.race([browser.close(), new Promise((r) => setTimeout(r, 15000))]);   // 頁面被卡死（紅燈）時 close 可能等不到；由 fs_run 的 process.exit 收尾
 }

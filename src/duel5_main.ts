@@ -957,7 +957,7 @@ function frame(now: number): void {
     if (G.lastT === null) G.lastT = now;
     G.clock += Math.min(250, now - G.lastT); G.lastT = now;
     const lag = G.input === 'free' ? FREE_LAG_MS : 0;
-    while (G.ui === 'cut' && (G.game.step + 1) * STEP_MS + lag <= G.clock) stepOnce();
+    while (G.ui === 'cut' && G.game.phase === 'cut' && (G.game.step + 1) * STEP_MS + lag <= G.clock) stepOnce();   // phase 不是 cut（清空保留中）時 stepOnce 不前進，不擋會無窮迴圈卡死整頁
   } else G.lastT = now;
   if (G.pendingBattle && now >= G.pendingBattle) { G.pendingBattle = 0; startBattle(); }
   if (G.matchupUntil && now >= G.matchupUntil) { G.matchupUntil = 0; els.matchup.hidden = true; G.banner = { text: '戰鬥！', sub: '剩下的器官自動開打', t0: now, life: 1100 }; }

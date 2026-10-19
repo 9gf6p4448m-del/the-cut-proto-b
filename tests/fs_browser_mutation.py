@@ -27,6 +27,7 @@ MUTS = [
  ('演出關閉時戰鬥少一個參戰者（審查 M4）', [("  const f = fightersOf(G.game);\n  G.battle", "  const f = fightersOf(G.game).slice(G.fxOn ? 0 : 1);\n  G.battle")], 'FS-06 決定性'),
  ('結束畫面「最後的身體」不列蛇牙（主 session 裁定 L1）', [("(['claw', 'heart', 'eye', 'poison', 'bone', 'fang'] as Kind[]).map((k) => [k, body.filter", "(['claw', 'heart', 'eye', 'poison', 'bone'] as Kind[]).map((k) => [k, body.filter")], '「最後的身體」列出蛇牙'),
  ('選蛇的提示仍寫死「五種器官」（主 session 裁定 L3）', [("onceTip('kinds', beast === 'snake' ?", "onceTip('kinds', false ?")], '「最後的身體」列出蛇牙'),
+ ('規則時鐘迴圈不看 phase（回到 b9273ea 的寫法；v0.5.1 清空卡死）', [("while (G.ui === 'cut' && G.game.phase === 'cut' && (G.game.step + 1)", "while (G.ui === 'cut' && (G.game.step + 1)")], '即時打到「清空！」不卡死'),
 ]
 if os.environ.get('MUT_LAST'): MUTS = MUTS[-int(os.environ['MUT_LAST']):]   # 只跑最後 N 條（修補後補跑用）
 def run(cmd, **kw): return subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', **kw)
