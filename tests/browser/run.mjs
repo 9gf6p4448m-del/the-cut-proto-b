@@ -290,6 +290,16 @@ for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runDaTests({ bname, btype, devices, url, check, sub: 'duel5', init: `${lineInit('duel5')}; ${DRAGON}` });
 }
 
+// ---- 對決 v0.6 平手＋紀錄（duel6/）：FT-08（沿用 fs_tests）；FS-07＝v0.4 的 FV、v0.3 的 DF、直線預覽下的 cb／da 測試在 duel6 選龍照跑 ----
+for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
+  const DRAGON = autoBeast('dragon', 'duel6');
+  await runFsTests({ bname, btype, devices, url, check, sub: 'duel6', shotDir: bname === 'chromium' ? 'test-output/ft_shots' : 'test-output/ft_shots/webkit' });
+  await runFvTests({ bname, btype, devices, url, check, sub: 'duel6', extraInit: [DRAGON], shotDir: bname === 'chromium' ? 'test-output/ft_shots/fv' : 'test-output/ft_shots/fv/webkit' });
+  await runDfTests({ bname, btype, devices, url, check, sub: 'duel6', ver: 'v0.6 平手＋紀錄', extraInit: [DRAGON], shotDir: bname === 'chromium' ? 'test-output/ft_shots/df' : 'test-output/ft_shots/df/webkit' });
+  await runCbTests({ bname, btype, devices, url, check, sub: 'duel6', ver: 'v0.6 平手＋紀錄', winSeed: 3, init: `${lineInit('duel6')}; ${DRAGON}` });
+  await runDaTests({ bname, btype, devices, url, check, sub: 'duel6', init: `${lineInit('duel6')}; ${DRAGON}` });
+}
+
 // ---- 幽光美術展示頁（art-kit/）：素材載入重試與失敗提示（2026-10-18 iOS 回報） ----
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]]) {
   await runArtKitTests({ bname, btype, devices, url, check });

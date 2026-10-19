@@ -5,8 +5,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { newPage } from './exp_tests.mjs';
 import { PLAN } from './df_tests.mjs';
 
-const NO_TUT = "try { localStorage.setItem('duel5-tutorial', 'done'); } catch (e) {}";
-export const autoBeast = (b) => `window.__duel5AutoBeast = '${b}';`;
+const noTutOf = (sub) => `try { localStorage.setItem('${sub}-tutorial', 'done'); } catch (e) {}`;
+export const autoBeast = (b, sub = 'duel5') => `window.__${sub}AutoBeast = '${b}';`;   // duel6：sub 參數化（FT-08）
 /** 從藍方獸身內找一條長 400 的刀線，盡量多穿過可切的紅色器官（穿刺連切用）。 */
 const PIERCE_PLAN = `(() => {
   const g = window.__cb.game, R = window.__cb.R, body = g.mode.body.blue;
@@ -52,11 +52,12 @@ export const ratioOf = (page, ids) => page.evaluate((ids) => {
   return out;
 }, ids);
 
-export async function runFsTests({ bname, btype, devices, url, check, shotDir = 'test-output/fs_shots' }) {
+export async function runFsTests({ bname, btype, devices, url, check, shotDir = 'test-output/fs_shots', sub = 'duel5' }) {
+  const NO_TUT = noTutOf(sub);
   mkdirSync(shotDir, { recursive: true });
   const browser = await btype.launch();
-  const tag = `[${bname}][duel5]`;
-  const open = async (init = [NO_TUT], q = '') => { const { ctx, page } = await newPage(browser, bname, devices, 393, 852); for (const s of init) await ctx.addInitScript(s); await page.goto(url + '/duel5/' + q); await readyAny(page); return { ctx, page }; };
+  const tag = `[${bname}][${sub}]`;
+  const open = async (init = [NO_TUT], q = '') => { const { ctx, page } = await newPage(browser, bname, devices, 393, 852); for (const s of init) await ctx.addInitScript(s); await page.goto(url + '/' + sub + '/' + q); await readyAny(page); return { ctx, page }; };
   const tapEl = async (page, sel) => { const b = await page.locator(sel).boundingBox(); if (!b) return false; await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); return true; };
 
   // ===== FS-05 選怪獸（觸控）：兩張卡（輪廓、器官、技能、風格）；選蛇 → 第一場是蛇；重開記住上次；localStorage 丟例外仍可玩 =====
@@ -67,13 +68,13 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     await page.screenshot({ path: `${shotDir}/beast_pick_393x852.png` });
     await tapEl(page, '#beastSnake');
     await page.waitForFunction(() => window.__cb.ui === 'cut' && !!window.__cb.camp, null, { timeout: 8000 });
-    const s1 = await page.evaluate(() => ({ beast: window.__cb.beast, kinds: window.__cb.game.organs.filter((o) => o.side === 'blue').map((o) => o.kind).join(','), body: window.__cb.game.mode.body.blue.length, saved: (() => { try { return localStorage.getItem('duel5-beast'); } catch { return 'ERR'; } })() }));
+    const s1 = await page.evaluate((BK) => ({ beast: window.__cb.beast, kinds: window.__cb.game.organs.filter((o) => o.side === 'blue').map((o) => o.kind).join(','), body: window.__cb.game.mode.body.blue.length, saved: (() => { try { return localStorage.getItem(BK); } catch { return 'ERR'; } })() }), `${sub}-beast`);
     await page.click('#restart');
     await page.waitForFunction(() => window.__cb.ui === 'beast', null, { timeout: 8000 });
     const pre = await page.evaluate(() => ({ snakeSel: document.getElementById('beastSnake').classList.contains('sel'), dragonSel: document.getElementById('beastDragon').classList.contains('sel') }));
     await ctx.close();
     // 重新載入頁面也記得
-    const { ctx: c2, page: p2 } = await open([NO_TUT, "try { localStorage.setItem('duel5-beast', 'snake'); } catch (e) {}"]);
+    const { ctx: c2, page: p2 } = await open([NO_TUT, `try { localStorage.setItem('${sub}-beast', 'snake'); } catch (e) {}`]);
     await p2.waitForFunction(() => window.__cb.ui === 'beast', null, { timeout: 8000 });
     const reload = await p2.evaluate(() => document.getElementById('beastSnake').classList.contains('sel'));
     await c2.close();
@@ -83,7 +84,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     await c3.addInitScript("Object.defineProperty(window, 'localStorage', { get() { throw new Error('blocked'); } });");
     let blocked = { beast: null, n: 0 };
     try {
-      await p3.goto(url + '/duel5/'); await readyAny(p3);
+      await p3.goto(url + '/' + sub + '/'); await readyAny(p3);
       await p3.waitForFunction(() => window.__cb?.ui === 'beast', null, { timeout: 8000 });
       await tapEl(p3, '#beastDragon');
       await p3.waitForFunction(() => window.__cb.ui === 'cut' && !!window.__cb.camp, null, { timeout: 8000 });
@@ -97,7 +98,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== FS-07 技能鈕（真實觸控）：切割期按「穿刺」→ 規則層的穿刺生效、按鈕變「穿刺中」；倒數期間不能按；用過後變灰 =====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)]);
     await readyCamp(page);
     await page.evaluate(() => window.__cb.newRun({ seed: 5, beast: 'snake' }));
     await frames(page, 2);
@@ -122,7 +123,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== 補述 1 第 11 條 ?cut=40：在 40 秒結束切割期（第 39.x 秒仍在切割期）；?cut=19 回到 30 =====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('dragon')], '?cut=40');
+    const { ctx, page } = await open([NO_TUT, autoBeast('dragon', sub)], '?cut=40');
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.newRun({ seed: 3, beast: 'dragon' }); window.__cb.advance(2399); });
     const a = await page.evaluate(() => ({ s: window.__cb.cutS, step: window.__cb.game.step, phase: window.__cb.game.phase, ui: window.__cb.ui }));
@@ -131,7 +132,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     await page.evaluate(() => window.__cb.advance(1));
     const b = await page.evaluate(() => ({ phase: window.__cb.game.phase }));
     await ctx.close();
-    const { ctx: c2, page: p2 } = await open([NO_TUT, autoBeast('dragon')], '?cut=19');
+    const { ctx: c2, page: p2 } = await open([NO_TUT, autoBeast('dragon', sub)], '?cut=19');
     await readyCamp(p2);
     const c = await p2.evaluate(() => ({ s: window.__cb.cutS, steps: window.__cb.game.mode.cutSteps }));
     await c2.close();
@@ -139,7 +140,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== FS-07 穿刺連切在主程式有處理（審查 C2）：連切的每一顆都有裂開演出、記入切下清單（縫合選項） =====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)]);
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.newRun({ seed: 5, beast: 'snake' }); window.__cb.advance(2); });
     await frames(page, 2);
@@ -159,7 +160,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== 同上，直線預覽（真實指標拖曳放開＝直線刀）=====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)]);
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.newRun({ seed: 5, beast: 'snake' }); window.__cb.setInput('line'); window.__cb.advance(2); });
     await frames(page, 2);
@@ -185,7 +186,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     const spy = "window.__texts = []; const f0 = CanvasRenderingContext2D.prototype.fillText; CanvasRenderingContext2D.prototype.fillText = function (t, ...a) { if (typeof t === 'string' && t.includes('切割')) window.__texts.push(t); return f0.call(this, t, ...a); };";
     const res = {};
     for (const q of ['?cut=45', '']) {
-      const { ctx, page } = await open([NO_TUT, autoBeast('dragon'), spy], q);
+      const { ctx, page } = await open([NO_TUT, autoBeast('dragon', sub), spy], q);
       await readyCamp(page);
       await page.waitForFunction(() => window.__texts.some((t) => t.includes('秒')), null, { timeout: 6000 }).catch(() => {});
       res[q || 'none'] = await page.evaluate(() => [...new Set(window.__texts.filter((t) => t.includes('秒')))]);
@@ -196,7 +197,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== FS-06 戰鬥可讀（像素＋事件）：戰鬥期器官可見（亮度比 ≥1.6 且 ≥ 切割期 ×0.9）、對照逐項相同、行動亮起與攻擊連線、字級 ≥18 CSS px、暴擊樣式不同、雙方跳字 ≥80ms、「清空！」≥600ms =====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('dragon')]);
+    const { ctx, page } = await open([NO_TUT, autoBeast('dragon', sub)]);
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 1 }); window.__cb.newRun({ seed: 5, beast: 'dragon' }); window.__cb.advance(2); });
     await frames(page, 4);
@@ -246,7 +247,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== FS-06 戰鬥期器官可見（蛇盤面，雙方都量；審查 H2。?cut=20：切割期短，開戰時藍方蛇還有器官活著）=====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')], '?cut=20');
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)], '?cut=20');
     await readyCamp(page);
     // 固定種子 15（?cut=20）：AI 在切割期只切走部分藍方器官，開戰時藍方蛇還有器官活著，才量得到藍方；種子不依賴執行結果
     const seed = 15;
@@ -268,7 +269,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== FS-06 毒的攻擊連線（蛇有 3 毒，直接進戰鬥）=====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)]);
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 1 }); window.__cb.newRun({ seed: 9, beast: 'snake' }); window.__cb.advance(1801); });
     await page.waitForFunction(() => window.__cb.fxLog.some((x) => x.t === 'line' && /毒/.test(x.id || '')), null, { timeout: 20000 }).catch(() => {});
@@ -279,7 +280,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== FS-06「清空！」完整顯示 ≥600ms 才換下一個（擊倒局；?cut=60 給足時間；哪一方先清空都算）=====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')], '?cut=60');
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)], '?cut=60');
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 1 }); window.__cb.newRun({ seed: 9, beast: 'snake' }); window.__cb.advance(2); });
     let ko = null;
@@ -300,7 +301,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== 選怪獸畫面：「清空！」保留中按「重新征途」→ 舊征途的戰鬥不在選擇畫面背後開打，選擇畫面照常可用（審查 C3） =====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')], '?cut=60');
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)], '?cut=60');
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 1 }); window.__cb.newRun({ seed: 9, beast: 'snake' }); window.__cb.advance(2); });
     let ko = null;
@@ -308,7 +309,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
       const st = await page.evaluate(() => window.__cb.game.phase); if (st !== 'cut') break;
       const plan = await page.evaluate(PLAN), k0 = await page.evaluate(() => window.__cb.game.step);
       if (plan) await page.evaluate(([e]) => window.__cb.feed(e), [evs(plan.S, plan.E, (k0 + 1) * (1000 / 60))]);
-      ko = await page.evaluate(() => { window.__cb.advance(92); if (window.__cb.game.phase !== 'ko') return null; const end = window.__cb.game.end; delete window.__duel5AutoBeast; document.getElementById('restart').click(); return end; });   // 同一個 JS 工作內點真正的「重新征途」鈕（在 700ms 保留內）
+      ko = await page.evaluate((AB) => { window.__cb.advance(92); if (window.__cb.game.phase !== 'ko') return null; const end = window.__cb.game.end; delete window[AB]; document.getElementById('restart').click(); return end; }, `__${sub}AutoBeast`);   // 同一個 JS 工作內點真正的「重新征途」鈕（在 700ms 保留內）
     }
     await page.waitForTimeout(1500);
     const pick = await page.evaluate(() => ({ ui: window.__cb.ui, battle: !!window.__cb.battle, beastShown: !document.getElementById('beast').hidden }));
@@ -321,7 +322,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   }
   // ===== L1：結束畫面「最後的身體」要列出蛇牙；L3：選蛇的提示要提到蛇牙（主 session 裁定）=====
   {
-    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)]);
     await readyCamp(page);
     await page.waitForFunction(() => window.__cb.tipLog.some((t) => t.includes('器官：')), null, { timeout: 12000 }).catch(() => {});
     const tips = await page.evaluate(() => window.__cb.tipLog);
@@ -335,7 +336,7 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
   {
     const sigs = [];
     for (const fxOn of [true, false]) {
-      const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+      const { ctx, page } = await open([NO_TUT, autoBeast('snake', sub)]);
       await readyCamp(page);
       await page.evaluate((v) => { window.__cb.setManual(true); window.__cb.setFx(v); window.__cb.newRun({ seed: 11, beast: 'snake' }); }, fxOn);
       const plan = await page.evaluate(PLAN);

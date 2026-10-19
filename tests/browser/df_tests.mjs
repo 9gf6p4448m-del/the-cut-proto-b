@@ -279,7 +279,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
     await page.waitForFunction(() => window.__cb.ui === 'battle', null, { timeout: 5000 });
     await frames(page, 3);
     const battle = await regionLum(page, box);
-    if (sub === 'duel5') {
+    if (sub === 'duel5' || sub === 'duel6') {
       // duel5（FS-07 調整案例）：戰鬥期本體刻意調得比切割期更暗（FS-06／補述 1 第 10a 條、補述 2：戰鬥時只看器官），所以「切割期比戰鬥期暗」不再成立。
       // 原意（切割期本體有調暗）改和不調暗的場景比：打完（輸）進結束畫面＝不調暗；條件同樣是比值 <0.85。另驗戰鬥期比切割期暗。
       await page.evaluate(() => window.__cb.setTimings({ battleScale: 0.05 }));   // 前面量戰鬥期用了慢速回放；這裡加快到結算
@@ -295,7 +295,7 @@ export async function runDfTests({ bname, btype, devices, url, check, shotDir = 
   // duel4（審查 H2：不得整段跳過；DL-087 選 A、補述 3）：即時劃刀手指能繞路，加亮集合＝輪廓內（離起刀區 ≤420＋半徑）的存活紅色器官，不調暗。
   // 「遠處」改取「直線碰不到」的紅色器官：鎖住 A 的行為——它和範圍內的器官一樣加亮（亮度增益差 <5%）、透明度 1。其餘照原條件驗：近處像素 +8% 以上、移動後取消、獸身外按住不亮。
   {
-    const d4 = sub === 'duel4' || sub === 'duel5';   // duel5 選龍時沿用 duel4 規則（FS-07）
+    const d4 = sub === 'duel4' || sub === 'duel5' || sub === 'duel6';   // duel5 選龍時沿用 duel4 規則（FS-07）
     const { ctx, page } = await open();
     await page.evaluate(() => window.__cb.setManual(true));
     // 找一個起點：藍龍身內、不在器官圓內，420 內至少一個、470 外至少一個存活紅色器官（審查 M-2：沒有遠處器官就沒驗到「420 外不變」）

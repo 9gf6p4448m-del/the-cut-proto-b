@@ -4,9 +4,10 @@ import { serve } from './serve.mjs';
 import { runFsTests } from './fs_tests.mjs';
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
+const SUB = process.env.DUEL_SUB ?? 'duel5';   // duel6：DUEL_SUB=duel6 以 duel6 為目標（FT-08）；不設＝duel5
 const { srv, url } = await serve(process.cwd());
 for (const [bname, btype] of [['chromium', chromium], ['webkit', webkit]].filter(([n]) => !process.env.FS_ONLY || n === process.env.FS_ONLY)) {
-  await runFsTests({ bname, btype, devices, url, check, shotDir: bname === 'chromium' ? 'test-output/fs_shots' : 'test-output/fs_shots/webkit' });
+  await runFsTests({ bname, btype, devices, url, check, sub: SUB, shotDir: bname === 'chromium' ? 'test-output/fs_shots' : 'test-output/fs_shots/webkit' });
 }
 srv.close();
 const failed = results.filter((r) => !r.ok);
