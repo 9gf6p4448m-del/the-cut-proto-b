@@ -21,8 +21,14 @@ MUTS = [
  ('穿刺連切沒有記入切下清單（審查 C2）', [("G.cutByMe.push(o.kind); return;", "return;")], 'FS-07 穿刺連切'),
  ('選怪獸畫面沒清掉待開戰（審查 C3）', [("  G.pendingBattle = 0; G.matchupUntil = 0; els.matchup.hidden = true; G.countdown = null;   // 「清空！」保留中", "  // 「清空！」保留中")], '選怪獸：「清空！」'),
  ('倒數畫面寫死 30 秒（主 session 追加 ②）', [("ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CUT_S} 秒`", "ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`")], '?cut=45：倒數畫面'),
- ('蛇盤面藍方器官被畫暗（H2：雙方都量）', [("const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? BATTLE_DIM : G.ui === 'cut'", "const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? undefined : G.ui === 'cut'"), ("g.addColorStop(0, 'rgba(7,13,25,0.9)'); g.addColorStop(0.75, 'rgba(7,13,25,0.7)'); g.addColorStop(1, 'rgba(7,13,25,0)');", "g.addColorStop(0, 'rgba(7,13,25,0)'); g.addColorStop(0.75, 'rgba(7,13,25,0)'); g.addColorStop(1, 'rgba(7,13,25,0)');")], 'FS-06 戰鬥期器官可見（蛇盤面'),
+ ('藍方器官在戰鬥期不畫出來（只有藍方；修補前只量紅方的測試會放行）（審查 H2）', [("  if (!showCamp) s.organs.forEach((o, i) => {\n    if (!s.alive[i]) return;\n    const sprout", "  if (!showCamp) s.organs.forEach((o, i) => {\n    if (!s.alive[i] || (o.side === 'blue' && G.ui === 'battle')) return;\n    const sprout")], 'FS-06 戰鬥'),
+ ('開戰前對照的 DOM 文字少一種（內部資料正確）（審查 M1）', [("<span class=\"foe\">敵 ${line(foe)}</span>", "<span class=\"foe\">敵 ${line(foe).replace('毒', '')}</span>")], 'FS-06 戰鬥可讀'),
+ ('暈影和本體調暗只在開戰前對照期間有效、回放中消失（審查 M6）', [("    if (!s.alive[i]) return;\n    const g = ctx.createRadialGradient(o.p[0], o.p[1], R * 0.6", "    if (!s.alive[i] || els.matchup.hidden) return;\n    const g = ctx.createRadialGradient(o.p[0], o.p[1], R * 0.6"), ("  const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? BATTLE_DIM : G.ui === 'cut'", "  const dimNow = G.ui === 'battle' && !els.matchup.hidden ? BATTLE_DIM : G.ui === 'cut'")], 'FS-06 戰鬥可讀'),
+ ('演出關閉時戰鬥少一個參戰者（審查 M4）', [("  const f = fightersOf(G.game);\n  G.battle", "  const f = fightersOf(G.game).slice(G.fxOn ? 0 : 1);\n  G.battle")], 'FS-06 決定性'),
+ ('結束畫面「最後的身體」不列蛇牙（主 session 裁定 L1）', [("(['claw', 'heart', 'eye', 'poison', 'bone', 'fang'] as Kind[]).map((k) => [k, body.filter", "(['claw', 'heart', 'eye', 'poison', 'bone'] as Kind[]).map((k) => [k, body.filter")], '「最後的身體」列出蛇牙'),
+ ('選蛇的提示仍寫死「五種器官」（主 session 裁定 L3）', [("onceTip('kinds', beast === 'snake' ?", "onceTip('kinds', false ?")], '「最後的身體」列出蛇牙'),
 ]
+if os.environ.get('MUT_LAST'): MUTS = MUTS[-int(os.environ['MUT_LAST']):]   # 只跑最後 N 條（修補後補跑用）
 def run(cmd, **kw): return subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', **kw)
 res = []
 for name, pairs, pat in MUTS:

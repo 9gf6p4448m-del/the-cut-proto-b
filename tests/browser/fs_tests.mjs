@@ -205,7 +205,10 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     await page.evaluate(() => window.__cb.advance(1800));
     await page.waitForFunction(() => window.__cb.matchup && window.__cb.matchup.shown, null, { timeout: 5000 });
     await frames(page, 3);
-    const m = await page.evaluate(() => { const g = window.__cb.game, c = (side) => { const o = {}; g.organs.forEach((x, i) => { if (g.alive[i] && x.side === side) o[x.kind] = (o[x.kind] ?? 0) + 1; }); return o; }; return { m: window.__cb.matchup, me: c('blue'), foe: c('red'), alive: g.organs.filter((o, i) => g.alive[i]).map((o) => o.id) }; });
+    const m = await page.evaluate(() => { const g = window.__cb.game, c = (side) => { const o = {}; g.organs.forEach((x, i) => { if (g.alive[i] && x.side === side) o[x.kind] = (o[x.kind] ?? 0) + 1; }); return o; }; return { m: window.__cb.matchup, me: c('blue'), foe: c('red'), alive: g.organs.filter((o, i) => g.alive[i]).map((o) => o.id),
+      // 玩家實際看到的橫幅文字（DOM），和由存活器官獨立算出的期望字串逐字相同（審查 M1）
+      dom: document.getElementById('matchup').textContent, shownDom: !document.getElementById('matchup').hidden,
+      exp: (() => { const Z = { claw: '爪', heart: '心', eye: '眼', poison: '毒', bone: '骨', fang: '牙' }, ln = (side) => Object.keys(Z).map((k) => [k, g.organs.filter((o, i) => g.alive[i] && o.side === side && o.kind === k).length]).filter(([, n]) => n > 0).map(([k, n]) => Z[k] + n).join(' ') || '（無）'; return '你 ' + ln('blue') + 'vs敵 ' + ln('red'); })() }; });
     const bat = await ratioOf(page, m.alive);
     // 補述 2 條件 2：量測當下從 canvas 截出背景占比最低 3 顆的 90×90 CSS px 區塊（就是被量測的像素；開戰前對照的 DOM 橫幅不在 canvas 上，量測也不含它）
     const shareList = m.alive.map((id) => ({ id, share: bat[`${id}#share`] })).sort((a, b) => a.share - b.share);
@@ -218,9 +221,16 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
       const f = `${shotDir}/fs06_crop_${x.id}.png`; writeFileSync(f, Buffer.from(url64.split(',')[1], 'base64')); crops.push(`${x.id}@${pos[x.id]} share=${x.share.toFixed(2)}`);
     }
     await page.screenshot({ path: `${shotDir}/battle_matchup_393x852.png` });
+    // 審查 M6：開戰前對照（DOM 橫幅蓋在器官上）之外，戰鬥回放進行中（對照已收起、已有攻擊連線）再量一次
+    await page.waitForFunction(() => window.__cb.matchup && !window.__cb.matchup.shown && window.__cb.fxLog.some((x) => x.t === 'line'), null, { timeout: 10000 }).catch(() => {});
+    await frames(page, 2);
+    const play = await page.evaluate(() => ({ ui: window.__cb.ui, matchupShown: !!(window.__cb.matchup && window.__cb.matchup.shown), lines: window.__cb.fxLog.filter((x) => x.t === 'line').length }));
+    const bat2 = await ratioOf(page, m.alive);
+    await page.screenshot({ path: `${shotDir}/battle_play_393x852.png` });
     await page.waitForFunction(() => window.__cb.ui === 'contrib', null, { timeout: 60000 }).catch(() => {});
     await page.screenshot({ path: `${shotDir}/battle_end_393x852.png` });
     const log = await page.evaluate(() => window.__cb.fxLog);
+    const judged2 = m.alive.filter((id) => bat2[id] !== null && cut[id] !== null && cut[id] !== undefined), visBad2 = judged2.filter((id) => !(bat2[id] >= 1.6 && bat2[id] >= 0.9 * cut[id]));
     const ids = new Set(m.alive), judged = m.alive.filter((id) => bat[id] !== null && cut[id] !== null), visBad = judged.filter((id) => !(bat[id] >= 1.6 && bat[id] >= 0.9 * cut[id]));
     const excluded = { notJudged: `${m.alive.length - judged.length}/${m.alive.length}`, partial: shareList.filter((x) => x.share < 1).map((x) => `${x.id}@${pos[x.id]}:${x.share.toFixed(2)}`), crops };
     const eq = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
@@ -229,9 +239,9 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     let gap = Infinity; for (const a of nums) for (const b of nums) if (a.side !== b.side) gap = Math.min(gap, Math.abs(a.at - b.at));
     const lineKinds = new Set(lines.map((l) => (l.id || '').replace(/[藍紅]/, '').replace(/[0-9縫]/g, '')));
     void ids;
-    const ok = visBad.length === 0 && judged.length >= Math.ceil(m.alive.length / 2) && eq(m.m.me, m.me) && eq(m.m.foe, m.foe) && acts.length > 0 && lineKinds.has('爪') && nums.length > 4 && minCss >= 18 && gap >= 80
+    const ok = visBad.length === 0 && judged.length >= Math.ceil(m.alive.length / 2) && visBad2.length === 0 && judged2.length >= Math.ceil(m.alive.length / 2) && play.lines > 0 && !play.matchupShown && m.shownDom && m.dom === m.exp && eq(m.m.me, m.me) && eq(m.m.foe, m.foe) && acts.length > 0 && lineKinds.has('爪') && nums.length > 4 && minCss >= 18 && gap >= 80
       && (crit.length === 0 || (crit[0].css > normal[0].css && crit[0].text.startsWith('暴擊')));
-    check(`${tag} FS-06 戰鬥可讀：器官亮度比 ≥1.6 且 ≥ 切割期×0.9、開戰前對照＝實際剩下的器官、有行動亮起與爪的攻擊連線、跳字 ≥18 CSS px、暴擊樣式不同、雙方跳字間隔 ≥80ms`, ok, JSON.stringify({ visBad, judged: `${judged.length}/${m.alive.length}`, excluded, cut: Object.fromEntries(Object.entries(cut).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), bat: Object.fromEntries(Object.entries(bat).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), m: m.m.text, acts: acts.length, lineKinds: [...lineKinds], nums: nums.length, minCss: +minCss.toFixed(1), crit: crit.length, gap: gap === Infinity ? null : Math.round(gap) }));
+    check(`${tag} FS-06 戰鬥可讀：器官亮度比 ≥1.6 且 ≥ 切割期×0.9、開戰前對照＝實際剩下的器官、有行動亮起與爪的攻擊連線、跳字 ≥18 CSS px、暴擊樣式不同、雙方跳字間隔 ≥80ms`, ok, JSON.stringify({ dom: m.dom, exp: m.exp, play, visBad2, judged2: `${judged2.length}/${m.alive.length}`, bat2: Object.fromEntries(Object.entries(bat2).filter(([k]) => !k.includes('#')).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), visBad, judged: `${judged.length}/${m.alive.length}`, excluded, cut: Object.fromEntries(Object.entries(cut).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), bat: Object.fromEntries(Object.entries(bat).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), m: m.m.text, acts: acts.length, lineKinds: [...lineKinds], nums: nums.length, minCss: +minCss.toFixed(1), crit: crit.length, gap: gap === Infinity ? null : Math.round(gap) }));
     await ctx.close();
   }
   // ===== FS-06 戰鬥期器官可見（蛇盤面，雙方都量；審查 H2。?cut=20：切割期短，開戰時藍方蛇還有器官活著）=====
@@ -309,7 +319,19 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     check(`${tag} 選怪獸：「清空！」保留中按「重新征途」→ 舊戰鬥不在背後開打、選擇畫面可選、新征途開始`, !!ko && pick.ui === 'beast' && !pick.battle && pick.beastShown && go.ui === 'cut' && go.beast === 'dragon' && go.phase === 'cut', JSON.stringify({ ko, pick, go }));
     await ctx.close();
   }
-  // ===== FS-06 決定性：同一份輸入序列，演出開／關，規則結果逐步相同；戰鬥結果相同（戰鬥模擬與畫面無關） =====
+  // ===== L1：結束畫面「最後的身體」要列出蛇牙；L3：選蛇的提示要提到蛇牙（主 session 裁定）=====
+  {
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    await readyCamp(page);
+    await page.waitForFunction(() => window.__cb.tipLog.some((t) => t.includes('器官：')), null, { timeout: 12000 }).catch(() => {});
+    const tips = await page.evaluate(() => window.__cb.tipLog);
+    const text = await page.evaluate(() => window.__cb.bodyKindsText(['claw', 'fang', 'fang', 'poison']));
+    const tipsD = await (async () => { await page.evaluate(() => window.__cb.newRun({ seed: 3, beast: 'dragon' })); await page.waitForFunction(() => window.__cb.tipLog.some((t) => t.includes('器官：')), null, { timeout: 12000 }).catch(() => {}); return page.evaluate(() => window.__cb.tipLog); })();
+    const kindsSnake = tips.find((t) => t.includes('器官：')) || '', kindsDragon = tipsD.find((t) => t.includes('器官：')) || '';
+    check(`${tag} 結束畫面「最後的身體」列出蛇牙；選蛇的提示提到蛇牙（龍的提示維持五種）`, text.includes('牙×2') && text.includes('爪×1') && text.includes('毒×1') && kindsSnake.includes('牙') && !kindsSnake.includes('五種器官') && kindsDragon.startsWith('五種器官') && !kindsDragon.includes('牙'), JSON.stringify({ text, kindsSnake, kindsDragon }));
+    await ctx.close();
+  }
+  // ===== FS-06 決定性：同一份輸入序列，演出開／關，整個切割期規則結果逐步相同；戰鬥結果（勝負、時長、事件數、最後事件）相同 =====
   {
     const sigs = [];
     for (const fxOn of [true, false]) {
@@ -318,12 +340,13 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
       await page.evaluate((v) => { window.__cb.setManual(true); window.__cb.setFx(v); window.__cb.newRun({ seed: 11, beast: 'snake' }); }, fxOn);
       const plan = await page.evaluate(PLAN);
       await page.evaluate((e) => window.__cb.feed(e), [...evs(plan.S, plan.E, 500), ...evs(plan.S, [plan.S[0] + 200, plan.S[1]], 2600)]);
-      for (let i = 0; i < 40; i++) { await page.evaluate(() => window.__cb.advance(15)); await frames(page, 1); }
-      sigs.push(await page.evaluate(() => ({ sig: window.__cb.stepSig, battle: null })));
+      for (let i = 0; i < 130; i++) { await page.evaluate(() => window.__cb.advance(15)); await frames(page, 1); if (await page.evaluate(() => window.__cb.game.phase !== 'cut')) break; }   // 跑完整個切割期（審查 M4：連戰鬥結果一起比）
+      await page.waitForFunction(() => !!window.__cb.battle, null, { timeout: 5000 }).catch(() => {});
+      sigs.push(await page.evaluate(() => { const b = window.__cb.battle; return { sig: window.__cb.stepSig, battle: b && { winner: b.winner, endMs: b.endMs, n: b.events.length, last: JSON.stringify(b.events[b.events.length - 1]) } }; }));
       await ctx.close();
     }
-    const same = JSON.stringify(sigs[0].sig) === JSON.stringify(sigs[1].sig) && sigs[0].sig.length >= 590 && sigs[0].sig.some((x) => !x.endsWith('|0'));
-    check(`${tag} FS-06 決定性：同一輸入、演出開／關，600 步規則結果逐步相同（有切除、push 有變）`, same, JSON.stringify({ n: sigs.map((x) => x.sig.length) }));
+    const same = JSON.stringify(sigs[0].sig) === JSON.stringify(sigs[1].sig) && sigs[0].sig.length >= 590 && sigs[0].sig.some((x) => !x.endsWith('|0')) && !!sigs[0].battle && JSON.stringify(sigs[0].battle) === JSON.stringify(sigs[1].battle);
+    check(`${tag} FS-06 決定性：同一輸入、演出開／關，整個切割期的規則結果逐步相同（有切除、push 有變），戰鬥結果（勝負、時長、事件數、最後一個事件）也相同`, same, JSON.stringify({ n: sigs.map((x) => x.sig.length), battle: sigs.map((x) => x.battle && { winner: x.battle.winner, endMs: x.battle.endMs, n: x.battle.n }) }));
   }
   await browser.close();
 }
