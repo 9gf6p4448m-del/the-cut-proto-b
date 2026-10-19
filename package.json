@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "test:node": "node --test tests/node/*.test.ts",
-    "test:browser": "node tests/browser/run.mjs"
+    "test:browser": "node tests/browser/run.mjs",
+    "test:ft": "node tests/browser/ft_run.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
