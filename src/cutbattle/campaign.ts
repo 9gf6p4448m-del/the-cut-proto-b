@@ -65,7 +65,7 @@ export function genRed(seed: number, stage: number, blue: OrganDef[], body?: Rec
 export interface Stitch { kind: Kind; p: V }
 /** duel6：平手比切除數的結果（blue＝你切掉對方的數量、red＝對方切掉你的數量）。 */
 export type TieResult = 'win' | 'loss' | 'replay';
-export interface Tiebreak { blue: number; red: number; result: TieResult }
+export interface Tiebreak { blue: number; red: number; result: TieResult; forced?: true }   // forced＝?devtie= 測試參數強制的（只標記，不參與判定）
 export interface StageLog { stage: number; winner: Side | 'draw'; how: string; cutByMe: Kind[]; battle: BattleResult; endBody: Kind[]; replay?: number; tiebreak?: Tiebreak }
 export interface Campaign {
   seed: number; stage: number; blueBase: OrganDef[]; stitches: Stitch[];
@@ -127,12 +127,12 @@ export const battleSeed = (c: Campaign) => (c.seed * 31 + c.stage * 1013 + 17 + 
 export function tieOutcome(severedN: { blue: number; red: number }): TieResult {
   return severedN.blue > severedN.red ? 'win' : severedN.blue < severedN.red ? 'loss' : 'replay';
 }
-export function finishStage(c: Campaign, cutByMe: Kind[], battle: BattleResult, endBody: Kind[] = [], severedN?: { blue: number; red: number }): Campaign {
+export function finishStage(c: Campaign, cutByMe: Kind[], battle: BattleResult, endBody: Kind[] = [], severedN?: { blue: number; red: number }, forced?: boolean): Campaign {
   const log: StageLog = { stage: c.stage, winner: battle.winner, how: battle.how, cutByMe, battle, endBody };
   let winner: Side | 'draw' = battle.winner;
   if (c.tieBreak && battle.winner === 'draw' && severedN) {
     const result = tieOutcome(severedN);
-    log.replay = c.replay ?? 0; log.tiebreak = { blue: severedN.blue, red: severedN.red, result };
+    log.replay = c.replay ?? 0; log.tiebreak = { blue: severedN.blue, red: severedN.red, result, ...(forced ? { forced: true as const } : {}) };
     if (result === 'replay') return { ...c, replay: (c.replay ?? 0) + 1, phase: 'cut', history: [...c.history, log] };
     winner = result === 'win' ? 'blue' : 'red';
   } else if (c.tieBreak) log.replay = c.replay ?? 0;

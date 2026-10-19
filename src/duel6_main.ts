@@ -17,6 +17,7 @@ import type { PtrEv, PtrKind } from './rtcut/freehand.ts';
 import type { Beast, GameEvent, GameState, Kind, Line, Side, StrikeResult, V } from './rtcut/rules.ts';
 import { BT, simulateBattle } from './cutbattle/battle.ts';
 import type { BattleEvent, BattleResult } from './cutbattle/battle.ts';
+import { TIE_NOTE, parseDevTie, takeTieNote, tieBannerSub, tieButton, tieTitle } from './cutbattle/tie_text.ts';
 import { CB, SNAP_DIST, battleSeed, blueOrgans, parseCutSeconds, finishStage, fightersOf, matchFor, newCampaign, pickStitch, placeStitch, snapSlot, stitchSlots } from './cutbattle/campaign.ts';
 import type { Campaign, PlaceReject } from './cutbattle/campaign.ts';
 import { BODY2, R3, RECTS } from './cutbattle/duel3_board.ts';
@@ -69,6 +70,17 @@ export const DESC: Record<Kind, { role: string; line: string }> = {
 };
 /** 蛇牙沒有 art-kit 素材：畫面暫代用爪的圖（DUEL_V05_SNAKE 二：GPT 素材到之前用暫代）。 */
 const AK = (k: Kind): ArtKind => (k === 'fang' ? 'claw' : k);
+/** ?devtie=win|loss|replay（測試參數）：模組層 parse 一次；不帶參數＝null，下面的強制路徑一次都走不到。 */
+const DEV_TIE = parseDevTie(new URLSearchParams(location.search).get('devtie'));
+let devTieHits = 0;
+/** 唯一的強制點：把這場戰鬥結果改成平手、並給出雙方切除數（只影響拿去比的 (blue,red) 與平手判定，不寫回 GameState）。 */
+function devTieForce(b: BattleResult): { battle: BattleResult; sev: { blue: number; red: number } } | null {
+  if (DEV_TIE) {
+    devTieHits++;
+    return { battle: { ...b, winner: 'draw', events: b.events.map((e) => (e.t === 'end' ? { ...e, winner: 'draw' as const } : e)) }, sev: { ...DEV_TIE } };
+  }
+  return null;
+}
 const CUT_S = parseCutSeconds(new URLSearchParams(location.search).get('cut'));   // ?cut=（DL-091）：20～60 秒，其他一律 30
 const BEAST_KEY = 'duel6-beast';
 const BEAST_INFO: Record<Beast, { name: string; organs: string; skill: string; style: string }> = {
@@ -88,7 +100,7 @@ const G = {
   manual: false, acc: 0, lastT: null as number | null, speed: 1,
   drag: null as { id: number; a: V; b: V; moved: number } | null, release: null as Line | null,
   preview: null as StrikeResult | null, cutByMe: [] as Kind[], lastStrike: null as StrikeResult | null,
-  battle: null as BattleResult | null, bT0: 0, bBase: 0, bClock: 0, bIdx: 0, battleScale: 1,
+  tie: null as import('./cutbattle/tie_text.ts').TieNums | null, tieSev: null as { blue: number; red: number } | null, battle: null as BattleResult | null, bT0: 0, bBase: 0, bClock: 0, bIdx: 0, battleScale: 1,
   disp: { blue: { hp: 0, max: 1, shield: 0, poison: 0 }, red: { hp: 0, max: 1, shield: 0, poison: 0 } },
   vis: [] as { kind: Kind | 'overtime'; ev: BattleEvent['t'] }[], tipsShown: new Set<string>(),
   pops: [] as Pop[], particles: [] as Particle[], shots: [] as Shot[], slashes: [] as { a: V; b: V; t0: number; side: Side }[],
@@ -344,9 +356,16 @@ function onFreeEvent(e: Extract<GameEvent, { t: 'freeStart' | 'freeReject' | 'fr
     const o = s0.organs[e.blocked]; G.fx.push({ type: 'boneShield', t0: dispNow(), at: o.p as [number, number], facing: ang + Math.PI }); pop([o.p[0], o.p[1] - 30], '鎖住，擋下', '#cfe8ff', 16); sfx('block');
   } else if (e.why === 'length') setInfo(`刀走到 ${MAX_LEN} 的長度上限`);
 }
+/** 這場若是平手（含 devtie 強制），回傳 finishStage 算出的 tiebreak；不是平手＝null。不改 G.camp（finishStage 是純函式）。 */
+function tieNow(): import('./cutbattle/tie_text.ts').TieNums | null {
+  const log = finishStage(G.camp, [], G.battle!, [], G.tieSev ?? G.game.severedN, !!G.tieSev).history.at(-1);
+  return log?.tiebreak ?? null;
+}
 function startBattle(): void {
   const f = fightersOf(G.game);
-  G.battle = simulateBattle(f, battleSeed(G.camp));
+  G.battle = simulateBattle(f, battleSeed(G.camp)); G.tieSev = null;
+  const forced = devTieForce(G.battle); if (forced) { G.battle = forced.battle; G.tieSev = forced.sev; }
+  G.tie = tieNow();   // 平手比數（橫幅、結算標題共用；判定在 campaign.ts）
   G.pops = []; G.cutGlow = []; G.trail = []; G.hurts = []; hurtSplits.length = 0; G.splits = []; G.grows = []; G.fx = []; G.slashes = [];   // 切割期殘留的跳字、刀痕、被切紅光、裂開、長出動畫都不帶進戰鬥（會亮在前線器官旁）
   G.ui = 'battle'; G.bT0 = performance.now(); G.bBase = 0; G.bClock = 0; G.bIdx = 0; G.speed = 1; els.fast.textContent = '快轉'; G.vis = []; G.release = null; G.drag = null; G.preview = null;
   const st = (G.battle.events[0] as Extract<BattleEvent, { t: 'start' }>).stats;
@@ -402,7 +421,7 @@ function playBattleEvent(e: BattleEvent): void {
     G.banner = { text: '加時', sub: '所有傷害 ×2', t0: now, life: 1000 }; G.vis.push({ kind: 'overtime', ev: 'overtime' });
   } else if (e.t === 'end') {
     const win = e.winner === 'blue';
-    G.banner = { text: win ? '勝！' : e.winner === 'draw' ? '平手' : '敗', sub: e.how === 'time' ? '時間到，比剩餘血量百分比' : e.how === 'empty' ? '一方沒有器官' : '血量歸零', t0: now, life: 1400 };
+    G.banner = { text: win ? '勝！' : e.winner === 'draw' ? '平手' : '敗', sub: tieBannerSub(G.tie) ?? (e.how === 'time' ? '時間到，比剩餘血量百分比' : e.how === 'empty' ? '一方沒有器官' : '血量歸零'), t0: now, life: 1400 };
     sfx(win ? 'win' : 'lose'); if (!win) vibrate([60, 40, 60]);
     // 不再疊 art-kit 的 KO 大字（「擊倒／你贏了」）：結果字同一時間只有一個（三-6），由上面的橫幅（勝／敗／平手＋副標）負責
     sampleResults(now);
@@ -438,22 +457,23 @@ function sampleResults(now: number): void {
 function showContrib(): void {
   const b = G.battle!; G.ui = 'contrib'; G.banner = null; G.fx = G.fx.filter((f) => f.type !== 'ko');   // 結算標題出現前清掉畫布上的結果橫幅（三-6）
   const c = b.contrib, row = (label: string, me: number, foe: number, key: string) => `<tr data-k="${key}"><th>${label}</th><td class="me">${Math.round(me)}</td><td class="foe">${Math.round(foe)}</td></tr>`;
-  els.contribTitle.textContent = b.winner === 'blue' ? `勝！對手 ${G.camp.stage + 1}／${CB.STAGES}` : b.winner === 'draw' ? '平手（算輸）' : '敗';
+  els.contribTitle.textContent = b.winner === 'blue' ? `勝！對手 ${G.camp.stage + 1}／${CB.STAGES}` : b.winner === 'draw' ? (tieTitle(G.tie) ?? '平手（算輸）') : '敗';
   els.contribBody.innerHTML = `<table class="ct"><thead><tr><th>本場貢獻</th><th>你</th><th>對手</th></tr></thead><tbody>`
     + row('爪 傷害', c.blue.damage.claw, c.red.damage.claw, 'claw')
     + row('　其中 眼 暴擊加成', c.blue.critBonus, c.red.critBonus, 'eye')
     + row('毒 傷害', c.blue.damage.poison, c.red.damage.poison, 'poison')
     + row('心 補血', c.blue.heal, c.red.heal, 'heart')
     + row('骨 擋下', c.blue.blocked, c.red.blocked, 'bone')
-    + `</tbody></table><p class="hint">${b.how === 'time' ? `時間到：你剩 ${Math.round((100 * G.disp.blue.hp) / G.disp.blue.max)}%、對手剩 ${Math.round((100 * G.disp.red.hp) / G.disp.red.max)}%` : b.how === 'empty' ? '一方開戰時沒有器官' : `${(b.endMs / 1000).toFixed(1)} 秒分出勝負`}</p>`;
-  els.contribNext.textContent = b.winner === 'blue' ? (G.camp.stage === CB.STAGES - 1 ? '看結果' : '挑縫合') : '看結果';
+    + `</tbody></table><p class="hint">${b.how === 'time' ? `時間到：你剩 ${Math.round((100 * G.disp.blue.hp) / G.disp.blue.max)}%、對手剩 ${Math.round((100 * G.disp.red.hp) / G.disp.red.max)}%` : b.how === 'empty' ? '一方開戰時沒有器官' : `${(b.endMs / 1000).toFixed(1)} 秒分出勝負`}</p>`
+    + (G.tie && takeTieNote() ? `<p class="hint" id="tieNote">${TIE_NOTE}</p>` : '');
+  els.contribNext.textContent = tieButton(G.tie) ?? (b.winner === 'blue' ? (G.camp.stage === CB.STAGES - 1 ? '看結果' : '挑縫合') : '看結果');
   els.contrib.hidden = false; sampleResults(performance.now());
 }
 els.contribNext.onclick = () => {
   if (G.ui !== 'contrib' || !G.battle) return;
   els.contrib.hidden = true;
   const endBody = fightersOf(G.game).filter((f) => f.side === 'blue').map((f) => f.kind);
-  G.camp = finishStage(G.camp, G.cutByMe, G.battle, endBody, G.game.severedN);
+  G.camp = finishStage(G.camp, G.cutByMe, G.battle, endBody, G.tieSev ?? G.game.severedN, !!G.tieSev);
   if (G.camp.phase === 'pick') showPick(); else if (G.camp.phase === 'cut') startCut(); else showEnd();   // duel6：平手且切除數一樣＝同一場重打（畫面文字之後步驟再做）
 };
 function showPick(): void {
@@ -982,6 +1002,8 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
   get slots() { return drawnSlots.map((q) => [q[0], q[1]]); }, get ruleSlots() { return stitchSlots(G.camp).map((q) => [q[0], q[1]]); }, get campOrgans() { return blueOrgans(G.camp).map((o) => ({ id: o.id, p: o.p })); },
   get push() { return G.game ? G.game.push ?? 0 : 0; }, get inRange() { return reachNow(); }, get drawAlpha() { return Object.fromEntries(drawAlpha); }, get holding() { return holding(); },
   get nextFoe() { return !els.nextFoe.hidden; },
+  // duel6 步驟 4
+  get devTieHits() { return devTieHits; }, get tie() { return G.tie; }, get devTie() { return DEV_TIE; },
   // duel5
   get beast() { return G.camp?.beast ?? null; }, get lastBeast() { return lastBeast; }, get matchup() { return G.matchupInfo && { ...G.matchupInfo, shown: !els.matchup.hidden }; }, get cutS() { return CUT_S; },
   get skill() { return { text: els.skill.textContent, disabled: els.skill.disabled, hidden: els.skill.hidden, used: !!G.game?.skillUsed?.blue, pierce: G.game?.pierce?.blue ?? null }; }, get canvasScale() { return scale; }, get aimCount() { return G.aimCount; }, setFrameStall: (ms: number) => { frameStall = ms; }, get frontEdge() { return frontNow(performance.now()); },
