@@ -84,13 +84,24 @@ test('局中關頁：重開後該局標 unfinished，已打完的第 1 場保留
   assert.deepEqual(d.log.runs.map((r) => r.result), ['unfinished', 'lost']);
 });
 
+test('beginRun 後不 endStage 直接關頁：重開為 unfinished、stages 空、N 局計入', () => {
+  const st = memStore();
+  const a = mk(st); a.log.beginRun(info());
+  const b = mk(st);
+  assert.equal(b.log.runs.length, 1);
+  assert.equal(b.log.runs[0].result, 'unfinished');
+  assert.deepEqual(b.log.runs[0].stages, []);
+  assert.match(b.log.copyText().split('
+')[0], /｜1 局｜/);
+});
+
 // 局欄位：runIdx／gapSec／abandoned 語意／寫入時機
 test('局欄位與寫入時機：gapSec、abandonIfOpen、劃刀途中不寫', () => {
   const st = memStore();
   const { t, log } = mk(st);
   log.beginRun(info());
-  assert.equal(st.sets, 0, 'beginRun 不寫');
-  t.v += 3000; log.endStage(stage(1)); assert.equal(st.sets, 1);
+  assert.equal(st.sets, 1, 'beginRun 寫一次');
+  t.v += 3000; log.endStage(stage(1)); assert.equal(st.sets, 2);
   t.v += 2000; assert.equal(log.abandonIfOpen(), true);
   assert.equal(log.runs[0].result, 'abandoned'); assert.equal(log.runs[0].totalSec, 5);
   assert.equal(log.runs[0].gapSec, null, 'runIdx=1 gapSec=null');
@@ -106,7 +117,7 @@ test('局欄位與寫入時機：gapSec、abandonIfOpen、劃刀途中不寫', (
   const before = st.sets;
   log.beginRun(info({ startedVia: 'restart' })); log.endStage(stage(1)); log.setStitch({ offer: ['爪', '牙'], picked: '牙', p: { x: 3, y: 4 } });
   assert.equal(log.runs[2].stages.length, 1); assert.equal(log.runs[2].stages[0].stitch?.picked, '牙');
-  assert.equal(st.sets, before + 2);
+  assert.equal(st.sets, before + 3);
 });
 
 // 驗收 5：清除狀態機

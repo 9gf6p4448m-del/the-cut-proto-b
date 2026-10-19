@@ -1,6 +1,6 @@
 // duel6 試玩紀錄（G5）：純模組。不 import 任何規則層／戰鬥／征途模組，不碰 GameState 與時序；
 // 只吃「事件／快照」輸入（主程式之後在場結束、局結束時呼叫）。儲存以注入的 StorageLike 提供，Node 可測。
-// 寫入時機：只在 endStage／setStitch／endRun／sweep／clear 時寫，劃刀途中絕不寫（避免長幀影響即時時序）。
+// 寫入時機：只在 beginRun／endStage／setStitch／endRun／sweep／clear 時寫，劃刀途中絕不寫（避免長幀影響即時時序）。
 // 已知限制：同時開兩個分頁時，後開的分頁會把先開分頁「進行中」的局誤標為 unfinished（sweep 無法分辨）。
 
 export const PLAYLOG_KEY = 'duel6-playlog';
@@ -104,7 +104,7 @@ export function createPlaylog(o: PlaylogOpts): Playlog {
       };
       curStartMs = t;
       runs.push(cur);
-      if (runs.length > MAX_RUNS) runs = runs.slice(runs.length - MAX_RUNS);
+      persist(); // 局開始即寫（選怪獸點，非劃刀途中）：選了怪獸就關頁也留下放棄訊號
     },
     setTutorial(t) { if (cur) cur.tutorial = t; },
     endStage(s) {
