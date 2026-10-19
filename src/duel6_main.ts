@@ -257,7 +257,7 @@ function startRun(seed: number | undefined, beast: Beast): void {
   if (G.input === 'free' && !tutDone()) { G.countdown = null; startTutorial(); }   // 教學場：示範結束後才倒數
   else {
     onceTip('open', G.input === 'free' ? `切割期 ${CUT_S} 秒：手指從你的獸身快速劃過對方器官就切下（劃過自己的器官會鎖住保護它）。時間到，雙方剩下的器官自動開打。` : `切割期 ${CUT_S} 秒：從你的獸身拖一條線切對方器官（穿過自己的器官會鎖住保護它）。時間到，雙方剩下的器官自動開打。`, 3600);
-    onceTip('kinds', '五種器官：爪＝攻擊、心＝血量與回血、眼＝暴擊、毒＝持續傷害、骨＝護盾。點器官看說明。', 3200);
+    onceTip('kinds', beast === 'snake' ? '六種器官：爪＝攻擊、心＝血量與回血、眼＝暴擊、毒＝持續傷害、骨＝護盾、牙＝蛇的專屬，讓毒每次疊 2 層。點器官看說明。' : '五種器官：爪＝攻擊、心＝血量與回血、眼＝暴擊、毒＝持續傷害、骨＝護盾。點器官看說明。', 3200);   // 選蛇時要提到蛇牙（主 session 裁定 L3；同步 b9273ea）
   }
 }
 // ---------------------------------------------------------------- 第一場教學（每台裝置一次、可跳過；DUEL_V03_FEEL 二）
@@ -575,11 +575,15 @@ function showcase(): void {
   setInfo('新的身體。'); hud();
 }
 els.nextFoe.onclick = () => { if (G.ui === 'showcase' && !els.nextFoe.hidden) { els.nextFoe.hidden = true; startCut(); } };
+/** 結束畫面「最後的身體」的文字：含蛇牙（主 session 裁定 L1；同步 b9273ea）；測試也從 __cb 呼叫同一個函式。 */
+function bodyKindsText(body: Kind[]): string {
+  return (['claw', 'heart', 'eye', 'poison', 'bone', 'fang'] as Kind[]).map((k) => [k, body.filter((x) => x === k).length] as const).filter(([, n]) => n).map(([k, n]) => `${KIND_ZH[k]}×${n}`).join('、') || '（沒有器官）';
+}
 function showEnd(): void {
   G.ui = 'end'; G.banner = null; els.contrib.hidden = true;
   const c = G.camp, won = c.phase === 'won';
   const body = c.history.length ? c.history[c.history.length - 1].endBody : [];
-  const count = (['claw', 'heart', 'eye', 'poison', 'bone'] as Kind[]).map((k) => [k, body.filter((x) => x === k).length] as const).filter(([, n]) => n).map(([k, n]) => `${KIND_ZH[k]}×${n}`).join('、') || '（沒有器官）';
+  const count = bodyKindsText(body);
   els.endTitle.textContent = won ? '征途完成！三場全勝' : `倒在第 ${c.stage + 1} 場`;
   els.endBody.innerHTML = `<div>打到第 <b id="endReach">${won ? CB.STAGES : c.stage + 1}</b>／${CB.STAGES} 場</div><div>最後的身體：<span id="endBodyKinds">${count}</span></div><div>縫上的器官：${c.stitches.map((s) => KIND_ZH[s.kind]).join('、') || '（無）'}</div><div class="hint">種子 ${c.seed}</div>`;
   if (LOG_ON) playlog.endRun(won ? 'won' : 'lost');
@@ -1102,7 +1106,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
   get spriteCenters() { return Object.fromEntries(spriteCenters); }, isolate: (id: string | null, opt: { clear?: boolean; st?: OrganStateV3 } = {}) => { isolateId = id; isoOpt = opt; }, get fps() { return fps.last; }, get assetsReady() { return !!ASSETS; }, get loadLog() { return loadLog; },
   get camp() { return G.camp; }, get game() { return G.game; }, get ui() { return G.ui; }, get preview() { return G.preview; }, get lastStrike() { return G.lastStrike; },
   get battle() { return G.battle; }, get vis() { return G.vis; }, get tip() { return els.tip.hidden ? null : els.tip.textContent; }, get cutByMe() { return G.cutByMe; },
-  get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; }, get tipLog() { return [...tipLog]; },
+  get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; }, get tipLog() { return [...tipLog]; }, bodyKindsText: (b: Kind[]) => bodyKindsText(b),
   toScreen, newRun: (o?: { seed?: number; beast?: Beast }) => newRun(o?.seed, o?.beast ?? (G.camp?.beast), 'again'),   // duel5：沒指定怪獸時沿用這個征途的怪獸（舊測試的 newRun 不會跳出選擇畫面）
   setManual: (v: boolean) => { G.manual = v; }, advance: (n: number) => { G.countdown = null; for (let i = 0; i < n && G.ui === 'cut'; i++) stepOnce(); hud(); },   // 測試驅動：手動推進時倒數視為已結束
   setTimings: (o: { battleScale?: number }) => { if (o.battleScale !== undefined) G.battleScale = o.battleScale; },
