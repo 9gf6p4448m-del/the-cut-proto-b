@@ -18,6 +18,10 @@ MUTS = [
  ('技能鈕按了沒送進規則', [("  const skill = G.skillPress ? { blue: true } : undefined; G.skillPress = false;", "  const skill = undefined; G.skillPress = false;")], 'FS-07 技能鈕'),
  ('倒數中也能按技能', [("  b.disabled = used || !live || G.skillPress || (beast === 'dragon' && !canMolt);", "  b.disabled = used || G.skillPress || (beast === 'dragon' && !canMolt);")], 'FS-07 技能鈕'),
  ('?cut 在主程式沒作用', [("const CUT_S = parseCutSeconds(new URLSearchParams(location.search).get('cut'));", "const CUT_S = 30; void parseCutSeconds;")], '?cut=40'),
+ ('穿刺連切沒有記入切下清單（審查 C2）', [("G.cutByMe.push(o.kind); return;", "return;")], 'FS-07 穿刺連切'),
+ ('選怪獸畫面沒清掉待開戰（審查 C3）', [("  G.pendingBattle = 0; G.matchupUntil = 0; els.matchup.hidden = true; G.countdown = null;   // 「清空！」保留中", "  // 「清空！」保留中")], '選怪獸：「清空！」'),
+ ('倒數畫面寫死 30 秒（主 session 追加 ②）', [("ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CUT_S} 秒`", "ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`")], '?cut=45：倒數畫面'),
+ ('蛇盤面藍方器官被畫暗（H2：雙方都量）', [("const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? BATTLE_DIM : G.ui === 'cut'", "const dimNow = G.ui === 'battle' || G.ui === 'contrib' ? undefined : G.ui === 'cut'"), ("g.addColorStop(0, 'rgba(7,13,25,0.9)'); g.addColorStop(0.75, 'rgba(7,13,25,0.7)'); g.addColorStop(1, 'rgba(7,13,25,0)');", "g.addColorStop(0, 'rgba(7,13,25,0)'); g.addColorStop(0.75, 'rgba(7,13,25,0)'); g.addColorStop(1, 'rgba(7,13,25,0)');")], 'FS-06 戰鬥期器官可見（蛇盤面'),
 ]
 def run(cmd, **kw): return subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='utf-8', **kw)
 res = []
