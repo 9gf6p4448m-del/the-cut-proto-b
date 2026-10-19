@@ -37,7 +37,7 @@
   <div class="box"><h2>選你的怪獸</h2><p class="hint">每次新征途都可以換。</p><div class="beastCards">
     <button id="beastDragon" class="beastCard"><canvas id="thumbDragon" width="160" height="120"></canvas><b>幽光龍</b><small class="org">器官：爪、心、眼、毒、骨（9 顆，分散在龍身）</small><small class="sk">技能「蛻生」：立刻長回 1 個被切的器官（每場一次）</small><small class="sty">平衡，器官分散好防守</small></button>
     <button id="beastSnake" class="beastCard"><canvas id="thumbSnake" width="160" height="120"></canvas><b>千節蛇</b><small class="org">器官：毒 3、爪 2、蛇牙 1、心 1、眼 1、骨 1（排成一列）</small><small class="sk">技能「穿刺」：5 秒內的下一刀最多連切 3 個（每場一次）</small><small class="sty">器官排成一列、貼近前線，靠技能一刀連切</small></button>
-  </div></div>
+  </div><button id="logBtn" class="ghostBtn">試玩紀錄（0）</button></div>
 </section>
 <section id="contrib" class="modal" hidden>
   <div class="box"><h2 id="contribTitle"></h2><div id="contribBody"></div><button id="contribNext" class="primary">繼續</button></div>
@@ -46,8 +46,15 @@
   <div class="box"><h2>挑一個器官縫進身體</h2><p class="hint">選好後，點你的獸身放下去。</p><div id="pickOpts" class="opts"></div></div>
 </section>
 <section id="end" class="modal" hidden>
-  <div class="box end"><h2 id="endTitle"></h2><div id="endBody"></div><button id="again" class="primary">再來一次征途</button></div>
+  <div class="box end"><h2 id="endTitle"></h2><div id="endBody"></div><button id="again" class="primary">再來一次征途</button><button id="copyEnd" class="ghostBtn">複製試玩紀錄（0 局）</button></div>
 </section>
+<section id="logPanel" class="modal" hidden>
+  <div class="box logbox"><h2 id="logTitle">試玩紀錄</h2><p class="hint">新手試玩的數據。按「複製」後貼給開發者；清除要連按兩次。</p><div class="logBtns"><button id="logCopy" class="primary">複製</button><button id="logClear" class="warnBtn">清除</button></div><button id="logClose" class="ghostBtn">關閉</button></div>
+</section>
+<section id="copyFb" class="modal" hidden>
+  <div class="box logbox"><h2>試玩紀錄</h2><p class="hint">長按全選後複製</p><textarea id="copyTa" readonly spellcheck="false" aria-label="試玩紀錄全文"></textarea><button id="copyFbClose" class="primary">關閉</button></div>
+</section>
+<div id="copyToast" class="copyToast" role="status" aria-live="polite" hidden></div>
 <script src="./app.js?v=__BUILD_SHA__"></script>
 </body>
 </html>

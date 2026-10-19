@@ -19,7 +19,10 @@ import { BT, simulateBattle } from './cutbattle/battle.ts';
 import type { BattleEvent, BattleResult } from './cutbattle/battle.ts';
 import { TIE_NOTE, parseDevTie, takeTieNote, tieBannerSub, tieButton, tieTitle } from './cutbattle/tie_text.ts';
 import { CB, SNAP_DIST, battleSeed, blueOrgans, parseCutSeconds, finishStage, fightersOf, matchFor, newCampaign, pickStitch, placeStitch, snapSlot, stitchSlots } from './cutbattle/campaign.ts';
-import type { Campaign, PlaceReject } from './cutbattle/campaign.ts';
+import type { Campaign, PlaceReject, Tiebreak } from './cutbattle/campaign.ts';
+import { CLEAR_IDLE, CLEAR_WINDOW_MS, createPlaylog, pressClear, tickClear } from './cutbattle/playlog.ts';
+import type { ClearState, StartedVia, TutorialState } from './cutbattle/playlog.ts';
+import { runCopy } from './cutbattle/copy_flow.ts';
 import { BODY2, R3, RECTS } from './cutbattle/duel3_board.ts';
 import { SNAKE, SNAKE_ARC, SNAKE_POLY, snakeAt } from './cutbattle/snake_board.ts';
 import type { Kind as ArtKind } from './art/sprites.ts';
@@ -56,6 +59,9 @@ const els = {
   loading: $('loading'), loadErr: $('loadErr'), loadMsg: $('loadMsg'), loadLog: $('loadLog'), retry: $<HTMLButtonElement>('retry'),
   nextFoe: $<HTMLButtonElement>('nextFoe'),
   beast: $('beast'), beastDragon: $<HTMLButtonElement>('beastDragon'), beastSnake: $<HTMLButtonElement>('beastSnake'), skill: $<HTMLButtonElement>('skill'), matchup: $('matchup'),
+  // duel6 試玩紀錄 UI
+  copyEnd: $<HTMLButtonElement>('copyEnd'), logBtn: $<HTMLButtonElement>('logBtn'), logPanel: $('logPanel'), logTitle: $('logTitle'), logCopy: $<HTMLButtonElement>('logCopy'),
+  logClear: $<HTMLButtonElement>('logClear'), logClose: $<HTMLButtonElement>('logClose'), copyFb: $('copyFb'), copyTa: $<HTMLTextAreaElement>('copyTa'), copyFbClose: $<HTMLButtonElement>('copyFbClose'), copyToast: $('copyToast'),
 };
 els.sha.textContent = BUILD_SHA;
 
@@ -131,6 +137,22 @@ try { G.sound = localStorage.getItem('duel6-sound') !== '0'; } catch { /* 無痕
 try { G.input = localStorage.getItem('duel6-input') === 'line' ? 'line' : 'free'; } catch { /* 無痕或封鎖儲存 */ }
 const dispNow = () => G.dispT;   // 畫面時鐘（秒）：切除瞬間放慢；規則時鐘 G.clock 不受影響（DF-06）
 
+// ---------------------------------------------------------------- duel6 試玩紀錄（G5）：掛勾只在事件處理處「讀取」，不改規則層；劃刀途中只累計記憶體計數，絕不寫儲存
+let plWrites = 0;                                    // 紀錄模組實際呼叫 setItem 的次數（測試掛勾：寫入次數＝局開始＋場結束＋縫合＋局結束，不隨劃刀增加）
+let LOG_ON = true;                                   // 測試掛勾 setLog(false)：FT-07 紀錄開／關比對
+const playlog = createPlaylog({ sha: BUILD_SHA, storage: () => { try { const ls = localStorage; return { getItem: (k: string) => ls.getItem(k), setItem: (k: string, v: string) => { plWrites++; ls.setItem(k, v); } }; } catch { return null; } } });
+/** 每場累計（startCut 歸零）；只在事件處理處以純記憶體運算累加。 */
+interface StageAcc { firstCutStep: number | null; strokes: number; locks: number; blocked: number; maxPush: number; maxPushAi: number; skillStep: number | null; skillKind: 'pierce' | 'molt' | null; pierceN: number; fastAtMs: number | null }
+const newAcc = (): StageAcc => ({ firstCutStep: null, strokes: 0, locks: 0, blocked: 0, maxPush: 0, maxPushAi: 0, skillStep: null, skillKind: null, pierceN: 0, fastAtMs: null });
+let ACC: StageAcc = newAcc();
+let pendingVia: StartedVia = 'first';                // 下一局的開始方式（newRun 設定、startRun 用掉）
+let stitchOffer: string[] = [];                      // 這次縫合的選項（showPick 時抓，setStitch 用）
+/** 原始事件流（FT-04 獨立真值來源）：只在 ?devlog=1 建立；由主程式在事件處理處直接 push，不經 playlog 模組。 */
+type DevEv = { k: string; [f: string]: unknown };
+const DEVLOG: DevEv[] | null = new URLSearchParams(location.search).get('devlog') === '1' ? [] : null;
+let devStrokeCuts = 0, devPierce = 0;                // 僅 devlog 模式使用：本刀已連切數、本場穿刺連切數
+if (DEVLOG) (window as unknown as { __duel6Test: unknown }).__duel6Test = { get events() { return DEVLOG.map((e) => ({ ...e })); }, get length() { return DEVLOG.length; } };
+
 // ---------------------------------------------------------------- 版面
 let dpr = 1, cw = 0, ch = 0, scale = 1, ox = 0, oy = 0;
 function layout(): void {
@@ -195,8 +217,10 @@ function onceTip(key: string, text: string, ms = 2400): void {
 
 // ---------------------------------------------------------------- 流程
 /** 新征途：先出現選怪獸畫面（每次新征途都顯示、預選上次的選擇；補述 1 第 10b 條）；測試可直接指定怪獸跳過畫面。 */
-function newRun(seed?: number, beast?: Beast): void {
+function newRun(seed?: number, beast?: Beast, via: StartedVia = 'again'): void {
   G.token++;
+  if (LOG_ON) playlog.abandonIfOpen();   // 征途中重新征途＝本局 abandoned；已結束的局（結果畫面按重新征途）或還沒開局（選怪獸畫面）＝不改任何紀錄
+  if (G.ui !== 'beast') pendingVia = via;   // 選怪獸畫面再按重新征途：不產生局，沿用進入這個畫面時的開始方式
   if (G.tut) tutEnd();   // 教學期間按「重新征途」：教學畫面一併結束（審查 M3）
   const auto = beast ?? (window as unknown as { __duel6AutoBeast?: Beast }).__duel6AutoBeast;   // 測試用：載入前指定怪獸（舊測試照跑時預選龍，補述 1 第 10c 條）
   if (auto) { startRun(seed, auto); return; }
@@ -208,7 +232,7 @@ function showBeastPick(seed?: number): void {
   G.ui = 'beast'; G.pickSeed = seed ?? null; els.nextFoe.hidden = true;
   for (const m of [els.contrib, els.pick, els.end]) m.hidden = true;
   for (const b of ['dragon', 'snake'] as Beast[]) els[b === 'dragon' ? 'beastDragon' : 'beastSnake'].classList.toggle('sel', b === lastBeast);
-  els.beast.hidden = false; drawBeastThumbs(); hud();
+  els.beast.hidden = false; drawBeastThumbs(); refreshLogUi(); hud();
 }
 function chooseBeast(b: Beast): void {
   if (G.ui !== 'beast') return;
@@ -220,6 +244,12 @@ els.beastSnake.onclick = () => chooseBeast('snake');
 function startRun(seed: number | undefined, beast: Beast): void {
   G.beast = beast; els.beast.hidden = true;
   G.camp = newCampaign(seed ?? G.seedSource(), BODY2, R3, FRONT, { beast, cutSeconds: CUT_S, tieBreak: true });
+  const tutWill = G.input === 'free' && !tutDone();   // 教學這局會不會出現（startTutorial 之前判；markTut 之後 tutDone 就變真）
+  // tutorial 初值：之前看過＝before；會出現＝aborted（示範中被打斷的預設，示範自然結束改 done、按跳過改 skipped）；直線模式第一次＝none
+  const tutInit: TutorialState = tutDone() ? 'before' : tutWill ? 'aborted' : 'none';
+  if (LOG_ON) playlog.beginRun({ startedVia: pendingVia, beast, cutSec: CUT_S, input: G.input, tutorial: tutInit });
+  if (DEVLOG) DEVLOG.push({ k: 'run', via: pendingVia, beast, cutSec: CUT_S, input: G.input, tutorialInit: tutInit });
+  refreshLogUi();
   G.tipsShown = new Set(); tipQueue.length = 0; tipLog.length = 0;
   startCut();
   if (G.input === 'free' && !tutDone()) { G.countdown = null; startTutorial(); }   // 教學場：示範結束後才倒數
@@ -251,10 +281,10 @@ function tutHint(n: number): void {
   G.tut.hint = n; els.tutText.textContent = TUT_HINTS[n];
 }
 function tutEnd(): void { G.tut = null; els.tut.hidden = true; G.lastT = null; }
-els.tutSkip.onclick = () => { const demo = G.tut?.phase === 'demo'; markTut(); tutEnd(); if (demo && G.ui === 'cut') startCountdown(); };
+els.tutSkip.onclick = () => { const demo = G.tut?.phase === 'demo'; if (G.tut && LOG_ON) playlog.setTutorial('skipped'); if (G.tut && DEVLOG) DEVLOG.push({ k: 'tut', what: 'skip' }); markTut(); tutEnd(); if (demo && G.ui === 'cut') startCountdown(); };
 function tutTick(now: number): void {
   if (!G.tut || G.tut.phase !== 'demo') return;
-  if (now - G.tut.t0 >= 3000) { G.tut = { ...G.tut, phase: 'hints' }; tutHint(0); G.lastT = null; startCountdown(); }
+  if (now - G.tut.t0 >= 3000) { G.tut = { ...G.tut, phase: 'hints' }; tutHint(0); G.lastT = null; startCountdown(); if (LOG_ON) playlog.setTutorial('done'); if (DEVLOG) DEVLOG.push({ k: 'tut', what: 'demoDone' }); }
 }
 function tutOnFree(e: GameEvent): void {
   if (!G.tut || G.tut.phase !== 'hints' || !('side' in e) || e.side !== 'blue') return;
@@ -267,6 +297,8 @@ function startCut(): void {
   G.acc = 0; G.lastT = null; G.pops = []; G.particles = []; G.shots = []; G.slashes = []; G.fx = []; G.bursts = [];
   G.clock = 0; lastEvT = 0; downT = 0; downTs = 0; G.slicer = new Slicer(); G.fp = null; G.trail = []; G.splits = []; G.lastFree = null; G.freeLog = []; G.stepSig = []; G.slowLog = [];
   G.pendingBattle = 0; G.matchupUntil = 0; els.matchup.hidden = true; G.lines = []; G.lastNum = { blue: -1e9, red: -1e9 }; G.matchupInfo = null;
+  ACC = newAcc(); devStrokeCuts = 0; devPierce = 0;
+  if (DEVLOG) DEVLOG.push({ k: 'stage', stage: G.camp.stage + 1, replay: G.camp.replay ?? 0, input: G.input });
   G.aimCount = 0; G.banner = null; G.cuts = []; G.grows = []; G.hurts = []; G.cutGlow = []; G.fxLog = []; G.reach = null; G.hitstopUntil = 0;
   for (let p = -FRONT.max; p <= FRONT.max; p++) frontEdge(p);   // 預先建好各 push 的起刀區點陣與前線帶（審查 H1：第一次推進時才建會卡幀）
   G.front = { from: frontEdge(0), to: frontEdge(0), t0: 0, flash: 0, flashSide: 'blue', push: 0 };
@@ -285,9 +317,11 @@ function stepOnce(): void {
   const blue = G.release; G.release = null;
   const free = G.input === 'free' ? G.slicer.takeUpTo(s0.step) : [];
   const skill = G.skillPress ? { blue: true } : undefined; G.skillPress = false;   // duel5 技能鈕（按下後的下一步送進規則）
+  const sevBlue0 = s0.severedN.blue;   // duel6 紀錄：步前的玩家切除數（只讀）
   const out = G.input === 'free' ? step(s0, free.length ? { blue: null, drag: null, free: { blue: free }, skill } : { blue: null, drag: null, skill })
     : step(s0, { blue, drag: G.drag ? { a: G.drag.a, b: G.drag.b } : null, skill });
   G.game = out.state;
+  if (ACC.firstCutStep === null && out.state.severedN.blue !== sevBlue0) ACC.firstCutStep = s0.step;   // duel6 紀錄：玩家第一次切下對方器官的規則步（÷60＝秒）
   G.stepSig.push(`${s0.step}|${G.game.alive.map(Number).join('')}|${G.game.lockUntil.join(',')}|${G.game.cdUntil.blue},${G.game.cdUntil.red}|${G.game.severedN.blue},${G.game.severedN.red}|${G.game.push ?? 0}`);
   for (const e of out.events) onCutEvent(e, s0);
   if (G.game.phase === 'ko') G.pendingBattle = performance.now() + KO_HOLD_MS;   // 「清空！」先完整顯示（原本同一步就被「戰鬥！」蓋掉）
@@ -315,6 +349,8 @@ function onCutEvent(e: GameEvent, s0: GameState): void {
   if (e.t === 'freeStart' || e.t === 'freeReject' || e.t === 'freeLock' || e.t === 'freeEnd') { onFreeEvent(e, s0, now); return; }
   if (e.t === 'strike') {
     const r = e.r; G.slashes.push({ a: r.line.a, b: r.end, t0: now, side: r.side }); sfx('slash');
+    if (r.side === 'blue') { ACC.strokes++; ACC.locks += r.locks.length; if (r.blocked !== null) ACC.blocked++; if (r.pierced) ACC.pierceN += r.pierced.length; }   // duel6 紀錄（直線預覽的一刀＝一個 strike）
+    if (DEVLOG) { const cl = r.pierced ?? (r.severed !== null ? [r.severed] : []); for (const i of cl) DEVLOG.push({ k: 'cut', step: s0.step, side: r.side, organId: s0.organs[i].id, via: r.pierced ? 'pierced' : 'strike' }); if (r.side === 'blue') { devPierce += r.pierced ? r.pierced.length : 0; DEVLOG.push({ k: 'stroke', step: s0.step, cutCount: cl.length, locks: r.locks.length, blocked: r.blocked !== null ? 1 : 0 }); } }
     if (r.side === 'blue') G.lastStrike = r;
     if (r.severed !== null) {
       const o = s0.organs[r.severed]; severFx(o, Math.atan2(r.line.b[1] - r.line.a[1], r.line.b[0] - r.line.a[0]), now, r.line.a); sfx('sever');
@@ -328,7 +364,15 @@ function onCutEvent(e: GameEvent, s0: GameState): void {
     // 長回：移除該陣營同種類最早的切口，在實際長出的位置播長出動畫（≥400ms，三-2）
     const ci = G.cuts.findIndex((c) => c.side === o.side && c.kind === o.kind); if (ci >= 0) G.cuts.splice(ci, 1);
     G.grows.push({ p: [o.p[0], o.p[1]], t0: now, side: o.side }); G.fxLog.push({ t: 'grow', at: now, side: o.side, id: o.id });
+  } else if (e.t === 'freeCut') {
+    if (e.side === 'blue') ACC.pierceN++;   // duel6 紀錄：即時劃刀穿刺連切（每切一個一個 freeCut）
+    if (DEVLOG) { DEVLOG.push({ k: 'cut', step: s0.step, side: e.side, organId: s0.organs[e.i].id, via: 'freeCut' }); if (e.side === 'blue') { devStrokeCuts++; devPierce++; } }
+  } else if (e.t === 'skill') {
+    if (e.side === 'blue') { ACC.skillStep = s0.step; ACC.skillKind = e.kind; }   // duel6 紀錄：玩家技能生效的規則步（skillReject 不算用過）
+    if (DEVLOG) DEVLOG.push({ k: 'skill', step: s0.step, side: e.side, kind: e.kind });
   } else if (e.t === 'push') {
+    ACC.maxPush = Math.max(ACC.maxPush, e.push); ACC.maxPushAi = Math.max(ACC.maxPushAi, -e.push);   // duel6 紀錄：玩家／AI 推進到的最大格數
+    if (DEVLOG) DEVLOG.push({ k: 'push', step: s0.step, push: e.push });
     // 前線帶移動（300ms 動畫）＋在前線閃一下己方陣營色（push 增加＝玩家推進＝藍；減少＝紅）
     const prev = G.front.push;
     G.front = { from: frontNow(now), to: frontEdge(e.push), t0: now, flash: now, flashSide: e.push > prev ? 'blue' : 'red', push: e.push };
@@ -343,7 +387,11 @@ function onFreeEvent(e: Extract<GameEvent, { t: 'freeStart' | 'freeReject' | 'fr
   if (e.t === 'freeLock' || e.t === 'freeEnd') G.reach = null;
   G.freeLog.push(`${s0.step}:${e.t}${e.t === 'freeEnd' ? `:${e.why}:${e.severed}:${e.blocked}` : e.t === 'freeLock' ? `:${e.i}` : e.t === 'freeReject' ? `:${e.reason}` : ''}`);
   tutOnFree(e);
+  if (DEVLOG && e.t === 'freeEnd' && e.severed !== null) DEVLOG.push({ k: 'cut', step: s0.step, side: e.side, organId: s0.organs[e.severed].id, via: 'freeEnd' });
   if (e.side !== 'blue') return;
+  if (e.t === 'freeLock') ACC.locks++;   // duel6 紀錄：玩家每鎖到一個己方器官一個 freeLock
+  if (e.t === 'freeEnd' && e.why !== 'tap') { ACC.strokes++; if (e.blocked !== null) ACC.blocked++; }   // 出刀＝最後不是點擊（時間到作廢的刀沒有 freeEnd，不算）
+  if (DEVLOG && e.t === 'freeEnd') { DEVLOG.push({ k: 'stroke', step: s0.step, ...(e.why === 'tap' ? { tap: true } : {}), cutCount: devStrokeCuts + (e.severed !== null ? 1 : 0), locks: e.locks.length, blocked: e.blocked !== null ? 1 : 0 }); devStrokeCuts = 0; }
   if (e.t === 'freeReject') { setInfo(`<span class="warnc">${e.reason === 'start' ? '起刀要從你的獸身開始' : e.reason === 'cooldown' ? '冷卻中，等藍條滿' : '不能出刀'}</span>`); if (e.reason === 'start') onceTip('freeStart', '起刀要從你的（藍色）獸身開始劃', 1800); return; }
   if (e.t === 'freeLock') { const o = s0.organs[e.i]; glow(o.id); pop([o.p[0], o.p[1] - 30], '鎖住', '#cfe8ff', 15); sfx('shield'); return; }
   if (e.t !== 'freeEnd') return;
@@ -366,6 +414,7 @@ function startBattle(): void {
   G.battle = simulateBattle(f, battleSeed(G.camp)); G.tieSev = null;
   const forced = devTieForce(G.battle); if (forced) { G.battle = forced.battle; G.tieSev = forced.sev; }
   G.tie = tieNow();   // 平手比數（橫幅、結算標題共用；判定在 campaign.ts）
+  if (DEVLOG) DEVLOG.push({ k: 'battle', winner: G.battle.winner, how: G.battle.how, ms: G.battle.endMs, tie: G.tie ? { ...G.tie } : null });
   G.pops = []; G.cutGlow = []; G.trail = []; G.hurts = []; hurtSplits.length = 0; G.splits = []; G.grows = []; G.fx = []; G.slashes = [];   // 切割期殘留的跳字、刀痕、被切紅光、裂開、長出動畫都不帶進戰鬥（會亮在前線器官旁）
   G.ui = 'battle'; G.bT0 = performance.now(); G.bBase = 0; G.bClock = 0; G.bIdx = 0; G.speed = 1; els.fast.textContent = '快轉'; G.vis = []; G.release = null; G.drag = null; G.preview = null;
   const st = (G.battle.events[0] as Extract<BattleEvent, { t: 'start' }>).stats;
@@ -468,6 +517,22 @@ function showContrib(): void {
     + (G.tie && takeTieNote() ? `<p class="hint" id="tieNote">${TIE_NOTE}</p>` : '');
   els.contribNext.textContent = tieButton(G.tie) ?? (b.winner === 'blue' ? (G.camp.stage === CB.STAGES - 1 ? '看結果' : '挑縫合') : '看結果');
   els.contrib.hidden = false; sampleResults(performance.now());
+  recordStage();
+}
+/** 結算表出現時先寫這一場的紀錄（縫合放下後 setStitch 更新同一筆）。資料全來自 ACC 累計與當下的 G.game／G.battle／G.tie。 */
+function recordStage(): void {
+  if (DEVLOG && ACC.skillStep !== null) DEVLOG.push({ k: 'skillUse', step: ACC.skillStep, kind: ACC.skillKind, pierceCount: devPierce });
+  if (!LOG_ON) return;
+  const b = G.battle!, f = fightersOf(G.game), kinds = (side: Side): string[] => f.filter((x) => x.side === side).map((x) => x.kind), tb = G.tie as Tiebreak | null;
+  playlog.endStage({
+    stage: G.camp.stage + 1, replay: G.camp.replay ?? 0, firstCutSec: ACC.firstCutStep === null ? null : ACC.firstCutStep / FPS,
+    strokes: ACC.strokes, cuts: G.game.severedN.blue, cutBy: G.game.severedN.red, locks: ACC.locks, blocked: ACC.blocked, maxPush: ACC.maxPush, maxPushAi: ACC.maxPushAi,
+    skill: ACC.skillStep === null ? null : { sec: ACC.skillStep / FPS, ...(ACC.skillKind === 'pierce' ? { pierce: ACC.pierceN } : {}) },
+    endOrgans: { blue: kinds('blue'), red: kinds('red') }, input: G.input,
+    battle: { winner: b.winner, how: b.how, ms: b.endMs, fastAtMs: ACC.fastAtMs },
+    tiebreak: tb ? { blue: tb.blue, red: tb.red, result: tb.result, ...(tb.forced ? { forced: true as const } : {}) } : null, stitch: null,
+  });
+  refreshLogUi();
 }
 els.contribNext.onclick = () => {
   if (G.ui !== 'contrib' || !G.battle) return;
@@ -477,6 +542,7 @@ els.contribNext.onclick = () => {
   if (G.camp.phase === 'pick') showPick(); else if (G.camp.phase === 'cut') startCut(); else showEnd();   // duel6：平手且切除數一樣＝同一場重打（畫面文字之後步驟再做）
 };
 function showPick(): void {
+  stitchOffer = [...G.camp.offer];
   G.ui = 'pick'; els.pickOpts.innerHTML = ''; G.banner = null; G.fx = []; els.tip.hidden = true; tipQueue.length = 0; clearTimeout(tipTimer); els.tut.hidden = true; G.tut = null; G.pops = [];   // 進入縫合前清掉所有橫幅（三-6）
   G.camp.offer.forEach((k, i) => {
     const b = document.createElement('button'); b.id = `pick${i}`; b.dataset.kind = k;
@@ -492,7 +558,11 @@ function tryPlace(p: V): void {
   if (!q) { tip(`點亮著的槽位（${SNAP_DIST} 內會自動吸附）`); sfx('deny'); return; }
   const r = placeStitch(G.camp, q);
   if (r.reject) { tip(REJECT_TEXT[r.reject]); sfx('deny'); return; }
-  G.camp = r.c; sfx('place'); showcase();
+  G.camp = r.c; sfx('place');
+  const st = r.c.stitches[r.c.stitches.length - 1];   // 實際縫上的器官與（吸附後的）位置
+  if (LOG_ON) playlog.setStitch({ offer: [...stitchOffer], picked: st.kind, p: { x: st.p[0], y: st.p[1] } });
+  if (DEVLOG) DEVLOG.push({ k: 'stitch', offer: [...stitchOffer], picked: st.kind, p: [st.p[0], st.p[1]] });
+  showcase();
 }
 /** 縫合之後：先展示新身體 1.5 秒，然後出現「下一位對手」；按下後才開始下一場（倒數）。期間模擬不跑。 */
 function showcase(): void {
@@ -507,6 +577,9 @@ function showEnd(): void {
   const count = (['claw', 'heart', 'eye', 'poison', 'bone'] as Kind[]).map((k) => [k, body.filter((x) => x === k).length] as const).filter(([, n]) => n).map(([k, n]) => `${KIND_ZH[k]}×${n}`).join('、') || '（沒有器官）';
   els.endTitle.textContent = won ? '征途完成！三場全勝' : `倒在第 ${c.stage + 1} 場`;
   els.endBody.innerHTML = `<div>打到第 <b id="endReach">${won ? CB.STAGES : c.stage + 1}</b>／${CB.STAGES} 場</div><div>最後的身體：<span id="endBodyKinds">${count}</span></div><div>縫上的器官：${c.stitches.map((s) => KIND_ZH[s.kind]).join('、') || '（無）'}</div><div class="hint">種子 ${c.seed}</div>`;
+  if (LOG_ON) playlog.endRun(won ? 'won' : 'lost');
+  if (DEVLOG) DEVLOG.push({ k: 'runEnd', result: won ? 'won' : 'lost' });
+  refreshLogUi();
   els.end.hidden = false; sfx(won ? 'win' : 'lose'); hud();
 }
 
@@ -642,15 +715,53 @@ function previewText(): void {
   setInfo(`${r.locks.length ? `鎖住 ${r.locks.map((i) => KIND_ZH[s.organs[i].kind]).join('、')}　` : ''}${r.severed !== null ? `<b>切下 ${KIND_ZH[s.organs[r.severed].kind]}</b>` : r.blocked !== null ? '<span class="warnc">被鎖住的器官擋下</span>' : '揮空'}`);
 }
 els.sound.onclick = () => { G.sound = !G.sound; try { localStorage.setItem('duel6-sound', G.sound ? '1' : '0'); } catch { /* 略過 */ } hud(); };
-els.fast.onclick = () => { if (G.ui === 'battle') { const now = performance.now(); G.bBase = G.bClock; G.bT0 = now; G.speed = G.speed === 1 ? 3 : 1; els.fast.textContent = G.speed === 1 ? '快轉' : '正常速度'; } };
-els.restart.onclick = () => newRun();
+els.fast.onclick = () => { if (G.ui === 'battle') { const now = performance.now(); if (G.speed === 1 && ACC.fastAtMs === null) { ACC.fastAtMs = Math.round(G.bClock); if (DEVLOG) DEVLOG.push({ k: 'fast', bClock: G.bClock }); } G.bBase = G.bClock; G.bT0 = now; G.speed = G.speed === 1 ? 3 : 1; els.fast.textContent = G.speed === 1 ? '快轉' : '正常速度'; } };
+els.restart.onclick = () => { if (DEVLOG) DEVLOG.push({ k: 'restart', ui: G.ui }); newRun(undefined, undefined, 'restart'); };
 els.inputMode.onclick = () => {
   if (G.fp || G.drag || G.slicer.q.size || (G.game && G.game.stroke?.blue)) return;   // 刀還沒結算完不能切換（審查 L-6）
   G.input = G.input === 'free' ? 'line' : 'free'; G.slicer = new Slicer(); G.trail = [];
   try { localStorage.setItem('duel6-input', G.input); } catch { /* 略過 */ }
   hud();
 };
-els.again.onclick = () => newRun();
+els.again.onclick = () => newRun(undefined, undefined, 'again');
+
+// ---------------------------------------------------------------- duel6 複製試玩紀錄 UI（規格「怎麼複製」）
+const COPY_TIMEOUT_MS = 1000;                        // writeText 的 Promise 可能永不 resolve（失焦等）：逾時就改出 textarea，保證每次按下都有反應
+let clearSt: ClearState = CLEAR_IDLE, clearTimer = 0 as unknown as ReturnType<typeof setTimeout>, toastTimer = 0 as unknown as ReturnType<typeof setTimeout>;
+function refreshLogUi(): void {
+  const n = playlog.runs.length;
+  els.copyEnd.textContent = `複製試玩紀錄（${n} 局）`; els.logBtn.textContent = `試玩紀錄（${n}）`; els.logTitle.textContent = `試玩紀錄（${n} 局）`;
+  els.logClear.textContent = clearSt.phase === 'armed' ? '再按一次清除' : '清除';
+}
+function toast(msg: string): void {
+  els.copyToast.textContent = msg; els.copyToast.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { els.copyToast.hidden = true; }, 2600);
+}
+/** 剪貼簿不可用時的後備：唯讀 textarea 放完整文字並自動全選（提示「長按全選後複製」）。 */
+function showCopyFallback(text: string): void {
+  const ta = els.copyTa;
+  ta.value = text; els.copyFb.hidden = false;
+  try { ta.focus(); ta.setSelectionRange(0, ta.value.length); ta.selectionStart = 0; ta.selectionEnd = ta.value.length; } catch { /* 略過：使用者仍可長按全選 */ }
+}
+/** 按下複製：文字先同步組好、writeText 在同一個手勢內呼叫（Safari 要求）；成功＝「已複製 N 局」，其餘一律出 textarea。 */
+function copyLog(): void {
+  const text = playlog.copyText(), n = playlog.runs.length;
+  let w: ((t: string) => Promise<void>) | null = null;
+  try { const cb = navigator.clipboard; if (cb && typeof cb.writeText === 'function') w = (t: string) => cb.writeText(t); } catch { w = null; }
+  void runCopy(text, { writeText: w, timeoutMs: COPY_TIMEOUT_MS }).then((r) => { if (r === 'copied') toast(`已複製 ${n} 局`); else showCopyFallback(text); });
+}
+function pressLogClear(): void {
+  const r = pressClear(clearSt, performance.now());   // 第一次＝armed（文字變「再按一次清除」）；3 秒內再按＝cleared；不用瀏覽器內建確認框
+  clearSt = r.state;
+  clearTimeout(clearTimer);
+  if (r.action === 'cleared') { playlog.clear(); toast('已清除試玩紀錄'); }
+  else clearTimer = setTimeout(() => { clearSt = tickClear(clearSt, performance.now()); refreshLogUi(); }, CLEAR_WINDOW_MS + 60);
+  refreshLogUi();
+}
+els.copyEnd.onclick = copyLog; els.logCopy.onclick = copyLog; els.logClear.onclick = pressLogClear;
+els.logBtn.onclick = () => { refreshLogUi(); els.logPanel.hidden = false; };
+els.logClose.onclick = () => { els.logPanel.hidden = true; clearSt = CLEAR_IDLE; clearTimeout(clearTimer); refreshLogUi(); };
+els.copyFbClose.onclick = () => { els.copyFb.hidden = true; };
 
 // ---------------------------------------------------------------- 繪製（幽光美術模組 v2）
 const ctx = els.canvas.getContext('2d')!;
@@ -987,7 +1098,7 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
   get camp() { return G.camp; }, get game() { return G.game; }, get ui() { return G.ui; }, get preview() { return G.preview; }, get lastStrike() { return G.lastStrike; },
   get battle() { return G.battle; }, get vis() { return G.vis; }, get tip() { return els.tip.hidden ? null : els.tip.textContent; }, get cutByMe() { return G.cutByMe; },
   get audio() { return audioLog; }, get tipsShown() { return [...G.tipsShown]; }, get tipLog() { return [...tipLog]; },
-  toScreen, newRun: (o?: { seed?: number; beast?: Beast }) => newRun(o?.seed, o?.beast ?? (G.camp?.beast)),   // duel5：沒指定怪獸時沿用這個征途的怪獸（舊測試的 newRun 不會跳出選擇畫面）
+  toScreen, newRun: (o?: { seed?: number; beast?: Beast }) => newRun(o?.seed, o?.beast ?? (G.camp?.beast), 'again'),   // duel5：沒指定怪獸時沿用這個征途的怪獸（舊測試的 newRun 不會跳出選擇畫面）
   setManual: (v: boolean) => { G.manual = v; }, advance: (n: number) => { G.countdown = null; for (let i = 0; i < n && G.ui === 'cut'; i++) stepOnce(); hud(); },   // 測試驅動：手動推進時倒數視為已結束
   setTimings: (o: { battleScale?: number }) => { if (o.battleScale !== undefined) G.battleScale = o.battleScale; },
   // duel3
@@ -995,13 +1106,15 @@ document.addEventListener('visibilitychange', () => { G.lastT = null; });
   get slowLog() { return [...G.slowLog]; }, get splits() { return G.splits.length; }, get trail() { return G.trail.length; }, get tut() { return G.tut && { phase: G.tut.phase, hint: G.tut.hint, text: els.tut.hidden ? null : els.tutText.textContent }; },
   get held() { return [...holdLit()]; }, get provisionalArt() { return PROVISIONAL; }, R,
   feed: (evs: PtrEv[]) => { for (const e of evs) G.slicer.push(e); }, setFx: (v: boolean) => { G.fxOn = v; }, setSceneOnly: (v: boolean) => { sceneOnly = v; }, get dispT() { return G.dispT; },
-  setInput: (m: 'free' | 'line') => { G.input = m; G.slicer = new Slicer(); hud(); }, skipTut: () => { const demo = G.tut?.phase === 'demo'; markTut(); tutEnd(); if (demo && G.ui === 'cut') startCountdown(); },
+  setInput: (m: 'free' | 'line') => { G.input = m; G.slicer = new Slicer(); hud(); }, skipTut: () => { const demo = G.tut?.phase === 'demo'; if (G.tut && LOG_ON) playlog.setTutorial('skipped'); if (G.tut && DEVLOG) DEVLOG.push({ k: 'tut', what: 'skip' }); markTut(); tutEnd(); if (demo && G.ui === 'cut') startCountdown(); },
   // duel4
   get countdown() { return G.countdown ? Math.max(0, COUNTDOWN_MS - (performance.now() - G.countdown.t0)) : 0; }, skipCountdown: () => { G.countdown = null; G.lastT = null; },
   get fxLog() { return G.fxLog.map((x) => ({ ...x })); }, get resultMax() { return G.resultMax; }, resetResultMax: () => { G.resultMax = 0; },
   get slots() { return drawnSlots.map((q) => [q[0], q[1]]); }, get ruleSlots() { return stitchSlots(G.camp).map((q) => [q[0], q[1]]); }, get campOrgans() { return blueOrgans(G.camp).map((o) => ({ id: o.id, p: o.p })); },
   get push() { return G.game ? G.game.push ?? 0 : 0; }, get inRange() { return reachNow(); }, get drawAlpha() { return Object.fromEntries(drawAlpha); }, get holding() { return holding(); },
   get nextFoe() { return !els.nextFoe.hidden; },
+  // duel6 步驟 6（試玩紀錄）：寫入計數與開關；原始事件流另在 window.__duel6Test（?devlog=1 才建立）
+  get playlogWrites() { return plWrites; }, get logOn() { return LOG_ON; }, setLog: (v: boolean) => { LOG_ON = v; },
   // duel6 步驟 4
   get devTieHits() { return devTieHits; }, get tie() { return G.tie; }, get devTie() { return DEV_TIE; },
   // duel5
@@ -1020,7 +1133,7 @@ window.addEventListener('resize', layout);
 // 素材載入（DA-05）：art-kit 的 loadImage 已含 3 次重試；全部失敗時顯示錯誤與「重試」，不整頁空白
 function boot(base: string): void {
   els.loadErr.hidden = true; els.loading.hidden = false;
-  loadAssets(base).then((a) => { ASSETS = a; els.loading.hidden = true; if (!G.camp) newRun(); }).catch((e: unknown) => {
+  loadAssets(base).then((a) => { ASSETS = a; els.loading.hidden = true; if (!G.camp) newRun(undefined, undefined, 'first'); }).catch((e: unknown) => {
     els.loading.hidden = true; els.loadErr.hidden = false;
     els.loadMsg.textContent = `素材載入失敗：${e instanceof Error ? e.message : String(e)}`;
     els.loadLog.textContent = loadLog.filter((x) => !x.ok).map((x) => `[DEBUG-artkit] ${x.url} 第${x.attempt}次 失敗 ${x.ms}ms online=${x.online} sw=${x.sw}`).join('\n');
