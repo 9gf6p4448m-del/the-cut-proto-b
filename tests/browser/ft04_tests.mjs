@@ -82,8 +82,8 @@ export function verifyRuns({ copyText, stored, events, scns, sha, wallSec }) {
       if (s.stage !== snap.stage || s.replay !== snap.replay || run.stages[j].e.stage !== snap.stage || run.stages[j].e.replay !== snap.replay) push('other', `${tg} stage/replay=${s.stage}/${s.replay} 快照=${snap.stage}/${snap.replay}`);
       if (s.cuts !== snap.sevBlue || s.cutBy !== snap.sevRed || s.cuts !== t.cutsEv || s.cutBy !== t.cutByEv) push('cuts', `${tg} cuts=${s.cuts} cutBy=${s.cutBy}｜severedN=${snap.sevBlue}:${snap.sevRed}｜事件=${t.cutsEv}:${t.cutByEv}`);
       if (!near(s.firstCutSec, t.firstCutSec, 0.1)) push('firstCut', `${tg} firstCutSec=${s.firstCutSec} 真值=${t.firstCutSec}`);
-      if (s.strokes !== t.strokes) push('strokes', `${tg} strokes=${s.strokes} 事件=${t.strokes}`);
-      if (scn.input === 'line' ? (s.locks !== t.locks || s.blocked !== t.blocked) : (s.locks < t.locks || s.blocked < t.blocked)) push('strokes', `${tg} locks/blocked=${s.locks}/${s.blocked} 事件=${t.locks}/${t.blocked}`);
+      if (s.strokes !== snap.strokesSent) push('strokes', `${tg} strokes=${s.strokes} 測試端送出的非 tap 刀數=${snap.strokesSent}（作廢排除 ${snap.voided}）`);
+      if ((scn.input === 'line' || snap.voided === 0) ? (s.locks !== t.locks || s.blocked !== t.blocked) : (s.locks < t.locks || s.blocked < t.blocked)) push('strokes', `${tg} locks/blocked=${s.locks}/${s.blocked} 事件=${t.locks}/${t.blocked}`);
       if (s.maxPush !== t.maxPush || s.maxPush !== snap.ft.mx || s.maxPushAi !== t.maxPushAi || s.maxPushAi !== snap.ft.ma) push('push', `${tg} maxPush=${s.maxPush}/${s.maxPushAi} 事件=${t.maxPush}/${t.maxPushAi} 逐步觀測=${snap.ft.mx}/${snap.ft.ma}`);
       const sk = t.skill;
       if (sk === null ? s.skill !== null : (!s.skill || !near(s.skill.sec, sk.sec, 0.01) || (sk.kind === 'pierce' ? s.skill.pierce !== sk.pierce : s.skill.pierce !== undefined))) push('battle', `${tg} skill=${JSON.stringify(s.skill)} 真值=${JSON.stringify(sk)}`);
@@ -233,7 +233,7 @@ export async function runFt04({ browser, bname, devices, url, check, sub }) {
     await ctx.close();
   }
 
-  const lab = { json: '複製出的 JSON 能解析、首行 N／sha 正確、與儲存內容相同', via: 'startedVia 正確（first／again／restart；選怪獸畫面重按不產生局）', result: 'result 正確（won／lost／abandoned）', tut: 'tutorial 正確（done／skipped／aborted／none／before）', cuts: 'cuts／cutBy＝severedN（含事件流 cut 事件數，藍紅不反）', firstCut: 'firstCutSec 誤差 ≤0.1 秒', strokes: 'strokes＝玩家出刀事件數、locks／blocked 對得上', push: 'maxPush／maxPushAi＝事件流＝逐步觀測最大推進', battle: 'battle＝BattleResult、fastAtMs、tiebreak、skill、endOrgans 對得上', stitch: 'stitch＝實際縫上的器官（offer／picked／位置）；沒縫合＝null', summary: '摘要文字數字（regex 反解）＝JSON', other: '其他欄位（runIdx／ver／sha／gapSec／totalSec／stage／replay／局數／場數）' };
+  const lab = { json: '複製出的 JSON 能解析、首行 N／sha 正確、與儲存內容相同', via: 'startedVia 正確（first／again／restart；選怪獸畫面重按不產生局）', result: 'result 正確（won／lost／abandoned）', tut: 'tutorial 正確（done／skipped／aborted／none／before）', cuts: 'cuts／cutBy＝severedN（含事件流 cut 事件數，藍紅不反）', firstCut: 'firstCutSec 誤差 ≤0.1 秒', strokes: 'strokes＝測試端自己送出的非 tap 刀數（相等）、locks／blocked 對得上', push: 'maxPush／maxPushAi＝事件流＝逐步觀測最大推進', battle: 'battle＝BattleResult、fastAtMs、tiebreak、skill、endOrgans 對得上', stitch: 'stitch＝實際縫上的器官（offer／picked／位置）；沒縫合＝null', summary: '摘要文字數字（regex 反解）＝JSON', other: '其他欄位（runIdx／ver／sha／gapSec／totalSec／stage／replay／局數／場數）' };
   for (const [k, text] of Object.entries(lab)) check(`${tag} FT-04 ${text}`, (allBad[k] || []).length === 0, (allBad[k] || []).slice(0, 4).join('；'));
   const cov = { runs: cover.runs, stagesRecorded: cover.stagesRecorded, beasts: [...cover.beasts], results: [...cover.results], tieStages: cover.tieStages, replayTies: cover.replayTies, fast: cover.fast, skipped: cover.skipped, abandonedThenRestart: cover.abandonedThenRestart, againAfterEnd: cover.againAfterEnd, tie: tieInfo };
   check(`${tag} FT-04 涵蓋（真值側統計）：≥4 局、龍和蛇、征途 won 和 lost 各至少一次、至少一次平手（非 devtie）且含重打型、一次快轉、一次跳過教學、一次中途重新征途、一次結果畫面再來一局`,

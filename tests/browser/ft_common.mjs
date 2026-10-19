@@ -29,7 +29,13 @@ export const scr = (page, p) => page.evaluate(([x, y]) => window.__cb.toScreen(x
 export const waitUi = (page, ui, timeout = 60000) => page.waitForFunction((u) => window.__cb.ui === u, ui, { timeout });
 export const frames = (pg, n = 3) => pg.evaluate((k) => new Promise((r) => { let i = 0; const f = () => (++i >= k ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
 export async function tapEl(page, sel) { const b = await page.locator(sel).boundingBox(); if (!b) return false; await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); return true; }
+/** 測試端自己的出刀計數（FT-04 strokes 的獨立真值，不經主程式任何事件處理函式）：
+ *  sent＝實際送出、非 tap 的刀（直線模式＝一次完整拖曳；即時劃刀＝一次 feed 的完整刀，路徑長 >> TAP_LEN）；
+ *  voided＝送出後因時間到被作廢而排除的刀（排除依據：feed 後推進 8 步，若切割期已結束或距結束 ≤2 步，該刀在規則層不會有 freeEnd，
+ *  規則 rules.ts 時間到作廢進行中的刀）。每場開始（driveRun）歸零。直線模式只在冷卻好、起點合法時才拖，且拖完立即推進 1 步，不會被作廢。 */
+export const tally = { sent: 0, voided: 0 };
 export async function dragScreen(page, A, B) {
+  tally.sent++;
   await page.mouse.move(A[0], A[1]); await page.mouse.down();
   for (let k = 1; k <= 6; k++) await page.mouse.move(A[0] + ((B[0] - A[0]) * k) / 6, A[1] + ((B[1] - A[1]) * k) / 6);
   await page.mouse.up();
@@ -74,6 +80,7 @@ export async function feedStroke(page) {
   if (!plan) return false;
   const step = await page.evaluate(() => window.__cb.game.step);
   await page.evaluate((e) => window.__cb.feed(e), evsOf(plan.S, plan.E, (step + 1) * (1000 / 60)));
+  tally.sent++;
   return true;
 }
 /** 即時劃刀：PLAN 挑刀、__cb.feed 餵事件（同 fs_tests 的作法）；skillFirst＝第一刀前先按技能鈕（真實觸控）。回傳餵出的刀數。 */
@@ -86,6 +93,8 @@ export async function playFree(page, { skillFirst = false } = {}) {
     if (!skillDone) { await tapEl(page, '#skill'); await advT(page, 1); skillDone = true; continue; }
     if (!(await feedStroke(page))) { await advT(page, 20); continue; }
     fed++; await advT(page, 8);
+    const e = await page.evaluate(() => ({ ph: window.__cb.game.phase, ui: window.__cb.ui, step: window.__cb.game.step, end: window.__cb.cutS * 60 }));
+    if (e.ui !== 'cut' || e.ph !== 'cut' || e.step >= e.end - 2) { tally.sent--; tally.voided++; }
   }
   return fed;
 }
@@ -107,7 +116,7 @@ export function schedulePlayer(sched) {
  *  player(page, {stage, replay}) 負責切割期；onBattle(page, snapNo) 在每場戰鬥開始時呼叫。 */
 export async function driveRun(page, { player, onBattle = null, maxLoops = 300 } = {}) {
   const snaps = []; let hooked = false;
-  await resetFt(page);
+  await resetFt(page); tally.sent = 0; tally.voided = 0;
   for (let guard = 0; guard < maxLoops; guard++) {
     const ui = await page.evaluate(() => window.__cb.ui);
     if (ui === 'end') return { snaps, ended: true };
@@ -123,8 +132,9 @@ export async function driveRun(page, { player, onBattle = null, maxLoops = 300 }
     }
     if (ui === 'contrib') {
       const s = await page.evaluate(() => { const c = window.__cb, g = c.game, b = c.battle; return { stage: c.camp.stage + 1, replay: c.camp.replay ?? 0, sevBlue: g.severedN.blue, sevRed: g.severedN.red, battle: b && { winner: b.winner, how: b.how, endMs: b.endMs }, tie: c.tie ? { ...c.tie } : null, input: c.input, matchup: c.matchup && { me: c.matchup.me, foe: c.matchup.foe }, ft: { ...(window.__ft || { mx: 0, ma: 0 }) }, title: document.getElementById('contribTitle').textContent, btn: document.getElementById('contribNext').textContent }; });
+      s.strokesSent = tally.sent; s.voided = tally.voided;
       snaps.push(s); hooked = false;
-      await page.click('#contribNext'); await resetFt(page); continue;
+      await page.click('#contribNext'); await resetFt(page); tally.sent = 0; tally.voided = 0; continue;
     }
     if (ui === 'pick') {
       const offer = await page.evaluate(() => [...window.__cb.camp.offer]);
