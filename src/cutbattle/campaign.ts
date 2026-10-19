@@ -63,7 +63,10 @@ export function genRed(seed: number, stage: number, blue: OrganDef[], body?: Rec
 }
 
 export interface Stitch { kind: Kind; p: V }
-export interface StageLog { stage: number; winner: Side | 'draw'; how: string; cutByMe: Kind[]; battle: BattleResult; endBody: Kind[] }
+/** duel6：平手比切除數的結果（blue＝你切掉對方的數量、red＝對方切掉你的數量）。 */
+export type TieResult = 'win' | 'loss' | 'replay';
+export interface Tiebreak { blue: number; red: number; result: TieResult }
+export interface StageLog { stage: number; winner: Side | 'draw'; how: string; cutByMe: Kind[]; battle: BattleResult; endBody: Kind[]; replay?: number; tiebreak?: Tiebreak }
 export interface Campaign {
   seed: number; stage: number; blueBase: OrganDef[]; stitches: Stitch[];
   body?: Record<Side, V[]>;                         // duel2：獸身多邊形（不給＝BODY，duel v0.1）
@@ -71,10 +74,12 @@ export interface Campaign {
   front?: { unit: number; max: number };            // duel4：前線推進（不給＝沒有）
   beast?: Beast;                                    // duel5：玩家選的怪獸（不給＝沒有技能、舊版行為）
   cutSeconds?: number;                              // duel5：切割期秒數（?cut=，DL-091；不給＝CB.CUT_SECONDS）
+  tieBreak?: true;                                  // duel6：平手比切除數（不給＝平手算輸）
+  replay?: number;                                  // duel6：這一場已重打幾次（不給＝0）；進下一場歸 0
   phase: 'cut' | 'battle' | 'pick' | 'place' | 'won' | 'lost';
   offer: Kind[]; picked: Kind | null; history: StageLog[];
 }
-export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number, front?: { unit: number; max: number }, opts: { beast?: Beast; cutSeconds?: number } = {}): Campaign {
+export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number, front?: { unit: number; max: number }, opts: { beast?: Beast; cutSeconds?: number; tieBreak?: true } = {}): Campaign {
   // duel5：選蛇＝藍方身體換成蛇身、初始器官沿中線排（DUEL_V05_SNAKE 二＋補述 1 第 1～4 條）；紅方仍是龍
   const snake = opts.beast === 'snake', b = snake ? { blue: SNAKE_POLY, red: (body ?? BODY).red } : body;
   const c: Campaign = { seed: seed >>> 0, stage: 0, blueBase: snake ? genSnakeBase(seed) : genBlueBase(seed, body, r ?? R), stitches: [], phase: 'cut', offer: [], picked: null, history: [] };
@@ -83,6 +88,7 @@ export function newCampaign(seed: number, body?: Record<Side, V[]>, r?: number, 
   if (front) c.front = front;
   if (opts.beast) c.beast = opts.beast;
   if (opts.cutSeconds !== undefined) c.cutSeconds = opts.cutSeconds;
+  if (opts.tieBreak) { c.tieBreak = true; c.replay = 0; }
   return c;
 }
 /** ?cut= 參數（DL-091）：20～60 的整數秒；其他（空、非整數、超出範圍）一律 30。 */
@@ -102,10 +108,12 @@ export function modeFor(c: Campaign, nBlue: number, nRed: number): Mode {
   if (c.beast) { m.beasts = { blue: c.beast, red: 'dragon' }; if (c.beast === 'snake') m.originRegen = ['blue']; }   // duel5：AI 只用龍
   return m;
 }
+/** duel6：重打次數併入種子的偏移量；replay=0（含沒給）＝0，所以舊公式的值一字不變。 */
+const replaySalt = (c: Campaign, k: number) => Math.imul(c.replay ?? 0, k);
 /** 這一場的切割期起始狀態（rt-cut2 規則＋本版設定）。 */
 export function matchFor(c: Campaign): GameState {
   const blue = blueOrgans(c), red = genRed(c.seed, c.stage, blue, c.body, c.r ?? R);
-  const g = newGame((c.seed + 7919 * (c.stage + 1)) >>> 0, modeFor(c, blue.length, red.length), [...blue, ...red]);
+  const g = newGame((c.seed + 7919 * (c.stage + 1) + replaySalt(c, 0x2545f491)) >>> 0, modeFor(c, blue.length, red.length), [...blue, ...red]);
   if (c.beast) { g.startN = { blue: blue.length, red: red.length }; g.skillUsed = { blue: false, red: false }; g.severedP = { blue: [], red: [] }; }   // duel5 技能與長回原位
   return g;
 }
@@ -113,12 +121,23 @@ export function matchFor(c: Campaign): GameState {
 export function fightersOf(s: GameState): Fighter[] {
   return s.organs.map((o, i) => ({ o, i })).filter((x) => s.alive[x.i]).map(({ o }) => ({ side: o.side, id: o.id, kind: o.kind }));
 }
-export const battleSeed = (c: Campaign) => (c.seed * 31 + c.stage * 1013 + 17) >>> 0;
+export const battleSeed = (c: Campaign) => (c.seed * 31 + c.stage * 1013 + 17 + replaySalt(c, 0x6c8e9cf5)) >>> 0;
 /** 一場打完：勝→給 3 個縫合選項（這場你切下的種類，不足 3 種由其他種類補）；最後一場勝＝征途勝；敗或平手＝結束。 */
-export function finishStage(c: Campaign, cutByMe: Kind[], battle: BattleResult, endBody: Kind[] = []): Campaign {
+/** duel6：平手判定（唯一一處比切除數）。blue＝你切掉對方的數量；多＝贏、少＝輸、一樣＝重打。 */
+export function tieOutcome(severedN: { blue: number; red: number }): TieResult {
+  return severedN.blue > severedN.red ? 'win' : severedN.blue < severedN.red ? 'loss' : 'replay';
+}
+export function finishStage(c: Campaign, cutByMe: Kind[], battle: BattleResult, endBody: Kind[] = [], severedN?: { blue: number; red: number }): Campaign {
   const log: StageLog = { stage: c.stage, winner: battle.winner, how: battle.how, cutByMe, battle, endBody };
+  let winner: Side | 'draw' = battle.winner;
+  if (c.tieBreak && battle.winner === 'draw' && severedN) {
+    const result = tieOutcome(severedN);
+    log.replay = c.replay ?? 0; log.tiebreak = { blue: severedN.blue, red: severedN.red, result };
+    if (result === 'replay') return { ...c, replay: (c.replay ?? 0) + 1, phase: 'cut', history: [...c.history, log] };
+    winner = result === 'win' ? 'blue' : 'red';
+  } else if (c.tieBreak) log.replay = c.replay ?? 0;
   const history = [...c.history, log];
-  if (battle.winner !== 'blue') return { ...c, phase: 'lost', history };
+  if (winner !== 'blue') return { ...c, phase: 'lost', history };
   if (c.stage === CB.STAGES - 1) return { ...c, phase: 'won', history };
   return { ...c, phase: 'pick', history, offer: stitchOffer(c, cutByMe) };
 }
@@ -174,10 +193,10 @@ export function placeStitch(c: Campaign, p: V): { c: Campaign; reject: PlaceReje
   if (rej) return { c, reject: rej };
   const q: V = [Math.round(p[0]), Math.round(p[1])];
   if (placeCheck(c, q)) return { c, reject: placeCheck(c, q) };
-  return { c: { ...c, stitches: [...c.stitches, { kind: c.picked, p: q }], picked: null, offer: [], stage: c.stage + 1, phase: 'cut' }, reject: null };
+  return { c: { ...c, stitches: [...c.stitches, { kind: c.picked, p: q }], picked: null, offer: [], stage: c.stage + 1, phase: 'cut', ...(c.tieBreak ? { replay: 0 } : {}) }, reject: null };
 }
 /** 便利：用切割期結束狀態直接跑戰鬥並結算本場。 */
 export function resolveStage(c: Campaign, end: GameState, cutByMe: Kind[]): { c: Campaign; battle: BattleResult } {
   const f = fightersOf(end), battle = simulateBattle(f, battleSeed(c));
-  return { c: finishStage(c, cutByMe, battle, f.filter((x) => x.side === 'blue').map((x) => x.kind)), battle };
+  return { c: finishStage(c, cutByMe, battle, f.filter((x) => x.side === 'blue').map((x) => x.kind), end.severedN), battle };
 }
