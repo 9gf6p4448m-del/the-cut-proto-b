@@ -7,6 +7,25 @@ import { PLAN } from './df_tests.mjs';
 
 const NO_TUT = "try { localStorage.setItem('duel5-tutorial', 'done'); } catch (e) {}";
 export const autoBeast = (b) => `window.__duel5AutoBeast = '${b}';`;
+/** 從藍方獸身內找一條長 400 的刀線，盡量多穿過可切的紅色器官（穿刺連切用）。 */
+const PIERCE_PLAN = `(() => {
+  const g = window.__cb.game, R = window.__cb.R, body = g.mode.body.blue;
+  const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c; } return c; };
+  const segD = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
+  const ok = (i) => g.alive[i] && g.step >= g.readyAt[i] && g.lockUntil[i] <= g.step;
+  let best = null;
+  for (let x = 20; x < 700; x += 20) for (let y = 300; y < 1100; y += 20) {
+    const S = [x, y]; if (!inside(S, body) || g.organs.some((q, j) => g.alive[j] && Math.hypot(q.p[0] - S[0], q.p[1] - S[1]) < R + 4)) continue;
+    for (let a = 0; a < 72; a++) {
+      const th = a * Math.PI / 36, E = [S[0] + Math.cos(th) * 400, S[1] + Math.sin(th) * 400];
+      const hit = g.organs.map((q, j) => ({ q, j })).filter(({ q, j }) => q.side === 'red' && ok(j) && segD(q.p, S, E) < R - 4);
+      if (g.organs.some((q, j) => q.side === 'red' && g.alive[j] && !ok(j) && segD(q.p, S, E) < R + 6)) continue;
+      if (g.organs.some((q, j) => q.side === 'red' && g.alive[j] && ok(j) && Math.abs(segD(q.p, S, E) - R) < 6)) continue;   // 擦邊的不要（避免規則與規劃對「碰到」判斷不同）
+      if (!best || hit.length > best.n) best = { S, E, n: hit.length };
+    }
+  }
+  return best;
+})()`;
 const readyCamp = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady && !!window.__cb.camp, null, { timeout: 30000 });
 const readyAny = (pg) => pg.waitForFunction(() => !!window.__cb && window.__cb.assetsReady, null, { timeout: 30000 });
 const frames = (pg, n = 3) => pg.evaluate((k) => new Promise((r) => { let i = 0; const f = () => (++i >= k ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
@@ -118,18 +137,75 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     await c2.close();
     check(`${tag} ?cut=40：跑完第 2399 步仍在切割期、跑第 2400 步（40.0 秒）時結束；?cut=19 → 30 秒`, a.s === 40 && a.phase === 'cut' && a2.step === 2400 && a2.phase === 'cut' && b.phase !== 'cut' && c.s === 30 && c.steps === 1800, JSON.stringify({ a, a2, b, c }));
   }
+  // ===== FS-07 穿刺連切在主程式有處理（審查 C2）：連切的每一顆都有裂開演出、記入切下清單（縫合選項） =====
+  {
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    await readyCamp(page);
+    await page.evaluate(() => { window.__cb.setManual(true); window.__cb.newRun({ seed: 5, beast: 'snake' }); window.__cb.advance(2); });
+    await frames(page, 2);
+    const box = await page.locator('#skill').boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await frames(page, 2);
+    await page.evaluate(() => window.__cb.advance(1));
+    const plan = await page.evaluate(PIERCE_PLAN), k0 = await page.evaluate(() => window.__cb.game.step);
+    const before = await page.evaluate(() => ({ my: window.__cb.cutByMe.length, sp: window.__cb.fxLog.filter((x) => x.t === 'split' && x.side === 'red').length, pierce: !!window.__cb.skill.pierce }));
+    await page.evaluate(([e]) => window.__cb.feed(e), [evs(plan.S, plan.E, (k0 + 1) * (1000 / 60), 60)]);
+    await page.evaluate(() => window.__cb.advance(20));
+    await frames(page, 2);
+    const after = await page.evaluate(() => ({ my: window.__cb.cutByMe.length, sev: window.__cb.game.severedN.blue, sp: window.__cb.fxLog.filter((x) => x.t === 'split' && x.side === 'red').length, n: window.__cb.freeLog.filter((x) => x.includes(':freeCut')).length }));
+    const ok = before.pierce && plan.n >= 2 && after.n >= 2 && after.my === after.sev && after.my - before.my === after.n && after.sp - before.sp === after.n;
+    check(`${tag} FS-07 穿刺連切（即時劃刀）：連切的每一顆都有裂開演出；切下清單（縫合選項來源）＝規則層的切除數`, ok, JSON.stringify({ plan, before, after }));
+    await ctx.close();
+  }
+  // ===== 同上，直線預覽（真實指標拖曳放開＝直線刀）=====
+  {
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake')]);
+    await readyCamp(page);
+    await page.evaluate(() => { window.__cb.setManual(true); window.__cb.newRun({ seed: 5, beast: 'snake' }); window.__cb.setInput('line'); window.__cb.advance(2); });
+    await frames(page, 2);
+    const box = await page.locator('#skill').boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await frames(page, 2);
+    await page.evaluate(() => window.__cb.advance(1));
+    const plan = await page.evaluate(PIERCE_PLAN);
+    const A = await page.evaluate(([x, y]) => window.__cb.toScreen(x, y), plan.S), B = await page.evaluate(([x, y]) => window.__cb.toScreen(x, y), plan.E);
+    await page.mouse.move(A.x, A.y); await page.mouse.down();
+    for (let k = 1; k <= 10; k++) await page.mouse.move(A.x + ((B.x - A.x) * k) / 10, A.y + ((B.y - A.y) * k) / 10);
+    await page.mouse.up();
+    await frames(page, 2);
+    await page.evaluate(() => window.__cb.advance(3));
+    await frames(page, 2);
+    const after = await page.evaluate(() => ({ my: window.__cb.cutByMe.length, sev: window.__cb.game.severedN.blue, sp: window.__cb.fxLog.filter((x) => x.t === 'split' && x.side === 'red').length, pierced: window.__cb.lastStrike && window.__cb.lastStrike.pierced ? window.__cb.lastStrike.pierced.length : null }));
+    const ok = plan.n >= 2 && after.pierced >= 2 && after.my === after.sev && after.my === after.pierced && after.sp === after.pierced;
+    check(`${tag} FS-07 穿刺連切（直線預覽）：連切的每一顆都有裂開演出；切下清單（縫合選項來源）＝規則層的切除數`, ok, JSON.stringify({ plan, after }));
+    await ctx.close();
+  }
+  // ===== ?cut=45：倒數畫面寫實際的切割秒數（主 session 追加 ②）=====
+  {
+    const spy = "window.__texts = []; const f0 = CanvasRenderingContext2D.prototype.fillText; CanvasRenderingContext2D.prototype.fillText = function (t, ...a) { if (typeof t === 'string' && t.includes('切割')) window.__texts.push(t); return f0.call(this, t, ...a); };";
+    const res = {};
+    for (const q of ['?cut=45', '']) {
+      const { ctx, page } = await open([NO_TUT, autoBeast('dragon'), spy], q);
+      await readyCamp(page);
+      await page.waitForFunction(() => window.__texts.some((t) => t.includes('秒')), null, { timeout: 6000 }).catch(() => {});
+      res[q || 'none'] = await page.evaluate(() => [...new Set(window.__texts.filter((t) => t.includes('秒')))]);
+      await ctx.close();
+    }
+    const has = (a, n) => a.length > 0 && a.every((t) => t.includes(`切割 ${n} 秒`));
+    check(`${tag} ?cut=45：倒數畫面顯示「切割 45 秒」（不帶參數顯示 30）`, has(res['?cut=45'], 45) && has(res.none, 30), JSON.stringify(res));
+  }
   // ===== FS-06 戰鬥可讀（像素＋事件）：戰鬥期器官可見（亮度比 ≥1.6 且 ≥ 切割期 ×0.9）、對照逐項相同、行動亮起與攻擊連線、字級 ≥18 CSS px、暴擊樣式不同、雙方跳字 ≥80ms、「清空！」≥600ms =====
   {
     const { ctx, page } = await open([NO_TUT, autoBeast('dragon')]);
     await readyCamp(page);
     await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 1 }); window.__cb.newRun({ seed: 5, beast: 'dragon' }); window.__cb.advance(2); });
     await frames(page, 4);
-    const redIds = await page.evaluate(() => window.__cb.game.organs.filter((o, i) => o.side === 'red' && window.__cb.game.alive[i]).map((o) => o.id));
-    const cut = await ratioOf(page, redIds);
+    const allIds = await page.evaluate(() => window.__cb.game.organs.filter((o, i) => window.__cb.game.alive[i]).map((o) => o.id));   // 雙方都量（補述 1 第 10a 條「每顆存活器官」；審查 H2）
+    const cut = await ratioOf(page, allIds);
     await page.evaluate(() => window.__cb.advance(1800));
     await page.waitForFunction(() => window.__cb.matchup && window.__cb.matchup.shown, null, { timeout: 5000 });
     await frames(page, 3);
-    const m = await page.evaluate(() => { const g = window.__cb.game, c = (side) => { const o = {}; g.organs.forEach((x, i) => { if (g.alive[i] && x.side === side) o[x.kind] = (o[x.kind] ?? 0) + 1; }); return o; }; return { m: window.__cb.matchup, me: c('blue'), foe: c('red'), alive: g.organs.filter((o, i) => g.alive[i] && o.side === 'red').map((o) => o.id) }; });
+    const m = await page.evaluate(() => { const g = window.__cb.game, c = (side) => { const o = {}; g.organs.forEach((x, i) => { if (g.alive[i] && x.side === side) o[x.kind] = (o[x.kind] ?? 0) + 1; }); return o; }; return { m: window.__cb.matchup, me: c('blue'), foe: c('red'), alive: g.organs.filter((o, i) => g.alive[i]).map((o) => o.id) }; });
     const bat = await ratioOf(page, m.alive);
     // 補述 2 條件 2：量測當下從 canvas 截出背景占比最低 3 顆的 90×90 CSS px 區塊（就是被量測的像素；開戰前對照的 DOM 橫幅不在 canvas 上，量測也不含它）
     const shareList = m.alive.map((id) => ({ id, share: bat[`${id}#share`] })).sort((a, b) => a.share - b.share);
@@ -156,6 +232,28 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     const ok = visBad.length === 0 && judged.length >= Math.ceil(m.alive.length / 2) && eq(m.m.me, m.me) && eq(m.m.foe, m.foe) && acts.length > 0 && lineKinds.has('爪') && nums.length > 4 && minCss >= 18 && gap >= 80
       && (crit.length === 0 || (crit[0].css > normal[0].css && crit[0].text.startsWith('暴擊')));
     check(`${tag} FS-06 戰鬥可讀：器官亮度比 ≥1.6 且 ≥ 切割期×0.9、開戰前對照＝實際剩下的器官、有行動亮起與爪的攻擊連線、跳字 ≥18 CSS px、暴擊樣式不同、雙方跳字間隔 ≥80ms`, ok, JSON.stringify({ visBad, judged: `${judged.length}/${m.alive.length}`, excluded, cut: Object.fromEntries(Object.entries(cut).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), bat: Object.fromEntries(Object.entries(bat).filter(([k]) => !k.includes('#')).slice(0, 4).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)])), m: m.m.text, acts: acts.length, lineKinds: [...lineKinds], nums: nums.length, minCss: +minCss.toFixed(1), crit: crit.length, gap: gap === Infinity ? null : Math.round(gap) }));
+    await ctx.close();
+  }
+  // ===== FS-06 戰鬥期器官可見（蛇盤面，雙方都量；審查 H2。?cut=20：切割期短，開戰時藍方蛇還有器官活著）=====
+  {
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake')], '?cut=20');
+    await readyCamp(page);
+    // 固定種子 15（?cut=20）：AI 在切割期只切走部分藍方器官，開戰時藍方蛇還有器官活著，才量得到藍方；種子不依賴執行結果
+    const seed = 15;
+    await page.evaluate((sd) => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 1 }); window.__cb.newRun({ seed: sd, beast: 'snake' }); window.__cb.advance(2); }, seed);
+    await frames(page, 4);
+    const ids0 = await page.evaluate(() => window.__cb.game.organs.filter((o, i) => window.__cb.game.alive[i]).map((o) => o.id));
+    const cut = await ratioOf(page, ids0);
+    await page.evaluate(() => window.__cb.advance(1200));
+    await page.waitForFunction(() => window.__cb.matchup && window.__cb.matchup.shown, null, { timeout: 5000 });
+    await frames(page, 3);
+    const alive = await page.evaluate(() => window.__cb.game.organs.filter((o, i) => window.__cb.game.alive[i]).map((o) => o.id));
+    const bat = await ratioOf(page, alive);
+    await page.screenshot({ path: `${shotDir}/battle_snake_393x852.png` });
+    const judged = alive.filter((id) => bat[id] !== null && cut[id] !== null && cut[id] !== undefined), visBad = judged.filter((id) => !(bat[id] >= 1.6 && bat[id] >= 0.9 * cut[id]));
+    const r2 = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !k.includes('#')).map(([k, v]) => [k, v === null ? null : +v.toFixed(2)]));
+    const share = alive.filter((id) => bat[`${id}#share`] < 1).map((id) => `${id}:${bat[`${id}#share`].toFixed(2)}`);
+    check(`${tag} FS-06 戰鬥期器官可見（蛇盤面，雙方每顆存活器官）：亮度比 ≥1.6 且 ≥ 切割期×0.9、至少評一半、藍方至少評 2 顆`, visBad.length === 0 && judged.length >= Math.ceil(alive.length / 2) && judged.filter((id) => id.startsWith('藍')).length >= 2, JSON.stringify({ seed, visBad, judged: `${judged.length}/${alive.length}`, share, cut: r2(cut), bat: r2(bat) }));
     await ctx.close();
   }
   // ===== FS-06 毒的攻擊連線（蛇有 3 毒，直接進戰鬥）=====
@@ -188,6 +286,27 @@ export async function runFsTests({ bname, btype, devices, url, check, shotDir = 
     const i0 = log.findIndex((x) => x.t === 'banner' && x.id === '清空！'), nxt = i0 >= 0 ? log.slice(i0 + 1).find((x) => x.t === 'matchup' || (x.t === 'banner' && x.id && x.id !== '清空！')) : null;
     const shown = i0 >= 0 && nxt ? nxt.at - log[i0].at : null;
     check(`${tag} FS-06「清空！」完整顯示 ≥600ms 才換下一個（開戰前對照或戰鬥橫幅）`, !!ko && shown !== null && shown >= 600, JSON.stringify({ ko, shown: shown && Math.round(shown), log: log.slice(Math.max(0, i0 - 1), i0 + 3).map((x) => `${x.t}:${x.id ?? ''}`) }));
+    await ctx.close();
+  }
+  // ===== 選怪獸畫面：「清空！」保留中按「重新征途」→ 舊征途的戰鬥不在選擇畫面背後開打，選擇畫面照常可用（審查 C3） =====
+  {
+    const { ctx, page } = await open([NO_TUT, autoBeast('snake')], '?cut=60');
+    await readyCamp(page);
+    await page.evaluate(() => { window.__cb.setManual(true); window.__cb.setTimings({ battleScale: 1 }); window.__cb.newRun({ seed: 9, beast: 'snake' }); window.__cb.advance(2); });
+    let ko = null;
+    for (let i = 0; i < 60 && !ko; i++) {
+      const st = await page.evaluate(() => window.__cb.game.phase); if (st !== 'cut') break;
+      const plan = await page.evaluate(PLAN), k0 = await page.evaluate(() => window.__cb.game.step);
+      if (plan) await page.evaluate(([e]) => window.__cb.feed(e), [evs(plan.S, plan.E, (k0 + 1) * (1000 / 60))]);
+      ko = await page.evaluate(() => { window.__cb.advance(92); if (window.__cb.game.phase !== 'ko') return null; const end = window.__cb.game.end; delete window.__duel5AutoBeast; document.getElementById('restart').click(); return end; });   // 同一個 JS 工作內點真正的「重新征途」鈕（在 700ms 保留內）
+    }
+    await page.waitForTimeout(1500);
+    const pick = await page.evaluate(() => ({ ui: window.__cb.ui, battle: !!window.__cb.battle, beastShown: !document.getElementById('beast').hidden }));
+    const card = await page.locator('#beastDragon').boundingBox();
+    if (card) await page.touchscreen.tap(card.x + card.width / 2, card.y + card.height / 2);
+    await page.waitForFunction(() => window.__cb.ui === 'cut', null, { timeout: 3000 }).catch(() => {});
+    const go = await page.evaluate(() => ({ ui: window.__cb.ui, beast: window.__cb.beast, phase: window.__cb.game.phase }));
+    check(`${tag} 選怪獸：「清空！」保留中按「重新征途」→ 舊戰鬥不在背後開打、選擇畫面可選、新征途開始`, !!ko && pick.ui === 'beast' && !pick.battle && pick.beastShown && go.ui === 'cut' && go.beast === 'dragon' && go.phase === 'cut', JSON.stringify({ ko, pick, go }));
     await ctx.close();
   }
   // ===== FS-06 決定性：同一份輸入序列，演出開／關，規則結果逐步相同；戰鬥結果相同（戰鬥模擬與畫面無關） =====

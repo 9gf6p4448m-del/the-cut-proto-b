@@ -19,6 +19,11 @@ MUTS = [
  ('src/cutbattle/campaign.ts', "      if (d >= SNAKE_GAP_MIN && d <= SNAKE_GAP_MAX && out.every((q) => dist(q, p) > SLOT_GAP)) out.push(p);", "      if (out.every((q) => dist(q, p) > SLOT_GAP)) out.push(p);", 'FS-04', '蛇的縫合槽位不看間距'),
  ('src/cutbattle/campaign.ts', "  return Number.isInteger(n) && n >= 20 && n <= 60 ? n : CB.CUT_SECONDS;", "  return Number.isInteger(n) && n >= 19 && n <= 60 ? n : CB.CUT_SECONDS;", '補述 1 第 11', '?cut 接受 19'),
  ('src/cutbattle/campaign.ts', "  const m: Mode = { ...MODE_RT2, cutSteps: (c.cutSeconds ?? CB.CUT_SECONDS) * 60,", "  const m: Mode = { ...MODE_RT2, cutSteps: CB.CUT_SECONDS * 60,", '補述 1 第 11', '?cut 沒有作用'),
+ ('src/rtcut/rules.ts', "if (cur.len < TAP_LEN && cur.locks.length === 0 && !cur.cuts?.length) {", "if (cur.len < TAP_LEN && cur.locks.length === 0) {", 'FS-01', '穿刺切中後短放開被當點擊（審查 C1）'),
+ ('src/rtcut/rules.ts', "    const used = frees.some((f) => f.side === side && f.pierceUsed) || strikes.some((r) => r.side === side && r.pierced !== undefined);", "    const used = frees.some((f) => f.side === side && f.pierceUsed);", 'FS-01', '直線刀出手不算用掉穿刺（審查 H3）'),
+ ('src/rtcut/rules.ts', "    const expired = !used && k + 1 >= pz.until && !s.stroke?.[side]?.pierce;", "    const expired = !used && k + 1 >= pz.until;", 'FS-01', '穿刺到期不管進行中的刀（審查 H3）'),
+ ('src/rtcut/rules.ts', "    if (s.organs.some((o, i) => s.alive[i] && Math.hypot(o.p[0] - p![0], o.p[1] - p![1]) < 2 * rr)) return null;", "", 'FS-04', '再生不檢查原位有沒有被佔（審查 H3）'),
+ ('src/rtcut/rules.ts', "    if (SIDES.some((o) => o !== side && s.mode.originRegen?.includes(o) && s.severedP?.[o].some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 2 * rr))) continue;", "", 'FS-04', '紅方再生可佔蛇的原位（審查 H1）'),
 ]
 res = []
 for f, a, b, pat, name in MUTS:

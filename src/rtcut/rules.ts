@@ -285,6 +285,8 @@ function spawnPoint(s: GameState, side: Side): V | null {
     const rr = radOf(s.mode);
     if (s.mode.spawnRule === 'cb' && !validSpot(p, side, s.mode.body, rr)) continue;
     if (s.organs.some((o, i) => s.alive[i] && Math.hypot(o.p[0] - p[0], o.p[1] - p[1]) < 2 * rr)) continue;
+    // 不長到對方（蛇）還沒長回的原位上：被佔住的話蛇的 FIFO 隊首永遠長不回來（審查 H1）
+    if (SIDES.some((o) => o !== side && s.mode.originRegen?.includes(o) && s.severedP?.[o].some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 2 * rr))) continue;
     return p;
   }
   return null;
@@ -493,7 +495,7 @@ export function freeStep(s0: GameState, side: Side, stroke0: Stroke | null, piec
     const cur: Stroke | null = st;
     if (!cur) continue;
     if (pc.k === 'end') {
-      if (cur.len < TAP_LEN && cur.locks.length === 0) { events.push({ t: 'freeEnd', side, why: 'tap', locks: [], severed: null, blocked: null, end: cur.start, dir: [0, 0], len: cur.len }); st = null; continue; }   // 點擊：不進冷卻（ended 不設）
+      if (cur.len < TAP_LEN && cur.locks.length === 0 && !cur.cuts?.length) { events.push({ t: 'freeEnd', side, why: 'tap', locks: [], severed: null, blocked: null, end: cur.start, dir: [0, 0], len: cur.len }); st = null; continue; }   // 點擊：不進冷卻（ended 不設）
       finish(cur, pc.why, cur.start, [0, 0]); continue;
     }
     // 線段：先依剩餘長度截斷

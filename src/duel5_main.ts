@@ -191,6 +191,7 @@ function newRun(seed?: number, beast?: Beast): void {
 let lastBeast: Beast = 'dragon';
 try { const v = localStorage.getItem(BEAST_KEY); if (v === 'snake' || v === 'dragon') lastBeast = v; } catch { /* 無痕或封鎖儲存：照樣能玩 */ }
 function showBeastPick(seed?: number): void {
+  G.pendingBattle = 0; G.matchupUntil = 0; els.matchup.hidden = true; G.countdown = null;   // 「清空！」保留中或對照顯示中按「重新征途」：舊征途的戰鬥不能在選擇畫面背後開打（審查 C3）
   G.ui = 'beast'; G.pickSeed = seed ?? null; els.nextFoe.hidden = true;
   for (const m of [els.contrib, els.pick, els.end]) m.hidden = true;
   for (const b of ['dragon', 'snake'] as Beast[]) els[b === 'dragon' ? 'beastDragon' : 'beastSnake'].classList.toggle('sel', b === lastBeast);
@@ -298,12 +299,12 @@ function severFx(o: { id?: string; kind: Kind; side: Side; p: V }, ang: number, 
 const hurtSplits: { o: { kind: Kind; side: Side; p: V }; ang: number; t0: number }[] = [];
 function onCutEvent(e: GameEvent, s0: GameState): void {
   const now = performance.now();
-  if (e.t === 'freeStart' || e.t === 'freeReject' || e.t === 'freeLock' || e.t === 'freeEnd') { onFreeEvent(e, s0, now); return; }
+  if (e.t === 'freeStart' || e.t === 'freeReject' || e.t === 'freeLock' || e.t === 'freeEnd' || e.t === 'freeCut') { onFreeEvent(e, s0, now); return; }
   if (e.t === 'strike') {
     const r = e.r; G.slashes.push({ a: r.line.a, b: r.end, t0: now, side: r.side }); sfx('slash');
     if (r.side === 'blue') G.lastStrike = r;
-    if (r.severed !== null) {
-      const o = s0.organs[r.severed]; severFx(o, Math.atan2(r.line.b[1] - r.line.a[1], r.line.b[0] - r.line.a[0]), now, r.line.a); sfx('sever');
+    for (const i of r.pierced ?? (r.severed !== null ? [r.severed] : [])) {   // 穿刺的直線刀：連切的每一個都處理（審查 C2）
+      const o = s0.organs[i]; severFx(o, Math.atan2(r.line.b[1] - r.line.a[1], r.line.b[0] - r.line.a[0]), now, r.line.a); sfx('sever');
       pop([o.p[0], o.p[1] - 30], `切下 ${KIND_ZH[o.kind]}`, o.side === 'red' ? '#AEEAFF' : '#ff8a8a', 18);
       if (r.side === 'blue') G.cutByMe.push(o.kind); else vibrate([30, 30, 30]);   // 切割期不晃畫面；被切＝該器官位置爆紅光（不整隻閃白，三-5；iPhone 沒有震動）
     }
@@ -324,13 +325,17 @@ function onCutEvent(e: GameEvent, s0: GameState): void {
   else if (e.t === 'ko') { G.banner = { text: '清空！', sub: e.winner === 'blue' ? '對手器官全滅' : e.winner === 'red' ? '你的器官全滅' : '同時清空', t0: now, life: 1200 }; }
   if (e.t === 'strike' || e.t === 'spawn' || e.t === 'push') G.reach = null;
 }
-function onFreeEvent(e: Extract<GameEvent, { t: 'freeStart' | 'freeReject' | 'freeLock' | 'freeEnd' }>, s0: GameState, now: number): void {
+function onFreeEvent(e: Extract<GameEvent, { t: 'freeStart' | 'freeReject' | 'freeLock' | 'freeEnd' | 'freeCut' }>, s0: GameState, now: number): void {
   if (e.t === 'freeStart' && e.side === 'blue') G.fpStart = [e.p[0], e.p[1]];
   if (e.t === 'freeLock' || e.t === 'freeEnd') G.reach = null;
-  G.freeLog.push(`${s0.step}:${e.t}${e.t === 'freeEnd' ? `:${e.why}:${e.severed}:${e.blocked}` : e.t === 'freeLock' ? `:${e.i}` : e.t === 'freeReject' ? `:${e.reason}` : ''}`);
+  G.freeLog.push(`${s0.step}:${e.t}${e.t === 'freeEnd' ? `:${e.why}:${e.severed}:${e.blocked}` : e.t === 'freeLock' || e.t === 'freeCut' ? `:${e.i}` : e.t === 'freeReject' ? `:${e.reason}` : ''}`);
   tutOnFree(e);
   if (e.side !== 'blue') return;
   if (e.t === 'freeReject') { setInfo(`<span class="warnc">${e.reason === 'start' ? '起刀要從你的獸身開始' : e.reason === 'cooldown' ? '冷卻中，等藍條滿' : '不能出刀'}</span>`); if (e.reason === 'start') onceTip('freeStart', '起刀要從你的（藍色）獸身開始劃', 1800); return; }
+  if (e.t === 'freeCut') {   // 穿刺連切：每切一個就當步演出、記入切下清單（縫合選項與再生倒數圈都靠它；審查 C2）
+    const o = s0.organs[e.i], a = G.fpStart ?? undefined; severFx(o, a ? Math.atan2(o.p[1] - a[1], o.p[0] - a[0]) : -Math.PI / 2, now, a); sfx('sever'); sfx('slash');
+    pop([o.p[0], o.p[1] - 30], `切下 ${KIND_ZH[o.kind]}`, '#AEEAFF', 18); G.cutByMe.push(o.kind); return;
+  }
   if (e.t === 'freeLock') { const o = s0.organs[e.i]; glow(o.id); pop([o.p[0], o.p[1] - 30], '鎖住', '#cfe8ff', 15); sfx('shield'); return; }
   if (e.t !== 'freeEnd') return;
   G.lastFree = e;
@@ -930,7 +935,7 @@ function draw(now: number): void {
     const ms = Math.max(0, now - G.countdown.t0), n = 3 - Math.floor(ms / (COUNTDOWN_MS / 3)), k = (ms % (COUNTDOWN_MS / 3)) / (COUNTDOWN_MS / 3);
     if (n >= 1) { ctx.save(); ctx.translate(350, 500); ctx.scale(1.6 - 0.6 * Math.min(1, k * 3), 1.6 - 0.6 * Math.min(1, k * 3)); ctx.textAlign = 'center'; ctx.globalAlpha = 1 - Math.max(0, k - 0.75) * 4;
       ctx.font = 'italic 700 120px Georgia, serif'; ctx.lineWidth = 8; ctx.strokeStyle = '#070D19'; ctx.strokeText(String(n), 0, 40); ctx.fillStyle = '#F0F7FF'; ctx.shadowColor = '#7FC8FF'; ctx.shadowBlur = 20; ctx.fillText(String(n), 0, 40);
-      ctx.shadowBlur = 0; ctx.font = '600 22px system-ui'; ctx.lineWidth = 4; ctx.strokeText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`, 0, 96); ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CB.CUT_SECONDS} 秒`, 0, 96); ctx.restore(); }
+      ctx.shadowBlur = 0; ctx.font = '600 22px system-ui'; ctx.lineWidth = 4; ctx.strokeText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CUT_S} 秒`, 0, 96); ctx.fillStyle = '#AEEAFF'; ctx.fillText(`對手 ${G.camp.stage + 1}／${CB.STAGES}　切割 ${CUT_S} 秒`, 0, 96); ctx.restore(); }
   }
   // 結果字：同一時間可見的數量（畫布橫幅中的勝負字＋DOM 結算標題＋結束標題；FV-06）
   sampleResults(now);

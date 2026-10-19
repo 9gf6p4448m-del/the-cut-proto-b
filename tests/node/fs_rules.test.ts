@@ -1,7 +1,7 @@
 // duel v0.5 千節蛇（the-cut docs/fusion/DUEL_V05_SNAKE.md＋補述 1，DL-089／DL-091）FS-01～04 與 ?cut= 的 Node 部分。作者測試。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LOCK_STEPS, PIERCE_STEPS, SPROUT_STEPS, countSide, isReady, newGame, step } from '../../src/rtcut/rules.ts';
+import { LOCK_STEPS, PIERCE_STEPS, REGEN_STEPS, SPROUT_STEPS, candidates, countSide, isReady, newGame, rand, step } from '../../src/rtcut/rules.ts';
 import type { GameEvent, GameState, Line, Mode, OrganDef, Side, V } from '../../src/rtcut/rules.ts';
 import { toPieces } from '../../src/rtcut/freehand.ts';
 import type { PtrEv } from '../../src/rtcut/freehand.ts';
@@ -95,6 +95,33 @@ test('FS-01 直線預覽的刀也套用穿刺：一刀連切 3 個、push +3', (
   assert.deepEqual((s.pierced ?? []).map((i) => g.organs[i].id), ['R1', 'R2', 'R3']); assert.equal(r.s.push, 3);
 });
 
+test('FS-01 穿刺切中後馬上放開（路徑 <10）不是點擊：進冷卻、穿刺用掉，下一刀被冷卻擋下（審查 C1）', () => {
+  const g = game([B1, ...reds], mode('snake'));
+  const flick = (y: number, t0: number): PtrEv[] => { const a: V = [350, y + 34 + 5], b: V = [350, y + 34 - 4]; return [{ t: t0, k: 'down', p: a }, { t: t0 + 6, k: 'move', p: b }, { t: t0 + 6, k: 'up', p: b }]; };
+  const r = run(g, [...flick(470, 20 * MS + 1), ...flick(390, 40 * MS + 1)], 60, { skill: { 2: { blue: true } } });
+  assert.deepEqual(ofType(r, 'freeCut').map((x) => g.organs[x.e.i].id), ['R1']);
+  assert.notEqual(ofType(r, 'freeEnd')[0].e.why, 'tap', '切下了東西就不是點擊');
+  assert.equal(ofType(r, 'pierceEnd')[0]?.e.why, 'used'); assert.equal(r.s.pierce?.blue, undefined);
+  assert.deepEqual(ofType(r, 'freeReject').map((x) => x.e.reason), ['cooldown'], '第二刀在冷卻中');
+  assert.equal(r.s.alive[2], true); assert.equal(r.s.push, 1);
+});
+test('FS-01 直線刀出手就用掉穿刺：同一個 5 秒內的第二刀直線只切一個（審查 H3）', () => {
+  const col2 = [470, 390, 310].map((y, i) => org(`S${i + 1}`, 'red', [550, y]));
+  const g = game([B1, ...reds.slice(0, 3), ...col2, org('X', 'red', [100, 100])], mode('snake'));
+  const r = run(g, [], 120, { skill: { 2: { blue: true } }, blueLine: { 5: { a: [350, 700], b: [350, 280] }, 100: { a: [550, 700], b: [550, 280] } } });
+  const st = ofType(r, 'strike').map((x) => x.e.r);
+  assert.equal(st.length, 2); assert.equal(st[0].pierced?.length, 3);
+  assert.equal(st[1].pierced, undefined, '第二刀沒有穿刺'); assert.equal(g.organs[st[1].severed!].id, 'S1');
+  assert.equal(r.s.push, 4);
+});
+test('FS-01 穿刺有效期內按下的刀，有效期過了還在劃也照樣連切（不因到期中斷）', () => {
+  const g = game([B1, ...reds], mode('snake'));
+  const k0 = 2 + PIERCE_STEPS - 2;   // 有效期最後幾步內按下，碰到器官時已過期
+  const r = run(g, swipe([350, 700], [350, 150], k0 * MS + 1, 150), k0 + 40, { skill: { 2: { blue: true } } });
+  const cuts = ofType(r, 'freeCut');
+  assert.ok(cuts.length >= 2 && cuts[0].k > 2 + PIERCE_STEPS, `過期後仍連切：${cuts.map((x) => x.k)}`);
+  assert.equal(ofType(r, 'pierceEnd')[0].e.why, 'used');
+});
 // ---------------------------------------------------------------- FS-02 蛻生
 test('FS-02 蛻生：按下立刻長回 FIFO 隊首（萌芽 0.5 秒）；沒有可長回的器官時不能按也不算用掉；每場一次', () => {
   const B2 = org('B2', 'blue', [500, 700], 'heart'), B3 = org('B3', 'blue', [350, 800], 'poison');
@@ -187,6 +214,38 @@ test('FS-04 蛇的再生長回原位：200 次再生全部和鄰居間距在 74�
   }
   console.log(`[FS-04] 蛇再生 ${ok}/${total} 次和鄰居間距在 74～88、長回原位；紅方生成失敗 ${genFail}/600`);
   assert.equal(ok, 200); assert.equal(genFail, 0);
+});
+test('FS-04 真實對局（AI 開著）：蛇的原位不會被紅方再生的器官佔住，FIFO 隊首每個再生節拍都長得回來；長回時不和任何存活器官重疊（審查 H1）', () => {
+  let games = 0, stall = 0, overlap = 0, regrown = 0;
+  for (let seed = 1; seed <= 40; seed++) for (let stage = 0; stage < 2; stage++) {
+    const c = { ...newCampaign(seed, BODY2, R3, FRONT, { beast: 'snake', cutSeconds: 60 }), stage };
+    let s = matchFor(c), r = (seed * 2654435761 + stage) >>> 0, u: number, wait = 0;
+    games++;
+    while (s.phase === 'cut') {
+      let blue: Line | null = null;
+      if (s.cdUntil.blue <= s.step) { if (wait <= 0) { [u, r] = rand(r); wait = Math.floor(u * 40); } else if (--wait === 0) { const cs = candidates(s, 'blue'); [u, r] = rand(r); blue = cs[Math.floor(u * cs.length)] ?? null; } }
+      const k = s.step, out = step(s, { blue }), ns = out.state;
+      for (const e of out.events) if (e.t === 'spawn') {
+        const o = ns.organs[e.i]; if (o.side === 'blue') regrown++;
+        if (ns.organs.some((q, i) => i !== e.i && ns.alive[i] && Math.hypot(q.p[0] - o.p[0], q.p[1] - o.p[1]) < 2 * R3)) overlap++;
+      }
+      if (ns.phase === 'cut' && k > 0 && k % REGEN_STEPS === 0 && s.severedQ.blue.length && countSide(s, 'blue') < (s.mode.maxPerSide?.blue ?? 8)
+        && !out.events.some((e) => e.t === 'spawn' && ns.organs[e.i].side === 'blue')) stall++;
+      s = ns;
+    }
+  }
+  console.log(`[FS-04] 真實對局 ${games} 場：蛇長回 ${regrown} 次、該長卻沒長 ${stall} 次、長回時重疊 ${overlap} 次`);
+  assert.ok(regrown > 0); assert.equal(stall, 0); assert.equal(overlap, 0);
+});
+test('FS-04 原位被存活器官佔住時不長回去（不重疊）', () => {
+  const c = newCampaign(1, BODY2, R3, FRONT, { beast: 'snake' });
+  let g: GameState = { ...matchFor(c), aiNextFire: 10 ** 9 };
+  const bi = g.organs.findIndex((o) => o.id === '藍心1'), slot = g.organs[bi].p;
+  g = { ...g, alive: [...g.alive], lockUntil: [...g.lockUntil, 0], readyAt: [...g.readyAt, 0], organs: [...g.organs, org('紅爪X', 'red', [slot[0], slot[1] - 40])], severedQ: { blue: ['heart'], red: [] }, severedP: { blue: [slot], red: [] } };
+  g.alive[bi] = false; g.alive.push(true);
+  while (g.step <= 2 * REGEN_STEPS + 1) g = step(g, {}).state;
+  const n = g.organs.length;
+  assert.ok(!g.organs.slice(n - 3).some((o, j) => o.side === 'blue' && o.kind === 'heart' && g.alive[n - 3 + j] && Math.hypot(o.p[0] - slot[0], o.p[1] - slot[1] + 40) < 2 * R3), '沒有長在被佔的位置上');
 });
 test('FS-04 蛇的縫合槽位：每個種子 ≥1 個、都在中線上、通過 placeCheck、和最近己方器官間距 74～88；連縫兩次都有槽位', () => {
   for (let seed = 1; seed <= 100; seed++) {
