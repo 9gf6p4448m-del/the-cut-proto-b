@@ -99,14 +99,17 @@ export async function playFree(page, { skillFirst = false } = {}) {
   return fed;
 }
 /** 重放排程（Node 預先算好的整數螢幕座標刀線）：推進到該步 → 真實拖曳 → 推進 1 步。 */
-export function schedulePlayer(sched) {
+export function schedulePlayer(sched, aff0 = null) {
   return async (page, info) => {
     if (!sched || info.stage !== 0 || info.replay !== 0) return playPassive(page);
     for (const e of sched) {
       const st = await page.evaluate(() => ({ ui: window.__cb.ui, step: window.__cb.game.step }));
       if (st.ui !== 'cut') return;
       if (e.step > st.step) await advT(page, e.step - st.step);
-      await dragScreen(page, e.sa, e.sb); await advT(page, 1);
+      // 版面位移補償：aff0 是 Node 預測時用的螢幕座標系（頁面開頭量到的）。畫布會因提示／資訊列換行而整數像素位移（實測 y 差 4px），
+      // 位移後同一組整數螢幕座標對應的世界座標就不同、起點被判「起點要在你的獸身上」。拖曳前重量原點，整數位移原樣補回，世界座標與預測逐位元相同。
+      const o = aff0 ? await scr(page, [0, 0]) : null, dx = o ? Math.round(o.x - aff0.ax) : 0, dy = o ? Math.round(o.y - aff0.ay) : 0;
+      await dragScreen(page, [e.sa[0] + dx, e.sa[1] + dy], [e.sb[0] + dx, e.sb[1] + dy]); await advT(page, 1);
     }
     return playPassive(page);
   };

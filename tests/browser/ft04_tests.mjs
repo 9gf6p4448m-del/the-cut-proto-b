@@ -172,8 +172,8 @@ export async function runFt04({ browser, bname, devices, url, check, sub }) {
       return r;
     };
     const rep = ties.replay, lo = lossLike;
-    const r2 = await nextRun(rep ? rep.seed : 2, 'dragon', rep ? schedulePlayer(rep.sched) : PLAYER_PASSIVE, 'tie-replay');
-    const r3 = await nextRun(lo ? lo.seed : 2, 'dragon', lo ? schedulePlayer(lo.sched) : PLAYER_PASSIVE, 'tie-loss');
+    const r2 = await nextRun(rep ? rep.seed : 2, 'dragon', rep ? schedulePlayer(rep.sched, aff) : PLAYER_PASSIVE, 'tie-replay');
+    const r3 = await nextRun(lo ? lo.seed : 2, 'dragon', lo ? schedulePlayer(lo.sched, aff) : PLAYER_PASSIVE, 'tie-loss');
     // 重放一致性（前置條件：瀏覽器內的第一場必須和 Node 預測相同，否則「一次平手」的真值不成立）
     const same = (r, pred) => !!pred && !!r.snaps[0] && r.snaps[0].sevBlue === pred.sevBlue && r.snaps[0].sevRed === pred.sevRed && r.snaps[0].battle.winner === pred.winner && r.snaps[0].battle.how === pred.how;
     check(`${tag} FT-04 前置：平手局在瀏覽器重放＝Node 預測（切除數、勝負、how 逐值相同；重打型 seed ${tieInfo.replay}、判敗型 seed ${tieInfo.loss}，掃了 ${ties.tried} 個種子）`, same(r2, rep) && same(r3, lo), JSON.stringify({ r2: r2.snaps[0] && [r2.snaps[0].sevBlue, r2.snaps[0].sevRed, r2.snaps[0].battle], pred2: rep && [rep.sevBlue, rep.sevRed, rep.winner, rep.how], r3: r3.snaps[0] && [r3.snaps[0].sevBlue, r3.snaps[0].sevRed, r3.snaps[0].battle], pred3: lo && [lo.sevBlue, lo.sevRed, lo.winner, lo.how] }));
